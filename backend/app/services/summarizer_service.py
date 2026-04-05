@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+import json
+import re
+from typing import Any
+
+import httpx
+
+from app.config import get_settings
+
+
+def _extract_json_block(text: str) -> dict[str, Any]:
+    text = text.strip()
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+    raw = (m.group(1) if m else text).strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return json.loads(raw[start : end + 1])
+        raise
+
+
+def build_prompt(items: list[dict[str, Any]]) -> str:
+    lines = []
+    for i, it in enumerate(items[:60], 1):
+        lines.append(
+            f"{i}. [{it.get('source','')}] {it.get('title','')}\n"
+            f"   摘要: {it.get('summary','')[:500]}\n"
+            f"   链接: {it.get('link','')}\n"
+            f"   热度分: {it.get('heat_score',0)}"
+        )
+    corpus = "\n".join(lines)
+    return f"""你是面向非技术职场人的中文科技编辑。根据下列本周资讯（已按热度大致排序），输出**严格 JSON**（不要 Markdown 外壳以外的文字）。
+
+要求：
+1. simple：≤300 字等价的短讯。字段 lines 为 3-5 条字符串，每条一句话，按热度排序；footer 一句话总结「本周 AI 突破对普通人的影响」。术语不要解释，留在正文里。
+2. normal：1200-1500 字左右。字段 top3 为 3 条字符串（本周热点）；sections 为数组，每项 {{ "title": "大模型更新"|"AI工具/产品发布"|"行业重要动态", "paragraph": "该板块正文，非技术向，事件+影响，可含 markdown 链接 [标题](url)" }}。按热度组织，可引用来源链接。
+3. glossary：数组，每项 {{ "term": "术语", "explain": "≤50字通俗中文解释" }}，覆盖正文中较难术语，5-12 个。
+
+资讯列表：
+{corpus}
+
+只输出 JSON，结构如下：
+{{
+  "simple": {{ "lines": ["1. ...", "2. ..."], "footer": "..." }},
+  "normal": {{ "top3": ["...", "...", "..."], "sections": [{{"title":"...","paragraph":"..."}}] }},
+  "glossary": [{{"term":"...","explain":"..."}}]
+}}
+"""
+
+
+def summarize_items(items: list[dict[str, Any]]) -> dict[str, Any]:
+    settings = get_settings()
+    if not settings.doubao_api_key or not settings.doubao_model:
+        raise RuntimeError("Doubao / Ark not configured: set doubao_api_key and doubao_model.")
+
+    prompt = build_prompt(items)
+    url = f"{settings.doubao_api_base.rstrip('/')}/chat/completions"
+    payload = {
+        "model": settings.doubao_model,
+        "messages": [
+            {"role": "system", "content": "You output valid JSON only for Chinese newsletter generation."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.4,
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.doubao_api_key}",
+        "Content-Type": "application/json",
+    }
+    with httpx.Client(timeout=120.0) as client:
+        r = client.post(url, headers=headers, json=payload)
+        r.raise_for_status()
+        data = r.json()
+
+    content = data["choices"][0]["message"]["content"]
+    parsed = _extract_json_block(content)
+    return normalize_payload(parsed)
+
+
+def normalize_payload(parsed: dict[str, Any]) -> dict[str, Any]:
+    simple = parsed.get("simple") or {}
+    normal = parsed.get("normal") or {}
+    glossary = parsed.get("glossary") or []
+
+    lines = simple.get("lines") if isinstance(simple.get("lines"), list) else []
+    footer = str(simple.get("footer") or "")
+    top3 = normal.get("top3") if isinstance(normal.get("top3"), list) else []
+    sections = normal.get("sections") if isinstance(normal.get("sections"), list) else []
+
+    clean_glossary: list[dict[str, str]] = []
+    for g in glossary:
+        if isinstance(g, dict) and g.get("term"):
+            clean_glossary.append(
+                {"term": str(g.get("term", ""))[:64], "explain": str(g.get("explain", ""))[:120]}
+            )
+
+    return {
+        "simple": {"lines": [str(x) for x in lines][:10], "footer": footer},
+        "normal": {
+            "top3": [str(x) for x in top3][:5],
+            "sections": [
+                {"title": str(s.get("title", "")), "paragraph": str(s.get("paragraph", ""))}
+                for s in sections
+                if isinstance(s, dict)
+            ],
+        },
+        "glossary": clean_glossary,
+    }
+
+
+def payload_to_texts(payload: dict[str, Any]) -> tuple[str, str, str]:
+    s = payload["simple"]
+    n = payload["normal"]
+    g = payload["glossary"]
+
+    simple_text = "\n".join(s.get("lines", []))
+    if s.get("footer"):
+        simple_text += "\n\n" + str(s["footer"])
+
+    normal_parts: list[str] = []
+    if n.get("top3"):
+        normal_parts.append("## 本周 AI 热点排行（Top3）\n" + "\n".join(f"- {t}" for t in n["top3"]))
+    for sec in n.get("sections", []):
+        normal_parts.append(f"## {sec.get('title','')}\n\n{sec.get('paragraph','')}")
+    normal_text = "\n\n".join(normal_parts)
+
+    glossary_json = json.dumps(g, ensure_ascii=False)
+    return simple_text, normal_text, glossary_json

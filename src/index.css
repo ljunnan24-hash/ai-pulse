@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Work+Sans:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-headline: "Manrope", sans-serif;
+  
+  --color-surface: #f9f9f9;
+  --color-surface-container-low: #f2f4f4;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-surface: #2d3435;
+  --color-on-surface-variant: #5a6061;
+  --color-primary: #005bc1;
+  --color-primary-dim: #004faa;
+  --color-primary-container: #d8e2ff;
+  --color-on-primary-container: #004ea8;
+  --color-outline-variant: #adb3b4;
+  --color-surface-tint: #005bc1;
+
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+  }
+}
+
+.pulse-dot {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.9); }
+}

@@ -1,0 +1,11 @@
+# AI Pulse — example crontab (Asia/Shanghai).
+# Ensure the server timezone is `timedatectl set-timezone Asia/Shanghai`, or prefix jobs with TZ.
+#
+# Monday 00:30 — crawl + summarize + mark issue ready
+30 0 * * 1 cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.generate_weekly >> /var/log/aipulse-generate.log 2>&1
+#
+# Monday 09:00 — send weekly emails (no LLM)
+0 9 * * 1 cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.send_weekly >> /var/log/aipulse-send.log 2>&1
+#
+# API (FastAPI) should run under systemd or supervisor, e.g.:
+#   uvicorn app.main:app --host 0.0.0.0 --port 8000

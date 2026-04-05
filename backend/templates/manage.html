@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Pulse — Manage subscription</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    label { display: block; margin-top: 1rem; font-weight: 600; }
+    input, select { width: 100%; padding: 0.6rem; margin-top: 0.25rem; box-sizing: border-box; }
+    button { margin-top: 1.5rem; padding: 0.75rem 1.25rem; background: #3b82f6; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    .hint { font-size: 0.875rem; color: #666; margin-top: 0.25rem; }
+    a { color: #3b82f6; }
+  </style>
+</head>
+<body>
+  <h1>Manage subscription</h1>
+  <p>Update your delivery mode and keywords (Chinese reports by email).</p>
+  <form method="post" action="/manage/{{ token }}">
+    <label for="mode">Mode</label>
+    <select id="mode" name="mode">
+      <option value="simple" {% if mode == 'simple' %}selected{% endif %}>Simple</option>
+      <option value="normal" {% if mode == 'normal' %}selected{% endif %}>Normal</option>
+    </select>
+    <label for="keywords">Keywords (comma-separated, max 3)</label>
+    <input id="keywords" name="keywords" type="text" value="{{ keywords_csv }}" placeholder="e.g. GPT, ByteDance" />
+    <p class="hint">Weekly email content is in Chinese. Keywords match headlines and summaries.</p>
+    <button type="submit">Save</button>
+  </form>
+  <p style="margin-top:2rem"><a href="/api/unsubscribe?token={{ unsub_token }}">Unsubscribe</a></p>
+</body>
+</html>
