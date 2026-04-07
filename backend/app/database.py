@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from app.config import get_settings
+from pymysql.constants import CLIENT
 
 
 class Base(DeclarativeBase):
@@ -14,6 +15,7 @@ def _engine():
         settings.database_url,
         pool_pre_ping=True,
         pool_recycle=3600,
+        connect_args={"client_flag": CLIENT.FOUND_ROWS},
     )
 
 

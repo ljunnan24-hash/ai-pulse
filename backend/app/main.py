@@ -37,3 +37,9 @@ app.include_router(manage_page.router)
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+# Convenience alias when proxying under /api on same host.
+@app.get("/api/health")
+def api_health():
+    return {"ok": True}
