@@ -17,7 +17,12 @@ _templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.paren
 
 @router.get("/manage/{token}", response_class=HTMLResponse)
 def manage_form(request: Request, token: str, db: Session = Depends(get_db)):
-    sub = db.execute(select(Subscriber).where(Subscriber.manage_token == token)).scalar_one_or_none()
+    subs = (
+        db.execute(select(Subscriber).where(Subscriber.manage_token == token).order_by(Subscriber.id.desc()))
+        .scalars()
+        .all()
+    )
+    sub = subs[0] if subs else None
     if not sub or sub.status != SubscriberStatus.active.value:
         raise HTTPException(status_code=404, detail="Invalid link")
     kws = json.loads(sub.keywords_json or "[]")
@@ -41,7 +46,12 @@ def manage_save(
     keywords: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    sub = db.execute(select(Subscriber).where(Subscriber.manage_token == token)).scalar_one_or_none()
+    subs = (
+        db.execute(select(Subscriber).where(Subscriber.manage_token == token).order_by(Subscriber.id.desc()))
+        .scalars()
+        .all()
+    )
+    sub = subs[0] if subs else None
     if not sub or sub.status != SubscriberStatus.active.value:
         raise HTTPException(status_code=404, detail="Invalid link")
     if mode not in ("simple", "normal"):

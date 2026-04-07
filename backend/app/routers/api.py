@@ -213,8 +213,22 @@ def confirm(token: str, db: Session = Depends(get_db)):
 @router.get("/unsubscribe")
 def unsubscribe(token: str, db: Session = Depends(get_db)):
     settings = get_settings()
-    sub = db.execute(select(Subscriber).where(Subscriber.unsubscribe_token == token)).scalar_one_or_none()
-    if sub:
+    subs = (
+        db.execute(select(Subscriber).where(Subscriber.unsubscribe_token == token).order_by(Subscriber.id.desc()))
+        .scalars()
+        .all()
+    )
+    if subs:
+        sub = subs[0]
+        # Defensive: if duplicated tokens exist (bad data), rotate tokens for the rest.
+        if len(subs) > 1:
+            for dup in subs[1:]:
+                new_confirm, new_unsub, new_manage = _tokens()
+                db.execute(
+                    update(Subscriber)
+                    .where(Subscriber.id == dup.id)
+                    .values(confirm_token=new_confirm, unsubscribe_token=new_unsub, manage_token=new_manage)
+                )
         db.execute(
             update(Subscriber)
             .where(Subscriber.id == sub.id)
