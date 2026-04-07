@@ -126,35 +126,42 @@ def confirm(token: str, db: Session = Depends(get_db)):
     )
     db.commit()
 
-    latest = (
-        db.execute(select(WeeklyIssue).where(WeeklyIssue.status == IssueStatus.ready.value).order_by(WeeklyIssue.ready_at.desc()))
-        .scalars()
-        .first()
-    )
-
-    kws: list[str] = json.loads(sub.keywords_json or "[]")
-    if latest:
-        payload = parse_payload_json(latest.payload_json)
-        filtered, matched = filter_payload_for_keywords(payload, kws)
-        banner = None
-        if kws and not matched:
-            banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
-        html_body, text_body = render_issue_email(filtered, sub.mode, keyword_banner=banner)
-        html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
-        text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
-        send_email(sub.email, "AI Pulse · 最新一期", html_body, text_body)
-        db.execute(
-            insert(SendLog).values(subscriber_id=subscriber_id, issue_id=latest.id, kind="confirm_digest")
+    # Best-effort: confirmation should succeed even if email sending fails.
+    try:
+        latest = (
+            db.execute(
+                select(WeeklyIssue)
+                .where(WeeklyIssue.status == IssueStatus.ready.value)
+                .order_by(WeeklyIssue.ready_at.desc())
+            )
+            .scalars()
+            .first()
         )
-        db.commit()
-    else:
-        welcome_html = """<html><body style="font-family:system-ui,sans-serif">
+
+        kws: list[str] = json.loads(sub.keywords_json or "[]")
+        if latest:
+            payload = parse_payload_json(latest.payload_json)
+            filtered, matched = filter_payload_for_keywords(payload, kws)
+            banner = None
+            if kws and not matched:
+                banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
+            html_body, text_body = render_issue_email(filtered, sub.mode, keyword_banner=banner)
+            html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
+            text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
+            send_email(sub.email, "AI Pulse · 最新一期", html_body, text_body)
+            db.execute(insert(SendLog).values(subscriber_id=subscriber_id, issue_id=latest.id, kind="confirm_digest"))
+            db.commit()
+        else:
+            welcome_html = """<html><body style="font-family:system-ui,sans-serif">
 <p>欢迎订阅 <b>AI Pulse</b>。</p>
 <p>当前暂无已定稿周刊。我们会在每周一 9:00（北京时间）将本周精选 AI 动态发送至你的邮箱。</p>
 </body></html>"""
-        send_email(sub.email, "欢迎订阅 AI Pulse", welcome_html, "欢迎订阅 AI Pulse。首封完整周刊将在每周一 9:00（北京时间）送达。")
-        db.execute(insert(SendLog).values(subscriber_id=subscriber_id, issue_id=None, kind="welcome"))
-        db.commit()
+            send_email(sub.email, "欢迎订阅 AI Pulse", welcome_html, "欢迎订阅 AI Pulse。首封完整周刊将在每周一 9:00（北京时间）送达。")
+            db.execute(insert(SendLog).values(subscriber_id=subscriber_id, issue_id=None, kind="welcome"))
+            db.commit()
+    except Exception:
+        # Confirmation already committed; ignore email/sendlog failures to avoid a bad UX.
+        pass
 
     return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?confirmed=1", status_code=302)
 
