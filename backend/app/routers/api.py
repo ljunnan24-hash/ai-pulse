@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -85,8 +85,13 @@ def confirm(token: str, db: Session = Depends(get_db)):
     if sub.status != SubscriberStatus.pending.value:
         return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?already_confirmed=1", status_code=302)
 
-    sub.status = SubscriberStatus.active.value
-    sub.confirmed_at = datetime.now(timezone.utc)
+    # Avoid ORM rowcount checks (can trigger StaleDataError on some MySQL variants).
+    now = datetime.now(timezone.utc)
+    db.execute(
+        update(Subscriber)
+        .where(Subscriber.id == sub.id)
+        .values(status=SubscriberStatus.active.value, confirmed_at=now)
+    )
     db.commit()
 
     latest = (
@@ -125,6 +130,10 @@ def unsubscribe(token: str, db: Session = Depends(get_db)):
     settings = get_settings()
     sub = db.execute(select(Subscriber).where(Subscriber.unsubscribe_token == token)).scalar_one_or_none()
     if sub:
-        sub.status = SubscriberStatus.unsubscribed.value
+        db.execute(
+            update(Subscriber)
+            .where(Subscriber.id == sub.id)
+            .values(status=SubscriberStatus.unsubscribed.value)
+        )
         db.commit()
     return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?unsubscribed=1", status_code=302)

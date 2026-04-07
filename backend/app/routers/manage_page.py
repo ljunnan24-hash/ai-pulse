@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -47,8 +47,11 @@ def manage_save(
     if mode not in ("simple", "normal"):
         raise HTTPException(status_code=400, detail="Invalid mode")
     parts = [p.strip() for p in keywords.replace("，", ",").split(",") if p.strip()][:3]
-    sub.mode = mode
-    sub.keywords_json = json.dumps(parts, ensure_ascii=False)
+    db.execute(
+        update(Subscriber)
+        .where(Subscriber.id == sub.id)
+        .values(mode=mode, keywords_json=json.dumps(parts, ensure_ascii=False))
+    )
     db.commit()
     from app.config import get_settings
 
