@@ -23,11 +23,17 @@ mysql -h HOST -u USER -p < sql/schema.sql
 
 ### 2) Backend
 
+**Requires Python 3.10+** (FastAPI 0.115.x). Some ECS images default to `python3` 3.6 — use `python3.11 -m venv .venv` (or install `python3.11` / `python3.9` from your OS packages) before `pip install`.
+
 ```bash
 cd backend
 cp .env.example .env
 # Edit .env: DATABASE_URL, PUBLIC_APP_URL, FRONTEND_URL, DOUBAO_*, SMTP_*, MAIL_FROM
 
+python3 -m venv .venv
+# Windows: .venv\Scripts\activate
+source .venv/bin/activate
+pip install -U pip setuptools wheel
 pip install -r requirements.txt
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```

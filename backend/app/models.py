@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import date, datetime
+from typing import Optional
 
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -66,7 +67,7 @@ class RawItem(Base):
     heat_score: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    issue: Mapped["WeeklyIssue" | None] = relationship(back_populates="raw_items")
+    issue: Mapped[Optional["WeeklyIssue"]] = relationship(back_populates="raw_items")
 
 
 class SendLog(Base):
