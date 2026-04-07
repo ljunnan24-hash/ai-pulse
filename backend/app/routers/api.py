@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
-from sqlalchemy import insert, select, update
+from sqlalchemy import insert, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -27,6 +27,26 @@ router = APIRouter(prefix="/api", tags=["api"])
 def _tokens() -> tuple[str, str, str]:
     return secrets.token_urlsafe(32), secrets.token_urlsafe(32), secrets.token_urlsafe(32)
 
+def _fresh_tokens(db: Session, *, max_tries: int = 20) -> tuple[str, str, str]:
+    """
+    DuckDB-backed variants may not enforce UNIQUE constraints reliably.
+    We proactively avoid token collisions by checking existing rows.
+    """
+    for _ in range(max_tries):
+        confirm_t, unsub_t, manage_t = _tokens()
+        hit = db.execute(
+            select(Subscriber.id).where(
+                or_(
+                    Subscriber.confirm_token == confirm_t,
+                    Subscriber.unsubscribe_token == unsub_t,
+                    Subscriber.manage_token == manage_t,
+                )
+            )
+        ).first()
+        if hit is None:
+            return confirm_t, unsub_t, manage_t
+    raise HTTPException(status_code=503, detail="Token generation failed. Please retry.")
+
 
 @router.post("/subscribe", response_model=SubscribeOut)
 def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
@@ -40,7 +60,7 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
             raise HTTPException(status_code=400, detail="This email is already subscribed.")
         if existing.status == SubscriberStatus.pending.value:
             # Pending but user may not receive the email; allow re-send with a fresh token.
-            confirm_t, unsub_t, manage_t = _tokens()
+            confirm_t, unsub_t, manage_t = _fresh_tokens(db)
             db.execute(
                 update(Subscriber)
                 .where(Subscriber.id == existing.id)
@@ -70,7 +90,7 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 
             return SubscribeOut()
         # unsubscribed -> allow resubscribe (update in place to avoid FK/history issues)
-        confirm_t, unsub_t, manage_t = _tokens()
+        confirm_t, unsub_t, manage_t = _fresh_tokens(db)
         db.execute(
             update(Subscriber)
             .where(Subscriber.id == existing.id)
@@ -102,7 +122,7 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 
         return SubscribeOut()
 
-    confirm_t, unsub_t, manage_t = _tokens()
+    confirm_t, unsub_t, manage_t = _fresh_tokens(db)
     sub = Subscriber(
         email=str(body.email),
         mode=body.mode,
