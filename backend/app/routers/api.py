@@ -40,9 +40,38 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
             raise HTTPException(status_code=400, detail="This email is already subscribed.")
         if existing.status == SubscriberStatus.pending.value:
             raise HTTPException(status_code=400, detail="Please check your inbox for the confirmation link.")
-        # unsubscribed -> allow resubscribe
-        db.delete(existing)
+        # unsubscribed -> allow resubscribe (update in place to avoid FK/history issues)
+        confirm_t, unsub_t, manage_t = _tokens()
+        db.execute(
+            update(Subscriber)
+            .where(Subscriber.id == existing.id)
+            .values(
+                mode=body.mode,
+                keywords_json=keywords_json,
+                status=SubscriberStatus.pending.value,
+                confirm_token=confirm_t,
+                unsubscribe_token=unsub_t,
+                manage_token=manage_t,
+                confirmed_at=None,
+            )
+        )
         db.commit()
+
+        confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}"
+        subject = "请确认订阅 AI Pulse"
+        html = f"""<html><body style="font-family:system-ui,sans-serif">
+<p>你好，</p>
+<p>请点击下方链接确认订阅 <b>AI Pulse</b>（无需注册）。</p>
+<p><a href="{confirm_link}">确认订阅</a></p>
+<p>若按钮无效，请复制链接到浏览器打开：<br/>{confirm_link}</p>
+</body></html>"""
+        text = f"请打开链接确认订阅：{confirm_link}"
+        try:
+            send_email(str(body.email), subject, html, text)
+        except Exception:
+            raise HTTPException(status_code=503, detail="Mail service unavailable. Check SMTP configuration.")
+
+        return SubscribeOut()
 
     confirm_t, unsub_t, manage_t = _tokens()
     sub = Subscriber(
