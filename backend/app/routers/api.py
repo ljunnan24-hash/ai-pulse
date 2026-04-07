@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select, update
+from sqlalchemy import insert, select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -87,9 +87,12 @@ def confirm(token: str, db: Session = Depends(get_db)):
 
     # Avoid ORM rowcount checks (can trigger StaleDataError on some MySQL variants).
     now = datetime.now(timezone.utc)
+    subscriber_id = sub.id
+    if subscriber_id is None:
+        raise HTTPException(status_code=500, detail="Subscriber id is missing.")
     db.execute(
         update(Subscriber)
-        .where(Subscriber.id == sub.id)
+        .where(Subscriber.id == subscriber_id)
         .values(status=SubscriberStatus.active.value, confirmed_at=now)
     )
     db.commit()
@@ -111,7 +114,9 @@ def confirm(token: str, db: Session = Depends(get_db)):
         html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
         text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
         send_email(sub.email, "AI Pulse · 最新一期", html_body, text_body)
-        db.add(SendLog(subscriber_id=sub.id, issue_id=latest.id, kind="confirm_digest"))
+        db.execute(
+            insert(SendLog).values(subscriber_id=subscriber_id, issue_id=latest.id, kind="confirm_digest")
+        )
         db.commit()
     else:
         welcome_html = """<html><body style="font-family:system-ui,sans-serif">
@@ -119,7 +124,7 @@ def confirm(token: str, db: Session = Depends(get_db)):
 <p>当前暂无已定稿周刊。我们会在每周一 9:00（北京时间）将本周精选 AI 动态发送至你的邮箱。</p>
 </body></html>"""
         send_email(sub.email, "欢迎订阅 AI Pulse", welcome_html, "欢迎订阅 AI Pulse。首封完整周刊将在每周一 9:00（北京时间）送达。")
-        db.add(SendLog(subscriber_id=sub.id, issue_id=None, kind="welcome"))
+        db.execute(insert(SendLog).values(subscriber_id=subscriber_id, issue_id=None, kind="welcome"))
         db.commit()
 
     return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?confirmed=1", status_code=302)

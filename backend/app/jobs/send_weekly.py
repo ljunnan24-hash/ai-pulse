@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -59,7 +59,7 @@ def run(db: Session) -> None:
         text_body += f"\n\n退订: {pub}/api/unsubscribe?token={sub.unsubscribe_token}"
         subject = f"AI Pulse · 周刊 · {period.isoformat()}"
         send_email(sub.email, subject, html_body, text_body)
-        db.add(SendLog(subscriber_id=sub.id, issue_id=issue.id, kind="weekly"))
+        db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind="weekly"))
         db.commit()
         print(f"Sent weekly to {sub.email}")
 
