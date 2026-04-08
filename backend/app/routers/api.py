@@ -257,33 +257,32 @@ def confirm(
     if not issue:
         logger.warning("confirm_digest skip: no ready issue (email=%s)", sub.email)
     else:
+        # IMPORTANT: confirm only happens once per subscription cycle (pending -> active),
+        # so dedupe is unnecessary here and can mask delivery issues on DuckDB-backed variants.
         issue_key = _issue_key(issue)
         k = _kind(f"confirm_digest:{issue_key}", sub.email)
-        already = db.execute(select(SendLog).where(SendLog.kind == k)).scalar_one_or_none()
-        if already:
-            logger.warning("confirm_digest skip: deduped (email=%s issue_key=%s)", sub.email, issue_key)
-        else:
-            logger.warning("confirm_digest send: email=%s issue_key=%s", sub.email, issue_key)
+        logger.warning("confirm_digest send: email=%s issue_key=%s", sub.email, issue_key)
+        try:
+            payload = parse_payload_json(issue.payload_json)
+            kws: list[str] = json.loads(sub.keywords_json or "[]")
+            filtered, matched = filter_payload_for_keywords(payload, kws)
+            banner = None
+            if kws and not matched:
+                banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
+            html_body, text_body = render_issue_email(
+                filtered,
+                sub.mode,
+                keyword_banner=banner,
+                recipient_email=sub.email,
+            )
+            html_body = append_subscription_footer(
+                html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token
+            )
+            text_body += (
+                f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
+            )
+            send_email(sub.email, "AI Pulse · 最新一期", html_body, text_body)
             try:
-                payload = parse_payload_json(issue.payload_json)
-                kws: list[str] = json.loads(sub.keywords_json or "[]")
-                filtered, matched = filter_payload_for_keywords(payload, kws)
-                banner = None
-                if kws and not matched:
-                    banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
-                html_body, text_body = render_issue_email(
-                    filtered,
-                    sub.mode,
-                    keyword_banner=banner,
-                    recipient_email=sub.email,
-                )
-                html_body = append_subscription_footer(
-                    html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token
-                )
-                text_body += (
-                    f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
-                )
-                send_email(sub.email, "AI Pulse · 最新一期", html_body, text_body)
                 db.execute(
                     insert(SendLog).values(
                         subscriber_id=subscriber_id,
@@ -293,7 +292,11 @@ def confirm(
                 )
                 db.commit()
             except Exception:
-                logger.exception("confirm_digest failed: email=%s issue_id=%s", sub.email, getattr(issue, "id", None))
+                # Audit record failure should not block delivery.
+                db.rollback()
+                logger.exception("confirm_digest send_log failed: email=%s issue_id=%s", sub.email, getattr(issue, "id", None))
+        except Exception:
+            logger.exception("confirm_digest failed: email=%s issue_id=%s", sub.email, getattr(issue, "id", None))
 
     target = f"{settings.frontend_url.rstrip('/')}/?confirmed=1"
     html = f"""<!doctype html>
