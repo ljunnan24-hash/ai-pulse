@@ -76,6 +76,7 @@ def render_issue_email(
     mode: str,
     *,
     keyword_banner: str | None = None,
+    recipient_email: str | None = None,
 ) -> tuple[str, str]:
     """返回 (html, plain_text)"""
     s = payload.get("simple") or {}
@@ -84,6 +85,12 @@ def render_issue_email(
 
     parts_html: list[str] = []
     parts_txt: list[str] = []
+
+    if recipient_email:
+        parts_html.append(
+            f'<p style="color:#666;font-size:13px">本邮件发送至：<b>{html.escape(recipient_email)}</b></p>'
+        )
+        parts_txt.append(f"本邮件发送至：{recipient_email}")
 
     if keyword_banner:
         parts_html.append(f'<p style="color:#555;font-size:14px">{html.escape(keyword_banner)}</p>')

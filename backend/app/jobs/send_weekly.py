@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
@@ -45,6 +46,10 @@ def run(db: Session) -> None:
             Subscriber.confirmed_at.is_not(None),
         )
     ).scalars().all()
+    target_email = (os.getenv("TARGET_EMAIL") or "").strip().lower()
+    dry_run = (os.getenv("DRY_RUN") or "").strip() in ("1", "true", "True", "YES", "yes")
+    if target_email:
+        subs = [s for s in subs if (s.email or "").strip().lower() == target_email]
     payload = parse_payload_json(issue.payload_json)
     settings = get_settings()
     pub = settings.public_app_url.rstrip("/")
@@ -65,14 +70,22 @@ def run(db: Session) -> None:
         banner = None
         if kws and not matched:
             banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
-        html_body, text_body = render_issue_email(filtered, sub.mode, keyword_banner=banner)
+        html_body, text_body = render_issue_email(
+            filtered,
+            sub.mode,
+            keyword_banner=banner,
+            recipient_email=sub.email,
+        )
         html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
         text_body += f"\n\n退订: {pub}/api/unsubscribe?token={sub.unsubscribe_token}"
         subject = f"AI Pulse · 周刊 · {period.isoformat()}"
+        if dry_run:
+            print(f"[DRY_RUN] Would send weekly to {sub.email} (kind={k})")
+            continue
         send_email(sub.email, subject, html_body, text_body)
         db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
         db.commit()
-        print(f"Sent weekly to {sub.email}")
+        print(f"Sent weekly to {sub.email} (kind={k})")
 
     print("send_weekly done.")
 

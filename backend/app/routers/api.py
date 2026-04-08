@@ -220,54 +220,53 @@ def confirm(token: str, db: Session = Depends(get_db)):
     )
     db.commit()
 
-    # Best-effort: confirmation should succeed even if email sending fails.
-    try:
-        latest = (
-            db.execute(
-                select(WeeklyIssue)
-                .where(WeeklyIssue.status == IssueStatus.ready.value)
-                .order_by(WeeklyIssue.ready_at.desc())
-            )
-            .scalars()
-            .first()
+    # Send latest ready digest to THIS confirmed email only (deduped per issue+email).
+    issue = (
+        db.execute(
+            select(WeeklyIssue)
+            .where(WeeklyIssue.status == IssueStatus.ready.value)
+            .order_by(WeeklyIssue.ready_at.desc())
         )
-
-        kws: list[str] = json.loads(sub.keywords_json or "[]")
-        if latest:
-            payload = parse_payload_json(latest.payload_json)
-            filtered, matched = filter_payload_for_keywords(payload, kws)
-            banner = None
-            if kws and not matched:
-                banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
-            html_body, text_body = render_issue_email(filtered, sub.mode, keyword_banner=banner)
-            html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
-            text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
-            send_email(sub.email, "AI Pulse · 最新一期", html_body, text_body)
-            db.execute(
-                insert(SendLog).values(
-                    subscriber_id=subscriber_id,
-                    issue_id=latest.id,
-                    kind=_kind("confirm_digest", sub.email),
+        .scalars()
+        .first()
+    )
+    if issue:
+        k = _kind("confirm_digest", sub.email)
+        already = db.execute(
+            select(SendLog).where(SendLog.issue_id == issue.id, SendLog.kind == k)
+        ).scalar_one_or_none()
+        if not already:
+            try:
+                payload = parse_payload_json(issue.payload_json)
+                kws: list[str] = json.loads(sub.keywords_json or "[]")
+                filtered, matched = filter_payload_for_keywords(payload, kws)
+                banner = None
+                if kws and not matched:
+                    banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
+                html_body, text_body = render_issue_email(
+                    filtered,
+                    sub.mode,
+                    keyword_banner=banner,
+                    recipient_email=sub.email,
                 )
-            )
-            db.commit()
-        else:
-            welcome_html = """<html><body style="font-family:system-ui,sans-serif">
-<p>欢迎订阅 <b>AI Pulse</b>。</p>
-<p>当前暂无已定稿周刊。我们会在每周一 9:00（北京时间）将本周精选 AI 动态发送至你的邮箱。</p>
-</body></html>"""
-            send_email(sub.email, "欢迎订阅 AI Pulse", welcome_html, "欢迎订阅 AI Pulse。首封完整周刊将在每周一 9:00（北京时间）送达。")
-            db.execute(
-                insert(SendLog).values(
-                    subscriber_id=subscriber_id,
-                    issue_id=None,
-                    kind=_kind("welcome", sub.email),
+                html_body = append_subscription_footer(
+                    html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token
                 )
-            )
-            db.commit()
-    except Exception:
-        # Confirmation already committed; ignore email/sendlog failures to avoid a bad UX.
-        pass
+                text_body += (
+                    f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
+                )
+                send_email(sub.email, "AI Pulse · 最新一期", html_body, text_body)
+                db.execute(
+                    insert(SendLog).values(
+                        subscriber_id=subscriber_id,
+                        issue_id=issue.id,
+                        kind=k,
+                    )
+                )
+                db.commit()
+            except Exception:
+                # Confirmation already committed; ignore digest send failures.
+                pass
 
     target = f"{settings.frontend_url.rstrip('/')}/?confirmed=1"
     html = f"""<!doctype html>
@@ -286,6 +285,59 @@ def confirm(token: str, db: Session = Depends(get_db)):
   </body>
 </html>"""
     return HTMLResponse(content=html, status_code=200)
+
+
+@router.get("/resend_latest")
+def resend_latest(token: str, db: Session = Depends(get_db)):
+    """
+    Explicitly re-send the latest ready digest to the subscriber identified by manage_token.
+    This avoids "sending to the wrong person" by binding the action to a per-subscriber token.
+    """
+    settings = get_settings()
+    subs = (
+        db.execute(select(Subscriber).where(Subscriber.manage_token == token).order_by(Subscriber.created_at.desc()))
+        .scalars()
+        .all()
+    )
+    if not subs:
+        return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?error=invalid_token", status_code=302)
+    sub = subs[0]
+    if sub.status != SubscriberStatus.active.value or sub.confirmed_at is None:
+        return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?error=not_active", status_code=302)
+
+    issue = (
+        db.execute(select(WeeklyIssue).where(WeeklyIssue.status == IssueStatus.ready.value).order_by(WeeklyIssue.ready_at.desc()))
+        .scalars()
+        .first()
+    )
+    if not issue:
+        return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?error=no_issue", status_code=302)
+
+    # Dedupe: only allow one resend per issue per email.
+    k = _kind("resend_latest", sub.email)
+    already = db.execute(
+        select(SendLog).where(SendLog.issue_id == issue.id, SendLog.kind == k)
+    ).scalar_one_or_none()
+    if not already:
+        payload = parse_payload_json(issue.payload_json)
+        kws: list[str] = json.loads(sub.keywords_json or "[]")
+        filtered, matched = filter_payload_for_keywords(payload, kws)
+        banner = None
+        if kws and not matched:
+            banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
+        html_body, text_body = render_issue_email(
+            filtered,
+            sub.mode,
+            keyword_banner=banner,
+            recipient_email=sub.email,
+        )
+        html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
+        text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
+        send_email(sub.email, "AI Pulse · 最新一期（补发）", html_body, text_body)
+        db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
+        db.commit()
+
+    return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?resent=1", status_code=302)
 
 
 @router.get("/unsubscribe")
