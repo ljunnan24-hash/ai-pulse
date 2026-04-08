@@ -202,14 +202,18 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 
 
 @router.get("/confirm")
-def confirm(token: str, email: str | None = Query(default=None), db: Session = Depends(get_db)):
+def confirm(
+    token: str,
+    email: str = Query(min_length=3),
+    db: Session = Depends(get_db),
+):
     settings = get_settings()
-    logger.warning("confirm hit: token=%s", token)
+    logger.warning("confirm hit: token=%s email=%s", token, email)
     q = select(Subscriber).where(Subscriber.confirm_token == token)
-    if email:
-        q = q.where(Subscriber.email == email)
+    q = q.where(Subscriber.email == email)
     subs = db.execute(q.order_by(Subscriber.created_at.desc())).scalars().all()
     if not subs:
+        # Strong safety: do not confirm if token/email mismatches.
         return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?error=invalid_token", status_code=302)
     sub = subs[0]
     logger.warning("confirm resolved: email=%s status=%s created_at=%s", sub.email, sub.status, getattr(sub, "created_at", None))
