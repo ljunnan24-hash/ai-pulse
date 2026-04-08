@@ -27,8 +27,14 @@ def filter_payload_for_keywords(payload: dict[str, Any], keywords: list[str]) ->
     footer_ok = _matches(footer, kws)
 
     n = payload.get("normal") or {}
-    top3 = [str(x) for x in (n.get("top3") or [])]
-    ftop = [t for t in top3 if _matches(t, kws)]
+    top3_raw = n.get("top3") or []
+    top3_txt: list[str] = []
+    for t in top3_raw:
+        if isinstance(t, dict):
+            top3_txt.append(f"{t.get('title','')} {t.get('url','')}".strip())
+        else:
+            top3_txt.append(str(t))
+    ftop = [t for t in top3_raw if _matches((f"{t.get('title','')} {t.get('url','')}" if isinstance(t, dict) else str(t)), kws)]
     fsections: list[dict[str, str]] = []
     for sec in n.get("sections") or []:
         if not isinstance(sec, dict):
@@ -51,7 +57,7 @@ def filter_payload_for_keywords(payload: dict[str, Any], keywords: list[str]) ->
             "footer": footer if (footer_ok or not flines) else footer,
         },
         "normal": {
-            "top3": ftop if ftop else top3,
+            "top3": ftop if ftop else top3_raw,
             "sections": fsections if fsections else n.get("sections", []),
         },
         "glossary": fgloss if fgloss else glossary,
@@ -96,7 +102,17 @@ def render_issue_email(
         if top3:
             parts_html.append("<h3>本周 AI 热点排行（Top3）</h3><ul>")
             for t in top3:
-                parts_html.append(f"<li>{html.escape(str(t))}</li>")
+                if isinstance(t, dict):
+                    title = html.escape(str(t.get("title", "")))
+                    url = str(t.get("url", "")).strip()
+                    if url:
+                        parts_html.append(
+                            f"<li><a href=\"{html.escape(url, quote=True)}\">{title}</a></li>"
+                        )
+                    else:
+                        parts_html.append(f"<li>{title}</li>")
+                else:
+                    parts_html.append(f"<li>{html.escape(str(t))}</li>")
             parts_html.append("</ul>")
         for sec in n.get("sections", []):
             if not isinstance(sec, dict):
@@ -109,7 +125,15 @@ def render_issue_email(
 
         parts_txt.insert(0, "AI Pulse · 正常模式")
         if top3:
-            parts_txt.insert(1, "Top3:\n" + "\n".join(f"- {t}" for t in top3))
+            tlines: list[str] = []
+            for t in top3:
+                if isinstance(t, dict):
+                    title = str(t.get("title", ""))
+                    url = str(t.get("url", ""))
+                    tlines.append(f"- {title} ({url})" if url else f"- {title}")
+                else:
+                    tlines.append(f"- {t}")
+            parts_txt.insert(1, "Top3:\n" + "\n".join(tlines))
 
     if glossary:
         parts_html.append("<h3>本周术语表</h3><table border='0' cellpadding='6' style='border-collapse:collapse'>")
