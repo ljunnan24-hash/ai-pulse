@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 
 from sqlalchemy import insert, select
@@ -22,6 +23,13 @@ from app.services.email_service import send_email
 from app.timeutil import current_period_monday
 
 
+def _kind(base: str, email: str) -> str:
+    # DuckDB-backed variants may not provide stable auto-increment ids.
+    # Encode a short email hash into kind so dedupe works without relying on subscriber_id.
+    h = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()[:16]
+    return f"{base}:{h}"
+
+
 def run(db: Session) -> None:
     period = current_period_monday()
     issue = db.execute(
@@ -31,19 +39,22 @@ def run(db: Session) -> None:
         print(f"No ready issue for period {period}.")
         return
 
-    subs = (
-        db.execute(select(Subscriber).where(Subscriber.status == SubscriberStatus.active.value)).scalars().all()
-    )
+    subs = db.execute(
+        select(Subscriber).where(
+            Subscriber.status == SubscriberStatus.active.value,
+            Subscriber.confirmed_at.is_not(None),
+        )
+    ).scalars().all()
     payload = parse_payload_json(issue.payload_json)
     settings = get_settings()
     pub = settings.public_app_url.rstrip("/")
 
     for sub in subs:
+        k = _kind("weekly", sub.email)
         sent = db.execute(
             select(SendLog).where(
-                SendLog.subscriber_id == sub.id,
                 SendLog.issue_id == issue.id,
-                SendLog.kind == "weekly",
+                SendLog.kind == k,
             )
         ).scalar_one_or_none()
         if sent:
@@ -59,7 +70,7 @@ def run(db: Session) -> None:
         text_body += f"\n\n退订: {pub}/api/unsubscribe?token={sub.unsubscribe_token}"
         subject = f"AI Pulse · 周刊 · {period.isoformat()}"
         send_email(sub.email, subject, html_body, text_body)
-        db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind="weekly"))
+        db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
         db.commit()
         print(f"Sent weekly to {sub.email}")
 
