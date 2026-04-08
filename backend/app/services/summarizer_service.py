@@ -36,7 +36,10 @@ def build_prompt(items: list[dict[str, Any]]) -> str:
     return f"""你是面向非技术职场人的中文科技编辑。根据下列本周资讯（已按热度大致排序），输出**严格 JSON**（不要 Markdown 外壳以外的文字）。
 
 要求：
-1. simple：≤300 字等价的短讯。字段 lines 为 3-5 条字符串，每条一句话，按热度排序；footer 一句话总结「本周 AI 突破对普通人的影响」。术语不要解释，留在正文里。
+1. simple：≤300 字等价的短讯。
+   - lines：数组，3-5 条，每项必须包含标题与链接：{{"text":"...","url":"https://..."}}（url 必须来自资讯列表中的链接）。
+   - text 必须是“一句话”，不要包含子编号格式（不要出现 1.1 / 2.3 / 1）——序号由渲染层自动生成。
+   - footer：一句话总结「本周 AI 突破对普通人的影响」。术语不要解释，留在正文里。
 2. normal：1200-1500 字左右。
    - top3：数组，3 条本周热点，每项必须包含标题与链接：{{"title":"...","url":"https://..."}}（url 必须来自资讯列表中的链接）。
    - sections：数组，每项 {{ "title": "大模型更新"|"AI工具/产品发布"|"行业重要动态", "paragraph": "该板块正文，非技术向，事件+影响。引用来源时请直接写出 url（不要用 markdown 链接语法）" }}。按热度组织，可引用来源链接。
@@ -47,7 +50,7 @@ def build_prompt(items: list[dict[str, Any]]) -> str:
 
 只输出 JSON，结构如下：
 {{
-  "simple": {{ "lines": ["1. ...", "2. ..."], "footer": "..." }},
+  "simple": {{ "lines": [{{"text":"...","url":"..."}}, {{"text":"...","url":"..."}}], "footer": "..." }},
   "normal": {{ "top3": [{{"title":"...","url":"..."}}, {{"title":"...","url":"..."}}, {{"title":"...","url":"..."}}], "sections": [{{"title":"...","paragraph":"..."}}] }},
   "glossary": [{{"term":"...","explain":"..."}}]
 }}
@@ -88,10 +91,17 @@ def normalize_payload(parsed: dict[str, Any]) -> dict[str, Any]:
     normal = parsed.get("normal") or {}
     glossary = parsed.get("glossary") or []
 
-    lines = simple.get("lines") if isinstance(simple.get("lines"), list) else []
+    lines_raw = simple.get("lines") if isinstance(simple.get("lines"), list) else []
     footer = str(simple.get("footer") or "")
     top3_raw = normal.get("top3") if isinstance(normal.get("top3"), list) else []
     sections = normal.get("sections") if isinstance(normal.get("sections"), list) else []
+
+    clean_lines: list[dict[str, str]] = []
+    for ln in lines_raw:
+        if isinstance(ln, dict) and ln.get("text") and ln.get("url"):
+            clean_lines.append({"text": str(ln["text"])[:300], "url": str(ln["url"])[:2048]})
+        elif isinstance(ln, str) and ln.strip():
+            clean_lines.append({"text": ln.strip()[:300], "url": ""})
 
     clean_top3: list[dict[str, str]] = []
     for t in top3_raw:
@@ -108,7 +118,7 @@ def normalize_payload(parsed: dict[str, Any]) -> dict[str, Any]:
             )
 
     return {
-        "simple": {"lines": [str(x) for x in lines][:10], "footer": footer},
+        "simple": {"lines": clean_lines[:10], "footer": footer},
         "normal": {
             "top3": clean_top3[:5],
             "sections": [
@@ -126,7 +136,15 @@ def payload_to_texts(payload: dict[str, Any]) -> tuple[str, str, str]:
     n = payload["normal"]
     g = payload["glossary"]
 
-    simple_text = "\n".join(s.get("lines", []))
+    simple_lines_txt: list[str] = []
+    for ln in s.get("lines", []):
+        if isinstance(ln, dict):
+            text = str(ln.get("text", ""))
+            url = str(ln.get("url", ""))
+            simple_lines_txt.append(f"{text} ({url})" if url else text)
+        else:
+            simple_lines_txt.append(str(ln))
+    simple_text = "\n".join(simple_lines_txt)
     if s.get("footer"):
         simple_text += "\n\n" + str(s["footer"])
 

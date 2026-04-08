@@ -21,8 +21,14 @@ def filter_payload_for_keywords(payload: dict[str, Any], keywords: list[str]) ->
         return payload, True
 
     s = payload.get("simple") or {}
-    lines = [str(x) for x in (s.get("lines") or [])]
-    flines = [ln for ln in lines if _matches(ln, kws)]
+    lines_raw = s.get("lines") or []
+    lines_txt: list[str] = []
+    for ln in lines_raw:
+        if isinstance(ln, dict):
+            lines_txt.append(f"{ln.get('text','')} {ln.get('url','')}".strip())
+        else:
+            lines_txt.append(str(ln))
+    flines = [ln for ln in lines_raw if _matches((f"{ln.get('text','')} {ln.get('url','')}" if isinstance(ln, dict) else str(ln)), kws)]
     footer = str(s.get("footer") or "")
     footer_ok = _matches(footer, kws)
 
@@ -53,7 +59,7 @@ def filter_payload_for_keywords(payload: dict[str, Any], keywords: list[str]) ->
 
     out = {
         "simple": {
-            "lines": flines if flines else lines,
+            "lines": flines if flines else lines_raw,
             "footer": footer if (footer_ok or not flines) else footer,
         },
         "normal": {
@@ -86,14 +92,29 @@ def render_issue_email(
     if mode == "simple":
         parts_html.append("<h2>AI Pulse · 简单模式</h2><ol>")
         for ln in s.get("lines", []):
-            parts_html.append(f"<li>{html.escape(str(ln))}</li>")
+            if isinstance(ln, dict):
+                text = html.escape(str(ln.get("text", "")))
+                url = str(ln.get("url", "")).strip()
+                if url:
+                    parts_html.append(
+                        f"<li><a href=\"{html.escape(url, quote=True)}\">{text}</a></li>"
+                    )
+                else:
+                    parts_html.append(f"<li>{text}</li>")
+            else:
+                parts_html.append(f"<li>{html.escape(str(ln))}</li>")
         parts_html.append("</ol>")
         if s.get("footer"):
             parts_html.append(f"<p><strong>小结：</strong>{html.escape(str(s['footer']))}</p>")
 
         parts_txt.append("AI Pulse · 简单模式")
         for ln in s.get("lines", []):
-            parts_txt.append(f"- {ln}")
+            if isinstance(ln, dict):
+                text = str(ln.get("text", ""))
+                url = str(ln.get("url", ""))
+                parts_txt.append(f"- {text} ({url})" if url else f"- {text}")
+            else:
+                parts_txt.append(f"- {ln}")
         if s.get("footer"):
             parts_txt.append(f"小结：{s['footer']}")
     else:
