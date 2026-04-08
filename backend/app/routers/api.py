@@ -54,6 +54,23 @@ def _kind(base: str, email: str) -> str:
     h = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()[:16]
     return f"{base}:{h}"
 
+def _issue_key(issue: WeeklyIssue) -> str:
+    # DuckDB-backed MySQL variants may not provide reliable auto-increment ids.
+    # Use period_start (stable) as the issue identifier for dedupe.
+    ps = getattr(issue, "period_start", None)
+    if ps is not None:
+        try:
+            return ps.isoformat()
+        except Exception:
+            return str(ps)
+    ra = getattr(issue, "ready_at", None)
+    if ra is not None:
+        try:
+            return ra.isoformat()
+        except Exception:
+            return str(ra)
+    return "unknown"
+
 
 @router.post("/subscribe", response_model=SubscribeOut)
 def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
@@ -232,12 +249,16 @@ def confirm(token: str, db: Session = Depends(get_db)):
         .scalars()
         .first()
     )
-    if issue:
-        k = _kind("confirm_digest", sub.email)
-        already = db.execute(
-            select(SendLog).where(SendLog.issue_id == issue.id, SendLog.kind == k)
-        ).scalar_one_or_none()
-        if not already:
+    if not issue:
+        logger.warning("confirm_digest skip: no ready issue (email=%s)", sub.email)
+    else:
+        issue_key = _issue_key(issue)
+        k = _kind(f"confirm_digest:{issue_key}", sub.email)
+        already = db.execute(select(SendLog).where(SendLog.kind == k)).scalar_one_or_none()
+        if already:
+            logger.warning("confirm_digest skip: deduped (email=%s issue_key=%s)", sub.email, issue_key)
+        else:
+            logger.warning("confirm_digest send: email=%s issue_key=%s", sub.email, issue_key)
             try:
                 payload = parse_payload_json(issue.payload_json)
                 kws: list[str] = json.loads(sub.keywords_json or "[]")
@@ -315,11 +336,13 @@ def resend_latest(token: str, db: Session = Depends(get_db)):
         return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?error=no_issue", status_code=302)
 
     # Dedupe: only allow one resend per issue per email.
-    k = _kind("resend_latest", sub.email)
-    already = db.execute(
-        select(SendLog).where(SendLog.issue_id == issue.id, SendLog.kind == k)
-    ).scalar_one_or_none()
-    if not already:
+    issue_key = _issue_key(issue)
+    k = _kind(f"resend_latest:{issue_key}", sub.email)
+    already = db.execute(select(SendLog).where(SendLog.kind == k)).scalar_one_or_none()
+    if already:
+        logger.warning("resend_latest skip: deduped (email=%s issue_key=%s)", sub.email, issue_key)
+    else:
+        logger.warning("resend_latest send: email=%s issue_key=%s", sub.email, issue_key)
         try:
             payload = parse_payload_json(issue.payload_json)
             kws: list[str] = json.loads(sub.keywords_json or "[]")

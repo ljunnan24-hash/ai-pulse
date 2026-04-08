@@ -30,6 +30,21 @@ def _kind(base: str, email: str) -> str:
     h = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()[:16]
     return f"{base}:{h}"
 
+def _issue_key(issue: WeeklyIssue) -> str:
+    ps = getattr(issue, "period_start", None)
+    if ps is not None:
+        try:
+            return ps.isoformat()
+        except Exception:
+            return str(ps)
+    ra = getattr(issue, "ready_at", None)
+    if ra is not None:
+        try:
+            return ra.isoformat()
+        except Exception:
+            return str(ra)
+    return "unknown"
+
 
 def run(db: Session) -> None:
     period = current_period_monday()
@@ -55,13 +70,9 @@ def run(db: Session) -> None:
     pub = settings.public_app_url.rstrip("/")
 
     for sub in subs:
-        k = _kind("weekly", sub.email)
-        sent = db.execute(
-            select(SendLog).where(
-                SendLog.issue_id == issue.id,
-                SendLog.kind == k,
-            )
-        ).scalar_one_or_none()
+        issue_key = _issue_key(issue)
+        k = _kind(f"weekly:{issue_key}", sub.email)
+        sent = db.execute(select(SendLog).where(SendLog.kind == k)).scalar_one_or_none()
         if sent:
             continue
 
