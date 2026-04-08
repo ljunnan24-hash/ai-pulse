@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import insert, or_, select, update
 from sqlalchemy.orm import Session
 
@@ -236,7 +236,36 @@ def confirm(token: str, db: Session = Depends(get_db)):
         # Confirmation already committed; ignore email/sendlog failures to avoid a bad UX.
         pass
 
-    return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?confirmed=1", status_code=302)
+    # UX: if the user clicked from an email and this opened a new tab/window, try to notify the original tab
+    # (if still open) and close this one. Fall back to a normal redirect.
+    target = f"{settings.frontend_url.rstrip('/')}/?confirmed=1"
+    origin = settings.frontend_url.rstrip("/")
+    html = f"""<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="2;url={target}" />
+    <title>AI Pulse</title>
+  </head>
+  <body style="font-family:system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;">
+    <h2>订阅已确认</h2>
+    <p>正在返回官网…</p>
+    <p><a href="{target}">如果未自动跳转，请点这里</a></p>
+    <script>
+      (function () {{
+        try {{
+          if (window.opener && !window.opener.closed) {{
+            window.opener.postMessage({{ type: 'aipulse:confirmed' }}, '{origin}');
+            setTimeout(function () {{ window.close(); }}, 300);
+          }}
+        }} catch (e) {{}}
+        setTimeout(function () {{ window.location.replace('{target}'); }}, 600);
+      }})();
+    </script>
+  </body>
+</html>"""
+    return HTMLResponse(content=html, status_code=200)
 
 
 @router.get("/unsubscribe")

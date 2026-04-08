@@ -13,6 +13,21 @@ export default function App() {
   const [successPanel, setSuccessPanel] = useState<SuccessPanel | null>(null);
 
   useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as unknown;
+      if (!data || typeof data !== 'object') return;
+      const t = (data as { type?: unknown }).type;
+      if (t === 'aipulse:confirmed') {
+        setSuccessPanel({
+          title: 'Subscription confirmed',
+          description:
+            'Your email is verified. If a digest was already published, you should have received it. Weekly issues arrive in Chinese every Monday at 9:00 (Beijing time).',
+        });
+        setCurrentView('success');
+      }
+    };
+    window.addEventListener('message', onMessage);
     const params = new URLSearchParams(window.location.search);
     if (params.get('confirmed') === '1') {
       setSuccessPanel({
@@ -51,6 +66,7 @@ export default function App() {
       setCurrentView('success');
       window.history.replaceState({}, '', window.location.pathname);
     }
+    return () => window.removeEventListener('message', onMessage);
   }, []);
 
   const renderView = () => {
