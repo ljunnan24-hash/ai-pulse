@@ -13,27 +13,13 @@ export default function App() {
   const [successPanel, setSuccessPanel] = useState<SuccessPanel | null>(null);
 
   useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      const data = event.data as unknown;
-      if (!data || typeof data !== 'object') return;
-      const t = (data as { type?: unknown }).type;
-      if (t === 'aipulse:confirmed') {
-        setSuccessPanel({
-          title: 'Subscription confirmed',
-          description:
-            'Your email is verified. If a digest was already published, you should have received it. Weekly issues arrive in Chinese every Monday at 9:00 (Beijing time).',
-        });
-        setCurrentView('success');
-      }
-    };
-    window.addEventListener('message', onMessage);
     const params = new URLSearchParams(window.location.search);
     if (params.get('confirmed') === '1') {
+      const pendingEmail = window.sessionStorage.getItem('aipulse_last_subscribe_email');
       setSuccessPanel({
         title: 'Subscription confirmed',
         description:
-          'Your email is verified. If a digest was already published, you should have received it. Weekly issues arrive in Chinese every Monday at 9:00 (Beijing time).',
+          `Your email is verified${pendingEmail ? ` (${pendingEmail})` : ''}. If a digest was already published, you should have received it. Weekly issues arrive in Chinese every Monday at 9:00 (Beijing time).`,
       });
       setCurrentView('success');
       window.history.replaceState({}, '', window.location.pathname);
@@ -66,7 +52,6 @@ export default function App() {
       setCurrentView('success');
       window.history.replaceState({}, '', window.location.pathname);
     }
-    return () => window.removeEventListener('message', onMessage);
   }, []);
 
   const renderView = () => {
@@ -74,11 +59,12 @@ export default function App() {
       case 'home':
         return (
           <Home
-            onSubscribePending={() => {
+            onSubscribePending={(email) => {
+              window.sessionStorage.setItem('aipulse_last_subscribe_email', email);
               setSuccessPanel({
                 title: 'Check your email',
                 description:
-                  'We sent a confirmation link (in Chinese). After you confirm, you will receive the latest ready digest if available, or a short welcome message.',
+                  `We sent a confirmation link (in Chinese) to ${email}. Please open that inbox and click “确认订阅”.`,
               });
               setCurrentView('success');
             }}
@@ -101,11 +87,12 @@ export default function App() {
       default:
         return (
           <Home
-            onSubscribePending={() => {
+            onSubscribePending={(email) => {
+              window.sessionStorage.setItem('aipulse_last_subscribe_email', email);
               setSuccessPanel({
                 title: 'Check your email',
                 description:
-                  'We sent a confirmation link (in Chinese). After you confirm, you will receive the latest ready digest if available, or a short welcome message.',
+                  `We sent a confirmation link (in Chinese) to ${email}. Please open that inbox and click “确认订阅”.`,
               });
               setCurrentView('success');
             }}

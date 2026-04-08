@@ -83,16 +83,18 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 
             confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}"
             unsub_link = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={unsub_t}"
-            subject = "请确认订阅 AI Pulse"
+    subject = "请确认订阅 AI Pulse"
             html = f"""<html><body style="font-family:system-ui,sans-serif">
 <p>你好，</p>
+<p style="color:#666;font-size:13px">此确认邮件发送至：<b>{str(body.email)}</b></p>
 <p>请点击下方链接确认订阅 <b>AI Pulse</b>（无需注册）。</p>
 <p><a href="{confirm_link}">确认订阅</a></p>
 <p>若按钮无效，请复制链接到浏览器打开：<br/>{confirm_link}</p>
 <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
 <p style="font-size:13px;color:#666">不想订阅了？点击这里：<a href="{unsub_link}">取消订阅</a></p>
+<p style="font-size:12px;color:#999">（若在 QQ 邮箱被拦截，请复制此链接到浏览器打开：<br/>{unsub_link}）</p>
 </body></html>"""
-            text = f"请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
+            text = f"此确认邮件发送至：{str(body.email)}\n\n请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
             try:
                 send_email(str(body.email), subject, html, text)
             except Exception:
@@ -122,13 +124,15 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
         subject = "请确认订阅 AI Pulse"
         html = f"""<html><body style="font-family:system-ui,sans-serif">
 <p>你好，</p>
+<p style="color:#666;font-size:13px">此确认邮件发送至：<b>{str(body.email)}</b></p>
 <p>请点击下方链接确认订阅 <b>AI Pulse</b>（无需注册）。</p>
 <p><a href="{confirm_link}">确认订阅</a></p>
 <p>若按钮无效，请复制链接到浏览器打开：<br/>{confirm_link}</p>
 <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
 <p style="font-size:13px;color:#666">不想订阅了？点击这里：<a href="{unsub_link}">取消订阅</a></p>
+<p style="font-size:12px;color:#999">（若在 QQ 邮箱被拦截，请复制此链接到浏览器打开：<br/>{unsub_link}）</p>
 </body></html>"""
-        text = f"请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
+        text = f"此确认邮件发送至：{str(body.email)}\n\n请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
         try:
             send_email(str(body.email), subject, html, text)
         except Exception:
@@ -154,13 +158,15 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
     subject = "请确认订阅 AI Pulse"
     html = f"""<html><body style="font-family:system-ui,sans-serif">
 <p>你好，</p>
+<p style="color:#666;font-size:13px">此确认邮件发送至：<b>{str(body.email)}</b></p>
 <p>请点击下方链接确认订阅 <b>AI Pulse</b>（无需注册）。</p>
 <p><a href="{confirm_link}">确认订阅</a></p>
 <p>若按钮无效，请复制链接到浏览器打开：<br/>{confirm_link}</p>
 <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
 <p style="font-size:13px;color:#666">不想订阅了？点击这里：<a href="{unsub_link}">取消订阅</a></p>
+<p style="font-size:12px;color:#999">（若在 QQ 邮箱被拦截，请复制此链接到浏览器打开：<br/>{unsub_link}）</p>
 </body></html>"""
-    text = f"请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
+    text = f"此确认邮件发送至：{str(body.email)}\n\n请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
     try:
         send_email(str(body.email), subject, html, text)
     except Exception:
@@ -246,33 +252,20 @@ def confirm(token: str, db: Session = Depends(get_db)):
         # Confirmation already committed; ignore email/sendlog failures to avoid a bad UX.
         pass
 
-    # UX: if the user clicked from an email and this opened a new tab/window, try to notify the original tab
-    # (if still open) and close this one. Fall back to a normal redirect.
     target = f"{settings.frontend_url.rstrip('/')}/?confirmed=1"
-    origin = settings.frontend_url.rstrip("/")
     html = f"""<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="refresh" content="2;url={target}" />
+    <meta http-equiv="refresh" content="3;url={target}" />
     <title>AI Pulse</title>
   </head>
   <body style="font-family:system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;">
     <h2>订阅已确认</h2>
-    <p>正在返回官网…</p>
-    <p><a href="{target}">如果未自动跳转，请点这里</a></p>
-    <script>
-      (function () {{
-        try {{
-          if (window.opener && !window.opener.closed) {{
-            window.opener.postMessage({{ type: 'aipulse:confirmed' }}, '{origin}');
-            setTimeout(function () {{ window.close(); }}, 300);
-          }}
-        }} catch (e) {{}}
-        setTimeout(function () {{ window.location.replace('{target}'); }}, 600);
-      }})();
-    </script>
+    <p>你现在可以关闭此页面，或点击按钮返回官网。</p>
+    <p><a href="{target}" style="display:inline-block;padding:12px 16px;background:#0b5bff;color:#fff;border-radius:12px;text-decoration:none">返回 AI Pulse 官网</a></p>
+    <p style="color:#666;font-size:13px">（将于 3 秒后自动跳转）</p>
   </body>
 </html>"""
     return HTMLResponse(content=html, status_code=200)

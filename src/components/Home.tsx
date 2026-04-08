@@ -5,7 +5,7 @@ import { X, Bolt, Filter } from 'lucide-react';
 import { apiBase } from '../config';
 
 interface HomeProps {
-  onSubscribePending: () => void;
+  onSubscribePending: (email: string) => void;
 }
 
 export const Home: React.FC<HomeProps> = ({ onSubscribePending }) => {
@@ -176,7 +176,7 @@ export const Home: React.FC<HomeProps> = ({ onSubscribePending }) => {
                       setFormError(msg);
                       return;
                     }
-                    onSubscribePending();
+                    onSubscribePending(email.trim());
                   } catch {
                     setFormError('Network error. Is the API running?');
                   } finally {
