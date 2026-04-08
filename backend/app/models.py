@@ -76,7 +76,9 @@ class SendLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     subscriber_id: Mapped[int] = mapped_column(ForeignKey("subscribers.id"), index=True)
     issue_id: Mapped[int | None] = mapped_column(ForeignKey("weekly_issues.id"), nullable=True, index=True)
-    kind: Mapped[str] = mapped_column(String(32), default="weekly")  # weekly | confirm_digest | welcome
+    # kind is used for deduplication. DuckDB-backed variants may require encoding
+    # issue identity into this field, so keep it comfortably sized.
+    kind: Mapped[str] = mapped_column(String(255), default="weekly")
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     subscriber: Mapped["Subscriber"] = relationship(back_populates="send_logs")

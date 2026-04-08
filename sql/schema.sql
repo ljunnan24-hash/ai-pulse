@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS send_logs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   subscriber_id BIGINT NOT NULL,
   issue_id BIGINT NULL,
-  kind VARCHAR(32) NOT NULL DEFAULT 'weekly',
+  kind VARCHAR(255) NOT NULL DEFAULT 'weekly',
   sent_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   KEY ix_send_sub (subscriber_id),
   KEY ix_send_issue (issue_id),
