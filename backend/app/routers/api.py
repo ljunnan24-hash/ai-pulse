@@ -208,6 +208,7 @@ def confirm(
     db: Session = Depends(get_db),
 ):
     settings = get_settings()
+    email = email.strip()
     logger.warning("confirm hit: token=%s email=%s", token, email)
     q = select(Subscriber).where(Subscriber.confirm_token == token)
     q = q.where(Subscriber.email == email)
@@ -217,6 +218,15 @@ def confirm(
         return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?error=invalid_token", status_code=302)
     sub = subs[0]
     logger.warning("confirm resolved: email=%s status=%s created_at=%s", sub.email, sub.status, getattr(sub, "created_at", None))
+    # IMPORTANT:
+    # DuckDB-backed MySQL variants may produce non-unique/unstable primary keys (e.g. many rows with id=0).
+    # SQLAlchemy expires ORM instances on commit and may refresh by primary key, which can "swap" `sub`
+    # to a different row sharing the same PK. Snapshot fields we must trust BEFORE committing.
+    confirmed_email = (sub.email or "").strip()
+    confirmed_mode = sub.mode
+    confirmed_keywords_json = sub.keywords_json
+    confirmed_unsub_token = sub.unsubscribe_token
+    confirmed_manage_token = sub.manage_token
     # Defensive: if duplicated tokens exist (bad data), rotate tokens for the rest so future confirms don't crash.
     if len(subs) > 1:
         for dup in subs[1:]:
@@ -238,7 +248,7 @@ def confirm(
         raise HTTPException(status_code=500, detail="Subscriber id is missing.")
     db.execute(
         update(Subscriber)
-        .where(Subscriber.email == sub.email)
+        .where(Subscriber.email == confirmed_email)
         .where(Subscriber.confirm_token == token)
         .values(status=SubscriberStatus.active.value, confirmed_at=now)
     )
@@ -255,33 +265,33 @@ def confirm(
         .first()
     )
     if not issue:
-        logger.warning("confirm_digest skip: no ready issue (email=%s)", sub.email)
+        logger.warning("confirm_digest skip: no ready issue (token=%s email=%s)", token, confirmed_email)
     else:
         # IMPORTANT: confirm only happens once per subscription cycle (pending -> active),
         # so dedupe is unnecessary here and can mask delivery issues on DuckDB-backed variants.
         issue_key = _issue_key(issue)
-        k = _kind(f"confirm_digest:{issue_key}", sub.email)
-        logger.warning("confirm_digest send: email=%s issue_key=%s", sub.email, issue_key)
+        k = _kind(f"confirm_digest:{issue_key}", confirmed_email)
+        logger.warning("confirm_digest send: token=%s email=%s issue_key=%s", token, confirmed_email, issue_key)
         try:
             payload = parse_payload_json(issue.payload_json)
-            kws: list[str] = json.loads(sub.keywords_json or "[]")
+            kws: list[str] = json.loads(confirmed_keywords_json or "[]")
             filtered, matched = filter_payload_for_keywords(payload, kws)
             banner = None
             if kws and not matched:
                 banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
             html_body, text_body = render_issue_email(
                 filtered,
-                sub.mode,
+                confirmed_mode,
                 keyword_banner=banner,
-                recipient_email=sub.email,
+                recipient_email=confirmed_email,
             )
             html_body = append_subscription_footer(
-                html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token
+                html_body, settings.public_app_url, confirmed_unsub_token, confirmed_manage_token
             )
             text_body += (
-                f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
+                f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={confirmed_unsub_token}"
             )
-            send_email(sub.email, "AI Pulse · 最新一期", html_body, text_body)
+            send_email(confirmed_email, "AI Pulse · 最新一期", html_body, text_body)
             try:
                 db.execute(
                     insert(SendLog).values(
@@ -294,9 +304,19 @@ def confirm(
             except Exception:
                 # Audit record failure should not block delivery.
                 db.rollback()
-                logger.exception("confirm_digest send_log failed: email=%s issue_id=%s", sub.email, getattr(issue, "id", None))
+                logger.exception(
+                    "confirm_digest send_log failed: token=%s email=%s issue_id=%s",
+                    token,
+                    confirmed_email,
+                    getattr(issue, "id", None),
+                )
         except Exception:
-            logger.exception("confirm_digest failed: email=%s issue_id=%s", sub.email, getattr(issue, "id", None))
+            logger.exception(
+                "confirm_digest failed: token=%s email=%s issue_id=%s",
+                token,
+                confirmed_email,
+                getattr(issue, "id", None),
+            )
 
     target = f"{settings.frontend_url.rstrip('/')}/?confirmed=1"
     html = f"""<!doctype html>
@@ -309,7 +329,7 @@ def confirm(
   </head>
   <body style="font-family:system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;">
     <h2>订阅已确认</h2>
-    <p style="color:#666;font-size:13px">本次确认邮箱：<b>{sub.email}</b></p>
+    <p style="color:#666;font-size:13px">本次确认邮箱：<b>{confirmed_email}</b></p>
     <p>你现在可以关闭此页面，或点击按钮返回官网。</p>
     <p><a href="{target}" style="display:inline-block;padding:12px 16px;background:#0b5bff;color:#fff;border-radius:12px;text-decoration:none">返回 AI Pulse 官网</a></p>
     <p style="color:#666;font-size:13px">（将于 3 秒后自动跳转）</p>
@@ -333,6 +353,12 @@ def resend_latest(token: str, db: Session = Depends(get_db)):
     if not subs:
         return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?error=invalid_token", status_code=302)
     sub = subs[0]
+    # Snapshot fields before any commit/refresh. See note in confirm().
+    target_email = (sub.email or "").strip()
+    target_mode = sub.mode
+    target_keywords_json = sub.keywords_json
+    target_unsub_token = sub.unsubscribe_token
+    target_manage_token = sub.manage_token
     if sub.status != SubscriberStatus.active.value or sub.confirmed_at is None:
         return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?error=not_active", status_code=302)
 
@@ -346,34 +372,34 @@ def resend_latest(token: str, db: Session = Depends(get_db)):
 
     # Dedupe: only allow one resend per issue per email.
     issue_key = _issue_key(issue)
-    k = _kind(f"resend_latest:{issue_key}", sub.email)
+    k = _kind(f"resend_latest:{issue_key}", target_email)
     already = db.execute(select(SendLog).where(SendLog.kind == k)).scalar_one_or_none()
     if already:
-        logger.warning("resend_latest skip: deduped (email=%s issue_key=%s)", sub.email, issue_key)
+        logger.warning("resend_latest skip: deduped (email=%s issue_key=%s)", target_email, issue_key)
     else:
-        logger.warning("resend_latest send: email=%s issue_key=%s", sub.email, issue_key)
+        logger.warning("resend_latest send: email=%s issue_key=%s", target_email, issue_key)
         try:
             payload = parse_payload_json(issue.payload_json)
-            kws: list[str] = json.loads(sub.keywords_json or "[]")
+            kws: list[str] = json.loads(target_keywords_json or "[]")
             filtered, matched = filter_payload_for_keywords(payload, kws)
             banner = None
             if kws and not matched:
                 banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
             html_body, text_body = render_issue_email(
                 filtered,
-                sub.mode,
+                target_mode,
                 keyword_banner=banner,
-                recipient_email=sub.email,
+                recipient_email=target_email,
             )
             html_body = append_subscription_footer(
-                html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token
+                html_body, settings.public_app_url, target_unsub_token, target_manage_token
             )
-            text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
-            send_email(sub.email, "AI Pulse · 最新一期（补发）", html_body, text_body)
+            text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={target_unsub_token}"
+            send_email(target_email, "AI Pulse · 最新一期（补发）", html_body, text_body)
             db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
             db.commit()
         except Exception:
-            logger.exception("resend_latest failed: email=%s issue_id=%s", sub.email, getattr(issue, "id", None))
+            logger.exception("resend_latest failed: email=%s issue_id=%s", target_email, getattr(issue, "id", None))
 
     return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?resent=1", status_code=302)
 
