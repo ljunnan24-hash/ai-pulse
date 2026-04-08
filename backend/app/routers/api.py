@@ -75,14 +75,17 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
             db.commit()
 
             confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}"
+            unsub_link = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={unsub_t}"
             subject = "请确认订阅 AI Pulse"
             html = f"""<html><body style="font-family:system-ui,sans-serif">
 <p>你好，</p>
 <p>请点击下方链接确认订阅 <b>AI Pulse</b>（无需注册）。</p>
 <p><a href="{confirm_link}">确认订阅</a></p>
 <p>若按钮无效，请复制链接到浏览器打开：<br/>{confirm_link}</p>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+<p style="font-size:13px;color:#666">不想订阅了？点击这里：<a href="{unsub_link}">取消订阅</a></p>
 </body></html>"""
-            text = f"请打开链接确认订阅：{confirm_link}"
+            text = f"请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
             try:
                 send_email(str(body.email), subject, html, text)
             except Exception:
@@ -107,14 +110,17 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
         db.commit()
 
         confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}"
+        unsub_link = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={unsub_t}"
         subject = "请确认订阅 AI Pulse"
         html = f"""<html><body style="font-family:system-ui,sans-serif">
 <p>你好，</p>
 <p>请点击下方链接确认订阅 <b>AI Pulse</b>（无需注册）。</p>
 <p><a href="{confirm_link}">确认订阅</a></p>
 <p>若按钮无效，请复制链接到浏览器打开：<br/>{confirm_link}</p>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+<p style="font-size:13px;color:#666">不想订阅了？点击这里：<a href="{unsub_link}">取消订阅</a></p>
 </body></html>"""
-        text = f"请打开链接确认订阅：{confirm_link}"
+        text = f"请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
         try:
             send_email(str(body.email), subject, html, text)
         except Exception:
@@ -136,14 +142,17 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
     db.commit()
 
     confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}"
+    unsub_link = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={unsub_t}"
     subject = "请确认订阅 AI Pulse"
     html = f"""<html><body style="font-family:system-ui,sans-serif">
 <p>你好，</p>
 <p>请点击下方链接确认订阅 <b>AI Pulse</b>（无需注册）。</p>
 <p><a href="{confirm_link}">确认订阅</a></p>
 <p>若按钮无效，请复制链接到浏览器打开：<br/>{confirm_link}</p>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+<p style="font-size:13px;color:#666">不想订阅了？点击这里：<a href="{unsub_link}">取消订阅</a></p>
 </body></html>"""
-    text = f"请打开链接确认订阅：{confirm_link}"
+    text = f"请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
     try:
         send_email(str(body.email), subject, html, text)
     except Exception:
