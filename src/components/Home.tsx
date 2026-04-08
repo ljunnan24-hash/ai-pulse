@@ -81,11 +81,16 @@ export const Home: React.FC<HomeProps> = ({ onSubscribePending }) => {
               <input 
                 className="w-full bg-surface-container-low border-none rounded-xl py-4 px-6 focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all duration-300 text-on-surface placeholder:text-outline-variant/60 outline-none"
                 id="email" 
+                name="aipulse_email"
                 placeholder="email@example.com" 
                 type="email"
+                inputMode="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
               />
               <p className="text-sm text-on-surface-variant/70 italic">We strictly respect your privacy. One-click unsubscribe always.</p>
             </div>
