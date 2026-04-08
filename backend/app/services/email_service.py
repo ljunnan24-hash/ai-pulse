@@ -6,7 +6,8 @@ from email.utils import formataddr, parseaddr
 
 from app.config import get_settings
 
-logger = logging.getLogger("aipulse.mail")
+# Use uvicorn's error logger so INFO lines appear in `journalctl -u aipulse-api`.
+logger = logging.getLogger("uvicorn.error")
 
 
 def _parse_from_header(from_header: str) -> tuple[str, str]:

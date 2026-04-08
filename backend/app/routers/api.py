@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import secrets
 import hashlib
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,6 +24,7 @@ from app.services.digest_builder import (
 from app.services.email_service import send_email
 
 router = APIRouter(prefix="/api", tags=["api"])
+logger = logging.getLogger("uvicorn.error")
 
 
 def _tokens() -> tuple[str, str, str]:
@@ -265,8 +267,7 @@ def confirm(token: str, db: Session = Depends(get_db)):
                 )
                 db.commit()
             except Exception:
-                # Confirmation already committed; ignore digest send failures.
-                pass
+                logger.exception("confirm_digest failed: email=%s issue_id=%s", sub.email, getattr(issue, "id", None))
 
     target = f"{settings.frontend_url.rstrip('/')}/?confirmed=1"
     html = f"""<!doctype html>
@@ -319,23 +320,28 @@ def resend_latest(token: str, db: Session = Depends(get_db)):
         select(SendLog).where(SendLog.issue_id == issue.id, SendLog.kind == k)
     ).scalar_one_or_none()
     if not already:
-        payload = parse_payload_json(issue.payload_json)
-        kws: list[str] = json.loads(sub.keywords_json or "[]")
-        filtered, matched = filter_payload_for_keywords(payload, kws)
-        banner = None
-        if kws and not matched:
-            banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
-        html_body, text_body = render_issue_email(
-            filtered,
-            sub.mode,
-            keyword_banner=banner,
-            recipient_email=sub.email,
-        )
-        html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
-        text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
-        send_email(sub.email, "AI Pulse · 最新一期（补发）", html_body, text_body)
-        db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
-        db.commit()
+        try:
+            payload = parse_payload_json(issue.payload_json)
+            kws: list[str] = json.loads(sub.keywords_json or "[]")
+            filtered, matched = filter_payload_for_keywords(payload, kws)
+            banner = None
+            if kws and not matched:
+                banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
+            html_body, text_body = render_issue_email(
+                filtered,
+                sub.mode,
+                keyword_banner=banner,
+                recipient_email=sub.email,
+            )
+            html_body = append_subscription_footer(
+                html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token
+            )
+            text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
+            send_email(sub.email, "AI Pulse · 最新一期（补发）", html_body, text_body)
+            db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
+            db.commit()
+        except Exception:
+            logger.exception("resend_latest failed: email=%s issue_id=%s", sub.email, getattr(issue, "id", None))
 
     return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?resent=1", status_code=302)
 
