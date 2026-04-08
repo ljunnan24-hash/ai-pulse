@@ -6,7 +6,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import insert, or_, select, update
 from sqlalchemy.orm import Session
@@ -105,7 +105,7 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
             )
             db.commit()
 
-            confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}"
+            confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}&email={str(body.email)}"
             unsub_link = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={unsub_t}"
             subject = "请确认订阅 AI Pulse"
             html = f"""<html><body style="font-family:system-ui,sans-serif">
@@ -143,7 +143,7 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
         )
         db.commit()
 
-        confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}"
+        confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}&email={str(body.email)}"
         unsub_link = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={unsub_t}"
         subject = "请确认订阅 AI Pulse"
         html = f"""<html><body style="font-family:system-ui,sans-serif">
@@ -177,7 +177,7 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
     db.add(sub)
     db.commit()
 
-    confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}"
+    confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}&email={str(body.email)}"
     unsub_link = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={unsub_t}"
     subject = "请确认订阅 AI Pulse"
     html = f"""<html><body style="font-family:system-ui,sans-serif">
@@ -202,16 +202,17 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 
 
 @router.get("/confirm")
-def confirm(token: str, db: Session = Depends(get_db)):
+def confirm(token: str, email: str | None = Query(default=None), db: Session = Depends(get_db)):
     settings = get_settings()
-    subs = (
-        db.execute(select(Subscriber).where(Subscriber.confirm_token == token).order_by(Subscriber.created_at.desc()))
-        .scalars()
-        .all()
-    )
+    logger.warning("confirm hit: token=%s", token)
+    q = select(Subscriber).where(Subscriber.confirm_token == token)
+    if email:
+        q = q.where(Subscriber.email == email)
+    subs = db.execute(q.order_by(Subscriber.created_at.desc())).scalars().all()
     if not subs:
         return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?error=invalid_token", status_code=302)
     sub = subs[0]
+    logger.warning("confirm resolved: email=%s status=%s created_at=%s", sub.email, sub.status, getattr(sub, "created_at", None))
     # Defensive: if duplicated tokens exist (bad data), rotate tokens for the rest so future confirms don't crash.
     if len(subs) > 1:
         for dup in subs[1:]:
@@ -301,6 +302,7 @@ def confirm(token: str, db: Session = Depends(get_db)):
   </head>
   <body style="font-family:system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;">
     <h2>订阅已确认</h2>
+    <p style="color:#666;font-size:13px">本次确认邮箱：<b>{sub.email}</b></p>
     <p>你现在可以关闭此页面，或点击按钮返回官网。</p>
     <p><a href="{target}" style="display:inline-block;padding:12px 16px;background:#0b5bff;color:#fff;border-radius:12px;text-decoration:none">返回 AI Pulse 官网</a></p>
     <p style="color:#666;font-size:13px">（将于 3 秒后自动跳转）</p>
