@@ -18,7 +18,7 @@ _templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.paren
 @router.get("/manage/{token}", response_class=HTMLResponse)
 def manage_form(request: Request, token: str, db: Session = Depends(get_db)):
     subs = (
-        db.execute(select(Subscriber).where(Subscriber.manage_token == token).order_by(Subscriber.id.desc()))
+        db.execute(select(Subscriber).where(Subscriber.manage_token == token).order_by(Subscriber.created_at.desc()))
         .scalars()
         .all()
     )
@@ -47,7 +47,7 @@ def manage_save(
     db: Session = Depends(get_db),
 ):
     subs = (
-        db.execute(select(Subscriber).where(Subscriber.manage_token == token).order_by(Subscriber.id.desc()))
+        db.execute(select(Subscriber).where(Subscriber.manage_token == token).order_by(Subscriber.created_at.desc()))
         .scalars()
         .all()
     )
@@ -59,7 +59,8 @@ def manage_save(
     parts = [p.strip() for p in keywords.replace("，", ",").split(",") if p.strip()][:3]
     db.execute(
         update(Subscriber)
-        .where(Subscriber.id == sub.id)
+        .where(Subscriber.email == sub.email)
+        .where(Subscriber.manage_token == token)
         .values(mode=mode, keywords_json=json.dumps(parts, ensure_ascii=False))
     )
     db.commit()

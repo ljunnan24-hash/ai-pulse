@@ -54,7 +54,13 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
     kws = [k.strip() for k in body.keywords if k.strip()][:3]
     keywords_json = json.dumps(kws, ensure_ascii=False)
 
-    existing = db.execute(select(Subscriber).where(Subscriber.email == body.email)).scalar_one_or_none()
+    # DuckDB-backed MySQL variants may not enforce PK/auto-increment reliably.
+    # Always treat email as the stable identity and avoid updating by id.
+    existing = (
+        db.execute(select(Subscriber).where(Subscriber.email == body.email).order_by(Subscriber.created_at.desc()))
+        .scalars()
+        .first()
+    )
     if existing:
         if existing.status == SubscriberStatus.active.value:
             raise HTTPException(status_code=400, detail="This email is already subscribed.")
@@ -63,7 +69,8 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
             confirm_t, unsub_t, manage_t = _fresh_tokens(db)
             db.execute(
                 update(Subscriber)
-                .where(Subscriber.id == existing.id)
+                .where(Subscriber.email == str(body.email))
+                .where(Subscriber.status == SubscriberStatus.pending.value)
                 .values(
                     mode=body.mode,
                     keywords_json=keywords_json,
@@ -96,7 +103,8 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
         confirm_t, unsub_t, manage_t = _fresh_tokens(db)
         db.execute(
             update(Subscriber)
-            .where(Subscriber.id == existing.id)
+            .where(Subscriber.email == str(body.email))
+            .where(Subscriber.status == SubscriberStatus.unsubscribed.value)
             .values(
                 mode=body.mode,
                 keywords_json=keywords_json,
@@ -167,7 +175,7 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 def confirm(token: str, db: Session = Depends(get_db)):
     settings = get_settings()
     subs = (
-        db.execute(select(Subscriber).where(Subscriber.confirm_token == token).order_by(Subscriber.id.desc()))
+        db.execute(select(Subscriber).where(Subscriber.confirm_token == token).order_by(Subscriber.created_at.desc()))
         .scalars()
         .all()
     )
@@ -177,10 +185,11 @@ def confirm(token: str, db: Session = Depends(get_db)):
     # Defensive: if duplicated tokens exist (bad data), rotate tokens for the rest so future confirms don't crash.
     if len(subs) > 1:
         for dup in subs[1:]:
-            new_confirm, new_unsub, new_manage = _tokens()
+            new_confirm, new_unsub, new_manage = _fresh_tokens(db)
             db.execute(
                 update(Subscriber)
-                .where(Subscriber.id == dup.id)
+                .where(Subscriber.email == dup.email)
+                .where(Subscriber.confirm_token == token)
                 .values(confirm_token=new_confirm, unsubscribe_token=new_unsub, manage_token=new_manage)
             )
         db.commit()
@@ -194,7 +203,8 @@ def confirm(token: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Subscriber id is missing.")
     db.execute(
         update(Subscriber)
-        .where(Subscriber.id == subscriber_id)
+        .where(Subscriber.email == sub.email)
+        .where(Subscriber.confirm_token == token)
         .values(status=SubscriberStatus.active.value, confirmed_at=now)
     )
     db.commit()
@@ -272,7 +282,7 @@ def confirm(token: str, db: Session = Depends(get_db)):
 def unsubscribe(token: str, db: Session = Depends(get_db)):
     settings = get_settings()
     subs = (
-        db.execute(select(Subscriber).where(Subscriber.unsubscribe_token == token).order_by(Subscriber.id.desc()))
+        db.execute(select(Subscriber).where(Subscriber.unsubscribe_token == token).order_by(Subscriber.created_at.desc()))
         .scalars()
         .all()
     )
@@ -281,15 +291,17 @@ def unsubscribe(token: str, db: Session = Depends(get_db)):
         # Defensive: if duplicated tokens exist (bad data), rotate tokens for the rest.
         if len(subs) > 1:
             for dup in subs[1:]:
-                new_confirm, new_unsub, new_manage = _tokens()
+                new_confirm, new_unsub, new_manage = _fresh_tokens(db)
                 db.execute(
                     update(Subscriber)
-                    .where(Subscriber.id == dup.id)
+                    .where(Subscriber.email == dup.email)
+                    .where(Subscriber.unsubscribe_token == token)
                     .values(confirm_token=new_confirm, unsubscribe_token=new_unsub, manage_token=new_manage)
                 )
         db.execute(
             update(Subscriber)
-            .where(Subscriber.id == sub.id)
+            .where(Subscriber.email == sub.email)
+            .where(Subscriber.unsubscribe_token == token)
             .values(status=SubscriberStatus.unsubscribed.value)
         )
         db.commit()
