@@ -83,7 +83,7 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 
             confirm_link = f"{settings.public_app_url.rstrip('/')}/api/confirm?token={confirm_t}"
             unsub_link = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={unsub_t}"
-    subject = "请确认订阅 AI Pulse"
+            subject = "请确认订阅 AI Pulse"
             html = f"""<html><body style="font-family:system-ui,sans-serif">
 <p>你好，</p>
 <p style="color:#666;font-size:13px">此确认邮件发送至：<b>{str(body.email)}</b></p>
