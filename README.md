@@ -73,6 +73,97 @@ For production builds that talk to another origin, set `VITE_API_BASE_URL=https:
 - **Cron**: see `deploy/crontab.example`.  
 - **Secrets**: `backend/.env` (never commit).
 
+## Server runbook (ECS)
+
+Assumptions (current setup):
+
+- Project: `/opt/ai-pulse`
+- Frontend Nginx root: `/var/www/aipulse`
+- Nginx site config: `/etc/nginx/conf.d/aipulse.conf`
+- Backend: systemd service `aipulse-api` (Uvicorn on `127.0.0.1:8000`)
+
+### 1) Update code
+
+```bash
+cd /opt/ai-pulse
+git pull
+git log -1 --oneline
+```
+
+### 2) Backend (API) restart + logs
+
+```bash
+sudo systemctl restart aipulse-api
+sudo systemctl status aipulse-api --no-pager
+sudo journalctl -u aipulse-api -n 200 --no-pager
+```
+
+Follow logs in real time:
+
+```bash
+sudo journalctl -u aipulse-api -f
+```
+
+### 3) Frontend rebuild + deploy
+
+This repo currently does not require a lockfile on the server, so use `npm install` (not `npm ci`).
+
+```bash
+cd /opt/ai-pulse
+npm install
+npm run build
+
+sudo rm -rf /var/www/aipulse/*
+sudo cp -r dist/* /var/www/aipulse/
+
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 4) Nginx config view + reload
+
+```bash
+sudo sed -n '1,260p' /etc/nginx/conf.d/aipulse.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 5) MySQL (RDS) login
+
+```bash
+mysql -h rm-j6cv7e2mg6bw443p1.mysql.rds.aliyuncs.com -P 3306 -u aipulse -p
+```
+
+Then:
+
+```sql
+USE aipulse;
+```
+
+Check latest issues:
+
+```sql
+SELECT id, period_start, status, ready_at
+FROM weekly_issues
+ORDER BY ready_at DESC, created_at DESC
+LIMIT 5;
+```
+
+### 6) Cron jobs (weekly)
+
+See `deploy/crontab.example`.
+
+List root crontab:
+
+```bash
+sudo crontab -l
+```
+
+Job logs (if using the example):
+
+```bash
+sudo tail -n 200 /var/log/aipulse-generate.log
+sudo tail -n 200 /var/log/aipulse-send.log
+```
+
 ## Volcengine Ark (豆包)
 
 Create an API key and an **endpoint model ID** (`ep-…`). Set `DOUBAO_API_KEY`, `DOUBAO_MODEL`, and optionally `DOUBAO_API_BASE` in `backend/.env`.
