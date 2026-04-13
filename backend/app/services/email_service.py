@@ -19,6 +19,9 @@ def _parse_from_header(from_header: str) -> tuple[str, str]:
 
 def send_email(to_addr: str, subject: str, html_body: str, text_body: str | None = None) -> None:
     settings = get_settings()
+    if settings.mail_dry_run:
+        logger.warning("MAIL_DRY_RUN=1 skip send: to=%s subject=%s", to_addr, subject)
+        return
     if not settings.smtp_user or not settings.smtp_password:
         raise RuntimeError("SMTP credentials not configured (smtp_user / smtp_password).")
 

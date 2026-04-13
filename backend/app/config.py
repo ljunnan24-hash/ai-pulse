@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     mail_from: str = "AI Pulse <noreply@example.com>"
+    # If true, do not send real emails; only log.
+    mail_dry_run: bool = False
 
     # RSS sources (comma-separated URLs optional override)
     rss_feed_urls: str = ""
