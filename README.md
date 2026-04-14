@@ -57,6 +57,75 @@ Vite proxies `/api`, `/manage`, and `/health` to `http://127.0.0.1:8000`. Leave 
 
 For production builds that talk to another origin, set `VITE_API_BASE_URL=https://api.yourdomain.com` before `npm run build`.
 
+## Admin console (后台管理系统)
+
+后台前端通过路由前缀 **`/admin/*`** 与官网完全隔离，确保不影响官网原功能。
+
+### Admin 本地开发（Windows + conda）
+
+如果本机无法访问 `https` 的 conda/pip 源，可用 `http` 镜像（本仓库在 Win11/conda 环境下已验证可用）。
+
+#### 1) 创建 conda 环境（使用 http 镜像）
+
+```bat
+conda create -n aipulse python=3.11 -y --override-channels ^
+  -c http://mirrors.ustc.edu.cn/anaconda/pkgs/main ^
+  -c http://mirrors.ustc.edu.cn/anaconda/cloud/conda-forge
+```
+
+#### 2) 安装后端依赖（pip 走 http 源）
+
+```bat
+conda run -n aipulse pip install -r backend/requirements.txt ^
+  -i http://pypi.tuna.tsinghua.edu.cn/simple ^
+  --trusted-host pypi.tuna.tsinghua.edu.cn
+```
+
+#### 3) 启动后端（本地建议用 sqlite，避免连接 RDS 超时）
+
+```bat
+cd backend
+set DATABASE_URL=sqlite:///./dev.db
+set ADMIN_JWT_SECRET=dev_secret_change_me
+set ADMIN_BOOTSTRAP_TOKEN=dev_bootstrap_token
+conda run --no-capture-output -n aipulse python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --log-level info
+```
+
+验证健康检查：
+
+```text
+GET http://127.0.0.1:8000/health
+```
+
+#### 4) 初始化第一个管理员（bootstrap：仅当 admin_users 表为空时允许）
+
+```text
+POST http://127.0.0.1:8000/admin/auth/bootstrap
+Header: X-Bootstrap-Token: dev_bootstrap_token
+Body: {"username":"admin","password":"Admin12345678"}
+```
+
+#### 5) 启动前端（已代理 /admin 到 8000）
+
+```bash
+npm run dev
+```
+
+访问后台：
+
+```text
+http://localhost:3000/admin/login
+```
+
+### Admin 生产环境配置（必填）
+
+在 `backend/.env`（或环境变量）里配置：
+
+- `ADMIN_JWT_SECRET`：JWT 签名密钥（强随机）
+- `ADMIN_BOOTSTRAP_TOKEN`：初始化管理员用一次性 token（创建首个管理员后建议清空/移除）
+- `ADMIN_JWT_EXPIRES_HOURS`：默认 24
+- `ADMIN_FRONTEND_URL`：例如 `https://admin.aipulse.asia`（用于 CORS）
+
 ## Product rules (implemented)
 
 - **Subscribe**: `POST /api/subscribe` → confirmation email (Chinese).  

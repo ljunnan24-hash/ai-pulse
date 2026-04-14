@@ -60,3 +60,14 @@ CREATE TABLE IF NOT EXISTS send_logs (
   CONSTRAINT fk_send_sub FOREIGN KEY (subscriber_id) REFERENCES subscribers(id) ON DELETE CASCADE,
   CONSTRAINT fk_send_issue FOREIGN KEY (issue_id) REFERENCES weekly_issues(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS admin_users (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(64) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  last_login_at DATETIME(6) NULL,
+  UNIQUE KEY uk_admin_users_username (username),
+  KEY ix_admin_users_active (is_active)
+) ENGINE=InnoDB;

@@ -11,3 +11,9 @@ venv/
 .env*
 !.env.example
 !backend/.env.example
+
+# Local SQLite (dev only; production uses MySQL)
+backend/dev.db
+
+# TLS material (never commit private keys / bundles)
+aipulse.asia_nginx/

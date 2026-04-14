@@ -11,11 +11,15 @@ class Base(DeclarativeBase):
 
 def _engine():
     settings = get_settings()
+    url = settings.database_url or ""
+    connect_args = None
+    if url.startswith("mysql"):
+        connect_args = {"client_flag": CLIENT.FOUND_ROWS}
     return create_engine(
-        settings.database_url,
+        url,
         pool_pre_ping=True,
         pool_recycle=3600,
-        connect_args={"client_flag": CLIENT.FOUND_ROWS},
+        connect_args=connect_args or {},
     )
 
 

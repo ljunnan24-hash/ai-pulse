@@ -21,6 +21,11 @@ export default defineConfig(({mode}) => {
       hmr: process.env.DISABLE_HMR !== 'true',
       proxy: {
         '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+        // IMPORTANT: do NOT proxy '/admin' because '/admin/*' is also the frontend route namespace.
+        // Only proxy actual backend admin API endpoints.
+        '/admin/auth': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+        '/admin/metrics': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+        '/admin/subscribers': { target: 'http://127.0.0.1:8000', changeOrigin: true },
         '/manage': { target: 'http://127.0.0.1:8000', changeOrigin: true },
         '/health': { target: 'http://127.0.0.1:8000', changeOrigin: true },
       },

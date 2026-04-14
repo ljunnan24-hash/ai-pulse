@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     # RSS sources (comma-separated URLs optional override)
     rss_feed_urls: str = ""
 
+    # Admin auth
+    admin_bootstrap_token: str = ""
+    admin_jwt_secret: str = ""
+    admin_jwt_expires_hours: int = 24
+    # Optional: admin console origin for CORS (e.g. https://admin.aipulse.asia)
+    admin_frontend_url: str = ""
+
     @property
     def feed_list(self) -> List[str]:
         default = [
