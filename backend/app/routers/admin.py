@@ -43,11 +43,6 @@ except Exception:  # pragma: no cover
     _pyjwt = None
 
 
-class BootstrapIn(BaseModel):
-    username: str = Field(min_length=2, max_length=64)
-    password: str = Field(min_length=10, max_length=200)
-
-
 class LoginIn(BaseModel):
     username: str = Field(min_length=2, max_length=64)
     password: str = Field(min_length=1, max_length=200)
@@ -228,27 +223,6 @@ def require_admin(request: Request) -> dict[str, Any]:
     return payload
 
 
-@router.post("/auth/bootstrap")
-def bootstrap(body: BootstrapIn, request: Request, db: Session = Depends(get_db)):
-    settings = get_settings()
-    token = request.headers.get("x-bootstrap-token") or request.headers.get("X-Bootstrap-Token") or ""
-    if not settings.admin_bootstrap_token or token != settings.admin_bootstrap_token:
-        raise HTTPException(status_code=401, detail="Invalid bootstrap token.")
-
-    exists = db.execute(select(func.count(AdminUser.id))).scalar_one()
-    if exists and int(exists) > 0:
-        raise HTTPException(status_code=409, detail="Bootstrap disabled (admin already exists).")
-
-    u = AdminUser(
-        username=body.username.strip(),
-        password_hash=_hash_password(body.password),
-        is_active=1,
-    )
-    db.add(u)
-    db.commit()
-    return {"ok": True}
-
-
 @router.post("/auth/login", response_model=TokenOut)
 def login(body: LoginIn, db: Session = Depends(get_db)) -> TokenOut:
     u = (
@@ -393,7 +367,38 @@ def list_subscribers(
     return out
 
 
-@router.get("/subscribers/{subscriber_id}", response_model=SubscriberRowOut)
+@router.get("/subscribers/export.csv")
+def export_subscribers_csv(
+    status: str | None = None,
+    keyword: str | None = None,
+    payload: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _ = payload
+    ss = (status or "").strip()
+    kw = (keyword or "").strip().lower()
+    stmt = select(Subscriber).order_by(Subscriber.created_at.desc())
+    if ss in {SubscriberStatus.active.value, SubscriberStatus.pending.value, SubscriberStatus.unsubscribed.value}:
+        stmt = stmt.where(Subscriber.status == ss)
+
+    def gen():
+        # UTF-8 BOM for Excel
+        yield "\ufeff"
+        yield "id,email,status,mode,keywords,created_at,confirmed_at\n"
+        for sub in db.execute(stmt).scalars().yield_per(1000):
+            keywords = _parse_keywords(sub.keywords_json)
+            if kw and not any(k.lower() == kw for k in keywords):
+                continue
+            kws = ";".join(keywords)
+            email_csv = str(sub.email).replace('"', '""')
+            kws_csv = kws.replace('"', '""')
+            line = f'{sub.id},"{email_csv}",{sub.status},{sub.mode},"{kws_csv}",{sub.created_at},{sub.confirmed_at or ""}\n'
+            yield line
+
+    return StreamingResponse(gen(), media_type="text/csv")
+
+
+@router.get("/subscribers/by-id/{subscriber_id}", response_model=SubscriberRowOut)
 def get_subscriber(
     subscriber_id: int,
     payload: dict[str, Any] = Depends(require_admin),
@@ -436,38 +441,7 @@ def get_subscriber(
     )
 
 
-@router.get("/subscribers/export.csv")
-def export_subscribers_csv(
-    status: str | None = None,
-    keyword: str | None = None,
-    payload: dict[str, Any] = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    _ = payload
-    ss = (status or "").strip()
-    kw = (keyword or "").strip().lower()
-    stmt = select(Subscriber).order_by(Subscriber.created_at.desc())
-    if ss in {SubscriberStatus.active.value, SubscriberStatus.pending.value, SubscriberStatus.unsubscribed.value}:
-        stmt = stmt.where(Subscriber.status == ss)
-
-    def gen():
-        # UTF-8 BOM for Excel
-        yield "\ufeff"
-        yield "id,email,status,mode,keywords,created_at,confirmed_at\n"
-        for sub in db.execute(stmt).scalars().yield_per(1000):
-            keywords = _parse_keywords(sub.keywords_json)
-            if kw and not any(k.lower() == kw for k in keywords):
-                continue
-            kws = ";".join(keywords)
-            email_csv = str(sub.email).replace('"', '""')
-            kws_csv = kws.replace('"', '""')
-            line = f'{sub.id},"{email_csv}",{sub.status},{sub.mode},"{kws_csv}",{sub.created_at},{sub.confirmed_at or ""}\n'
-            yield line
-
-    return StreamingResponse(gen(), media_type="text/csv")
-
-
-@router.post("/subscribers/{subscriber_id}/unsubscribe")
+@router.post("/subscribers/by-id/{subscriber_id}/unsubscribe")
 def admin_unsubscribe(
     subscriber_id: int,
     payload: dict[str, Any] = Depends(require_admin),
@@ -484,7 +458,7 @@ def admin_unsubscribe(
     return {"ok": True}
 
 
-@router.post("/subscribers/{subscriber_id}/resend-confirmation")
+@router.post("/subscribers/by-id/{subscriber_id}/resend-confirmation")
 def admin_resend_confirmation(
     subscriber_id: int,
     payload: dict[str, Any] = Depends(require_admin),
@@ -530,7 +504,7 @@ def admin_resend_confirmation(
     return {"ok": True}
 
 
-@router.post("/subscribers/{subscriber_id}/resend-latest-weekly")
+@router.post("/subscribers/by-id/{subscriber_id}/resend-latest-weekly")
 def admin_resend_latest_weekly(
     subscriber_id: int,
     payload: dict[str, Any] = Depends(require_admin),

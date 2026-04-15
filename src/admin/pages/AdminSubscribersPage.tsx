@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { AdminSubscriberRow } from '../api/client';
 import { adminExportCsvUrl, adminSubscribers } from '../api/client';
+import { getAdminToken } from '../auth/adminToken';
 
 function StatusBadge({ status }: { status: AdminSubscriberRow['status'] }) {
   if (status === 'active') {
@@ -57,6 +58,7 @@ export function AdminSubscribersPage() {
 
   const [rows, setRows] = useState<AdminSubscriberRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -131,14 +133,52 @@ export function AdminSubscribersPage() {
         ) : (
           <div className="text-sm text-on-surface-variant">共 {filtered.length} 条</div>
         )}
-        <a
-          className="px-4 py-2 rounded-2xl bg-surface-container-low border border-outline-variant/20 font-semibold text-sm hover:bg-surface-container-high transition"
-          href={adminExportCsvUrl({ keyword: keyword || undefined })}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          className="px-4 py-2 rounded-2xl bg-surface-container-low border border-outline-variant/20 font-semibold text-sm hover:bg-surface-container-high transition disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={exporting}
+          onClick={async () => {
+            const token = getAdminToken();
+            if (!token) {
+              setError('未登录或登录已过期，请重新登录后再导出。');
+              return;
+            }
+            setExporting(true);
+            setError(null);
+            try {
+              const url = adminExportCsvUrl({ keyword: keyword || undefined });
+              const res = await fetch(url, {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) {
+                const txt = await res.text().catch(() => '');
+                throw new Error(txt || `导出失败（${res.status}）`);
+              }
+              const blob = await res.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              const safeKw = keyword ? keyword.replace(/[^\w\u4e00-\u9fa5-]+/g, '_').slice(0, 32) : '';
+              const ts = new Date();
+              const pad = (n: number) => String(n).padStart(2, '0');
+              const filename = `subscribers${safeKw ? `_${safeKw}` : ''}_${ts.getFullYear()}${pad(
+                ts.getMonth() + 1
+              )}${pad(ts.getDate())}.csv`;
+              a.href = blobUrl;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(blobUrl);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : '导出失败');
+            } finally {
+              setExporting(false);
+            }
+          }}
         >
-          导出 CSV
-        </a>
+          {exporting ? '导出中…' : '导出 CSV'}
+        </button>
       </div>
 
       <div className="bg-surface-container-lowest rounded-3xl overflow-hidden shadow-[0px_12px_40px_rgba(25,28,30,0.04)] border border-outline-variant/10">

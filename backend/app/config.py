@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     rss_feed_urls: str = ""
 
     # Admin auth
-    admin_bootstrap_token: str = ""
     admin_jwt_secret: str = ""
     admin_jwt_expires_hours: int = 24
     # Optional: admin console origin for CORS (e.g. https://admin.aipulse.asia)

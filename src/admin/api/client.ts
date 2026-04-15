@@ -74,7 +74,7 @@ export async function adminSubscribers(params: {
 }
 
 export async function adminSubscriber(id: number): Promise<AdminSubscriberRow> {
-  return await http<AdminSubscriberRow>(`/admin/subscribers/${id}`);
+  return await http<AdminSubscriberRow>(`/admin/subscribers/by-id/${id}`);
 }
 
 export function adminExportCsvUrl(params: { status?: string; keyword?: string }) {
@@ -86,14 +86,14 @@ export function adminExportCsvUrl(params: { status?: string; keyword?: string })
 }
 
 export async function adminUnsubscribe(id: number) {
-  return await http<{ ok: boolean }>(`/admin/subscribers/${id}/unsubscribe`, { method: 'POST' });
+  return await http<{ ok: boolean }>(`/admin/subscribers/by-id/${id}/unsubscribe`, { method: 'POST' });
 }
 
 export async function adminResendConfirmation(id: number) {
-  return await http<{ ok: boolean }>(`/admin/subscribers/${id}/resend-confirmation`, { method: 'POST' });
+  return await http<{ ok: boolean }>(`/admin/subscribers/by-id/${id}/resend-confirmation`, { method: 'POST' });
 }
 
 export async function adminResendLatestWeekly(id: number) {
-  return await http<{ ok: boolean }>(`/admin/subscribers/${id}/resend-latest-weekly`, { method: 'POST' });
+  return await http<{ ok: boolean }>(`/admin/subscribers/by-id/${id}/resend-latest-weekly`, { method: 'POST' });
 }
 

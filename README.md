@@ -87,7 +87,6 @@ conda run -n aipulse pip install -r backend/requirements.txt ^
 cd backend
 set DATABASE_URL=sqlite:///./dev.db
 set ADMIN_JWT_SECRET=dev_secret_change_me
-set ADMIN_BOOTSTRAP_TOKEN=dev_bootstrap_token
 conda run --no-capture-output -n aipulse python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --log-level info
 ```
 
@@ -97,12 +96,15 @@ conda run --no-capture-output -n aipulse python -m uvicorn app.main:app --host 1
 GET http://127.0.0.1:8000/health
 ```
 
-#### 4) 初始化第一个管理员（bootstrap：仅当 admin_users 表为空时允许）
+#### 4) 初始化第一个管理员（本地脚本）
 
-```text
-POST http://127.0.0.1:8000/admin/auth/bootstrap
-Header: X-Bootstrap-Token: dev_bootstrap_token
-Body: {"username":"admin","password":"Admin12345678"}
+通过脚本创建管理员（不会暴露 HTTP 初始化入口）：
+
+```bat
+cd backend
+set ADMIN_USERNAME=admin
+set ADMIN_PASSWORD=Admin12345678
+conda run --no-capture-output -n aipulse python scripts\create_admin_user.py
 ```
 
 #### 5) 启动前端（已代理 /admin 到 8000）
@@ -122,7 +124,6 @@ http://localhost:3000/admin/login
 在 `backend/.env`（或环境变量）里配置：
 
 - `ADMIN_JWT_SECRET`：JWT 签名密钥（强随机）
-- `ADMIN_BOOTSTRAP_TOKEN`：初始化管理员用一次性 token（创建首个管理员后建议清空/移除）
 - `ADMIN_JWT_EXPIRES_HOURS`：默认 24
 - `ADMIN_FRONTEND_URL`：例如 `https://admin.aipulse.asia`（用于 CORS）
 
