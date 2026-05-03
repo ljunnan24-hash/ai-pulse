@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -22,6 +23,27 @@ def _now_iso() -> str:
 
 def _safe_json(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False)
+
+
+def _force_replace_text(obj: Any) -> Any:
+    """弱化模糊措辞（Composer/Editor 后兜底，不改变 URL 结构）。"""
+    if isinstance(obj, dict):
+        return {k: _force_replace_text(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_force_replace_text(i) for i in obj]
+    if isinstance(obj, str):
+        replacements = (
+            ("可尝试", "建议使用"),
+            ("可参考", "可以直接用"),
+            ("有望", "将会"),
+        )
+        out = obj
+        for k, v in replacements:
+            out = out.replace(k, v)
+        # 弱化「可能」，但保留「可能性」等固定词
+        out = re.sub(r"(?<!性)可能(?!性)", "可以", out)
+        return out
+    return obj
 
 
 def _read_pool_item(it: Any, idx: int) -> tuple[str, str, str, int]:
@@ -142,16 +164,27 @@ class MultiAgentOrchestrator:
             temperature=0.2,
         )
 
-        # Impact Analyst
+        # Impact Analyst（决策增强：每条必须有明确 action）
         impact = self.llm.complete_json(
-            system="You output JSON only. You write for non-technical Chinese professionals.",
+            system=(
+                "You output JSON only. "
+                "You are an AI decision analyst for non-technical users. "
+                "You MUST translate events into actionable decisions. "
+                "Avoid vague language like '可尝试','可参考','可能'. "
+                "Every output must include a clear action suggestion."
+            ),
             user=(
                 "基于 fact_sheet 和事件摘要，为每条事件输出：\n"
-                "- one_liner（<=40字）\n"
-                "- impact_bullets（2-3条，每条<=25字）\n\n"
+                "- one_liner（<=40字，事实）\n"
+                "- impact_bullets（最多2条）\n"
+                "- action（必须是明确动作：现在用 / 可以替代 / 建议忽略 / 先观望）\n\n"
+                "要求：\n"
+                "1. 必须是“你”视角\n"
+                "2. 禁止使用：可尝试、可参考、可能\n"
+                "3. 必须替用户做判断\n\n"
                 f"fact_sheet：{_safe_json(verifier)}\n\n"
                 f"事件列表：{_safe_json(events)}\n\n"
-                "输出结构：{ \"events\": [ {\"event_id\":\"...\",\"one_liner\":\"...\",\"impact_bullets\":[...]} ] }\n"
+                '输出结构：{ "events": [ {"event_id","one_liner","impact_bullets","action"} ] }\n'
             ),
             temperature=0.4,
         )
@@ -188,15 +221,28 @@ class MultiAgentOrchestrator:
         ev_pack = event_cards if isinstance(event_cards, dict) else {}
         cards_list = ev_pack.get("event_cards") if isinstance(ev_pack.get("event_cards"), list) else []
 
-        # Capability Analyst（PRD：AI 能力进展独立工种）
+        # Capability Analyst（结论型：强判断 + 禁止模糊总结段落）
         capability = self.llm.complete_json(
-            system="You output JSON only. You analyze AI capability boundaries for non-technical readers.",
+            system=(
+                "You output JSON only. "
+                "You analyze AI capability boundaries. "
+                "Your goal is to answer: Can AI replace something now?"
+            ),
             user=(
-                "基于下列 event_cards，输出 PRD「AI 能力进展」模块：1-3 条，每条含：\n"
-                "theme（面向用户的短问题）, can_do, cannot_do, cost, suitable_for, conclusion（一句话）。\n"
-                "不要编造具体产品参数；不确定写保守表述。\n\n"
+                "从 event_cards 中选择 1-2 个最重要能力主题，输出结构化判断：\n\n"
+                "每个主题必须包含：\n"
+                "- theme（问题形式，如：AI编程工具现在能不能替代付费工具？）\n"
+                "- can_do（3条以内）\n"
+                "- cannot_do（2条以内）\n"
+                "- cost（低/中/高）\n"
+                "- suitable_for\n"
+                "- conclusion（必须是强判断：可以替代 / 不建议现在用 / 仅适合部分场景）\n\n"
+                "要求：\n"
+                "1. 必须给结论\n"
+                "2. 不允许写总结段落\n"
+                "3. 不允许模糊表达\n\n"
                 f"event_cards：{_safe_json(cards_list[:24])}\n\n"
-                "只输出 JSON：{ \"capabilities\": [ ... ] }\n"
+                '输出 JSON：{ "capabilities": [ ... ] }\n'
             ),
             temperature=0.35,
         )
@@ -239,11 +285,14 @@ class MultiAgentOrchestrator:
                 }
             )
 
-        # Composer：只产出「短」结构化 JSON；完整 PRD v3 由 slim_weekly_render 确定性合并（HTML 由 digest_builder 渲染）
+        # Composer：短 JSON；capabilities 仍由 slim_merge 注入；此处强调 Top3=决策、分类=补充事实、去重
         composer_raw = self.llm.complete_json(
             system=(
-                "You output JSON only. Output a COMPACT weekly outline — NOT a huge nested PRD blob. "
-                "No HTML tags. URLs must be copied exactly from event_cards_compact."
+                "You output JSON only. "
+                "You are generating a high-value AI decision newsletter. "
+                "Top3 is for decision. Sections are for facts. "
+                "NEVER repeat the same explanation in both Top3 and sections. "
+                "Top3 must include actionable decisions."
             ),
             user=(
                 "根据下列材料写中文周报要点。禁止输出 capabilities 字段（由服务端注入 capability 分析结果）。\n\n"
@@ -258,8 +307,22 @@ class MultiAgentOrchestrator:
                 '  "footer": "",\n'
                 '  "glossary": [ {"term","explain"} ] 可填空数组（空则服务端用 glossary_hint）\n'
                 "}\n\n"
-                "规则：所有 url 必须从 event_cards_compact 复制；Top3 与分类重复条目标 see_top3=true；你视角。\n"
-                "capability 正文参考（勿写入 JSON）：\n"
+                "重要规则：\n"
+                "1. 如果事件已在 Top3 中出现：\n"
+                "   - sections 中该事件必须 see_top3=true\n"
+                "   - 不得重复 why_important 和 what_it_means_for_you\n"
+                "   - 只写事实补充\n\n"
+                "2. Top3 必须提供决策建议：\n"
+                "   - 是否现在使用\n"
+                "   - 是否替代现有方案\n\n"
+                "3. 所有 what_it_means_for_you 必须包含行动词：\n"
+                "   - 现在用 / 可以替代 / 建议忽略 / 先观望\n\n"
+                "4. 禁止泛化表达：\n"
+                "   - 不允许 '可尝试','可参考','可能','有望'\n\n"
+                "5. tools 模块必须包含：\n"
+                "   - worth_trying: Yes 或 No\n\n"
+                "6. 所有 url 必须从 event_cards_compact 逐字复制。\n\n"
+                "capability 正文参考（勿写入 JSON 的 capabilities 键）：\n"
                 f"{_safe_json(caps_for_prompt)}\n\n"
                 f"event_cards_compact：{_safe_json(cards_compact)}\n\n"
                 f"trends：{_safe_json(trends)}\n\n"
@@ -295,6 +358,10 @@ class MultiAgentOrchestrator:
             if not isinstance(editor_out, dict):
                 editor_out = composer_out if isinstance(composer_out, dict) else {}
         else:
+            editor_out = composer_out if isinstance(composer_out, dict) else {}
+
+        editor_out = _force_replace_text(editor_out)
+        if not isinstance(editor_out, dict):
             editor_out = composer_out if isinstance(composer_out, dict) else {}
 
         # Auditor（可选）：高风险则回退确定性组装
