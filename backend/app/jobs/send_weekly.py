@@ -14,7 +14,7 @@ import logging
 import os
 from smtplib import SMTPDataError
 
-from sqlalchemy import insert, select
+from sqlalchemy import case, insert, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -59,7 +59,11 @@ def run(db: Session, *, cli_test_only: bool = False) -> None:
     issue = db.execute(
         select(WeeklyIssue)
         .where(WeeklyIssue.period_start == period, WeeklyIssue.status == IssueStatus.ready.value)
-        .order_by(WeeklyIssue.ready_at.desc().nullslast(), WeeklyIssue.id.desc())
+        .order_by(
+            case((WeeklyIssue.ready_at.is_(None), 1), else_=0),
+            WeeklyIssue.ready_at.desc(),
+            WeeklyIssue.id.desc(),
+        )
     ).scalars().first()
     if not issue:
         print(f"No ready issue for period {period}.")
