@@ -347,39 +347,65 @@ Event = 同一事实的多来源聚合
 }
 
 6.3 多Agent处理流程（关键🔥）
-Raw Data
+
+实现代码：`backend/app/services/multi_agent_orchestrator.py`；入库阶段已完成 RawItem → IssueEvent 聚合，流水线从 Cleaner 起。
+
+与「结构 vs 渲染」分层（避免模型一次性输出巨型嵌套 JSON 导致截断与解析失败）：
+
+Raw Data（候选池 TopN，来自 IssueEvent / 摘要字段）
 ↓
-[Cleaner] 清洗过滤
+[Cleaner] 确定性清洗过滤（非 LLM）
 ↓
-[Merger] 事件合并
+[Merger] 占位说明（重复合并已在入库 IssueEvent 阶段完成，此处不二次 LLM 合并）
 ↓
-[Verifier] 事实校验
+[Verifier] 事实校准（JSON）
 ↓
-[Scoring] 基础评分
+[Impact Analyst] 用户价值要点（JSON）
 ↓
-[Impact Analyst] 用户价值解释
+[Scoring] 噪声 / 重复审计（JSON）
 ↓
-EventCard Pool
+[EventCards] 组装事件卡片池（JSON）
 ↓
-[Capability Analyst] 能力判断
+[Capability Analyst] AI 能力边界（JSON）
 ↓
-[Composer] 周报生成
+[Trend] 趋势摘要（JSON）
 ↓
-[Editor] 文本优化
+[Glossary] 术语表草案（JSON）
 ↓
-[Auditor] 质量校验
+[Composer] **仅输出「精简结构化 JSON」**：`simple_lines`、`top3`、`sections`、`tools`、`footer`、`glossary`（可空）；**禁止**输出完整 PRD v3 巨型嵌套；**禁止**输出 HTML；所有 `url` 须从 event_cards 可追溯复制
+↓
+[Renderer] **确定性合并**（非 LLM）：`slim_merge_to_prd_v3`，注入上游 **Capability** 分析结果为 `normal.capabilities`，并与 Glossary 步骤对齐 → 得到 **PRD v3 payload**
+↓
+[Mail Renderer] **邮件 HTML / 纯文本** 仅由模板渲染：`digest_builder.render_issue_email`（非模型写 HTML）
+↓
+[Editor] 可选：对 PRD v3 JSON 做中文润色（`MULTI_AGENT_ENABLE_EDITOR`）
+↓
+[Quality Auditor] 可选：事实 / 编造风险（`MULTI_AGENT_ENABLE_AUDITOR`）
+↓
+[Email Deliverability Auditor + Rewriter] 默认开启（`MULTI_AGENT_ENABLE_DELIVERABILITY`）：URL tracking 参数清洗 → 基于 **渲染后的 HTML + 纯文本节选** 做送达率审核 → 必要时改写 **payload JSON**；达标后 `finalize_payload_v3` + 校验
+
+**周刊生成任务**（`app.jobs.generate_weekly`）：抓取 → 入库 → 可选 `--force` 在不改 `period_start` 前提下整期重跑。每期 **`weekly_issues`** 存当前最新一版；**`weekly_issue_snapshots`** 表对每次成功生成 **追加一行** 快照（含 `payload_json`、`audit_report_json`、`source`），便于追溯历史版本。
 
 6.4 Agent职责（精简版）
-Agent	职责
-Cleaner	过滤垃圾信息
-Merger	事件去重
-Verifier	确认事实
-Scoring	计算基础分
-Impact	用户价值解释
-Capability	能力边界判断
-Composer	周报组装
-Editor	文本优化
-Auditor	风险检测
+
+| 环节 | 职责 |
+| --- | --- |
+| Cleaner | 过滤明显垃圾 / 空条目（规则） |
+| Merger | 说明占位；事件合并以 IssueEvent 为准 |
+| Verifier | 事实与链接校准 |
+| Scoring | 噪声与重复审计 |
+| Impact | 用户价值 one-liner / bullets |
+| EventCards | 结构化事件卡片池 |
+| Capability | AI 能力边界（写入 payload 时由服务端注入，不由 Composer 重复生成全文） |
+| Trend | 趋势归纳 |
+| Glossary | 术语表草案 |
+| Composer | **精简 JSON 提纲**（非整棵 PRD v3） |
+| Renderer（代码） | slim JSON → PRD v3 合并；邮件侧由 `render_issue_email` 出 HTML |
+| Editor（可选） | 润色 PRD v3 措辞 |
+| Quality Auditor（可选） | 事实 / 高危误导检测 |
+| Deliverability | 基于渲染邮件内容做反垃圾风险审核与按需改写 payload |
+
+环境变量与默认值见 `backend/.env.example`（如 `MULTI_AGENT_*`、`DOUBAO_MAX_TOKENS` 等）。
 
 七、评分体系（简化）
 
@@ -418,7 +444,9 @@ S = 热度 + 新鲜度 + 来源可信度
 降级策略
 数据不足 → 减少模块 
 不确定 → 删除 
-风险高 → 不发送 
+事实风险高 → Quality Auditor 触发确定性回退组装（可选链路）
+送达率分数过低 / 持续高风险 → Deliverability 严格模式下回退确定性组装或不建议发送 
+LLM 未配置 → 退回单次 summarize / 确定性组装 
 
 十、邮件与分发
 
