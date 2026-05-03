@@ -13,6 +13,7 @@ from app.services.deliverability_pipeline import (
 from app.services.digest_builder import build_payload_from_raw_items
 from app.services.llm_json_client import LlmJsonClient
 from app.services.payload_schema import finalize_payload_v3, format_errors, validate_payload
+from app.services.slim_weekly_render import is_full_prd_v3_payload, slim_merge_to_prd_v3
 
 
 def _now_iso() -> str:
@@ -225,36 +226,59 @@ class MultiAgentOrchestrator:
         cap_block = capability if isinstance(capability, dict) else {}
         caps_for_prompt = cap_block.get("capabilities") if isinstance(cap_block.get("capabilities"), list) else []
 
-        # Composer：组装 payload v3
-        composer_out = self.llm.complete_json(
-            system="You output JSON only. You assemble the weekly payload; do not invent URLs.",
+        cards_compact: list[dict[str, Any]] = []
+        for c in cards_list[:48]:
+            if not isinstance(c, dict):
+                continue
+            cards_compact.append(
+                {
+                    "event_id": c.get("event_id"),
+                    "title": c.get("title"),
+                    "url": c.get("url"),
+                    "one_liner": c.get("one_liner"),
+                }
+            )
+
+        # Composer：只产出「短」结构化 JSON；完整 PRD v3 由 slim_weekly_render 确定性合并（HTML 由 digest_builder 渲染）
+        composer_raw = self.llm.complete_json(
+            system=(
+                "You output JSON only. Output a COMPACT weekly outline — NOT a huge nested PRD blob. "
+                "No HTML tags. URLs must be copied exactly from event_cards_compact."
+            ),
             user=(
-                "根据 event_cards + capability分析 + trends + glossary 组装最终 payload.json，必须严格为 PRD v3：\n"
+                "根据下列材料写中文周报要点。禁止输出 capabilities 字段（由服务端注入 capability 分析结果）。\n\n"
+                "【输出 JSON 键名固定】\n"
                 "{\n"
-                '  "simple": {"lines": ['
-                '{"title","what_happened"(<=30字),"what_it_means_for_you","url"}], "footer": "" },\n'
-                '  "normal": {\n'
-                '    "top3": ['
-                '{"title","url","what_happened","why_important","what_it_means_for_you","attention_level":"1-5"} x3 ],\n'
-                '    "sections": [ {"title":"大模型更新"|"工具/产品"|"行业动态", '
-                '"items": [{ "title","url","what_happened","suitable_for",'
-                '"worth_attention":"High|Medium|Low","what_it_means_for_you","see_top3": bool }] } ] x3 ,\n'
-                '    "capabilities": 直接使用下列 capability 数组（可微调措辞但保留事实级别）,\n'
-                '    "tools": [{ "name","can_do","suitable_for","worth_trying":"Yes|No","what_it_means_for_you" }] （0-3条）\n'
-                "  },\n"
-                '  "glossary": [{"term","explain": "<=50字"}] （5-12条）\n'
-                "}\n"
-                "normal.capabilities 必须与下列 capability 分析一致（条目数量与主题一致）：\n"
+                '  "simple_lines": [ {"title","what_happened"(<=30字),"what_it_means_for_you","url"} ] 约5条,\n'
+                '  "top3": [ {"title","url","what_happened","why_important","what_it_means_for_you","attention_level":"1"-"5"} ] 恰好3条,\n'
+                '  "sections": [ {"title":"大模型更新"|"工具/产品"|"行业动态",'
+                ' "items":[{"title","url","what_happened","suitable_for","worth_attention":"High|Medium|Low",'
+                '"what_it_means_for_you","see_top3":bool}] } ] 恰好3个板块,\n'
+                '  "tools": [ {"name","can_do","suitable_for","worth_trying":"Yes|No","what_it_means_for_you"} ] 0-3条,\n'
+                '  "footer": "",\n'
+                '  "glossary": [ {"term","explain"} ] 可填空数组（空则服务端用 glossary_hint）\n'
+                "}\n\n"
+                "规则：所有 url 必须从 event_cards_compact 复制；Top3 与分类重复条目标 see_top3=true；你视角。\n"
+                "capability 正文参考（勿写入 JSON）：\n"
                 f"{_safe_json(caps_for_prompt)}\n\n"
-                "规则：Top3 与分类重复项 see_top3=true；用「你」视角；不确定不写进事实句。\n\n"
-                f"event_cards：{_safe_json(event_cards)}\n\n"
+                f"event_cards_compact：{_safe_json(cards_compact)}\n\n"
                 f"trends：{_safe_json(trends)}\n\n"
-                f"glossary：{_safe_json(glossary_out)}\n\n"
-                "只输出 JSON。\n"
+                f"glossary_hint：{_safe_json(glossary_out)}\n\n"
+                "只输出一个 JSON 对象。\n"
             ),
             temperature=0.2,
-            timeout_s=300.0,
+            timeout_s=240.0,
         )
+
+        cr = composer_raw if isinstance(composer_raw, dict) else {}
+        if is_full_prd_v3_payload(cr):
+            composer_out = cr
+        else:
+            composer_out = slim_merge_to_prd_v3(
+                cr,
+                capabilities=caps_for_prompt,
+                glossary_fallback=glossary_out if isinstance(glossary_out, dict) else {},
+            )
 
         # Editor（可选）：文体收口
         editor_out: dict[str, Any]
@@ -362,6 +386,7 @@ class MultiAgentOrchestrator:
             "capability": capability,
             "trends": trends,
             "glossary": glossary_out,
+            "composer_slim_raw": composer_raw if isinstance(composer_raw, dict) else {},
             "composer": composer_out,
             "editor": editor_out,
             "auditor": auditor_report,

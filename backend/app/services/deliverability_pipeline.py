@@ -11,7 +11,9 @@ import json
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from app.services.digest_builder import render_issue_email
 from app.services.llm_json_client import LlmJsonClient
+from app.services.payload_schema import ensure_payload_v3
 
 # 常见 tracking / 推广参数（去掉不改变原文指向的站点路径）
 _TRACKING_QUERY_KEYS: frozenset[str] = frozenset(
@@ -130,24 +132,19 @@ def _parse_score(raw: Any) -> int:
 def run_deliverability_auditor(
     llm: LlmJsonClient,
     *,
-    payload: dict[str, Any],
-    link_count: int,
-    shortlink_hosts: list[str],
+    payload: dict[str, Any] | None = None,
+    html_body: str | None = None,
+    text_body: str | None = None,
+    link_count: int = 0,
+    shortlink_hosts: list[str] | None = None,
 ) -> dict[str, Any]:
+    shortlink_hosts = shortlink_hosts or []
     hint = (
-        f"结构化字段中共有 {link_count} 个 http(s) 链接（含 top3/分类/工具等 url 字段）。\n"
-        f"检测到可能的短链域名（请在 risk_reasons 中点名）：{shortlink_hosts or ['无']}\n"
+        f"结构化字段中约有 {link_count} 个 http(s) 链接计数（用于参考）。\n"
+        f"可能的短链域名：{shortlink_hosts or ['无']}\n"
     )
-    user = (
-        "你是 Email Deliverability Auditor，审核 AI Pulse 周报结构化 JSON（PRD v3）是否可能触发"
-        "ESP 内容反垃圾（如阿里云直邮 554 content spam）。\n\n"
-        "检查：营销/夸张/诱导点击/高收益承诺类措辞；链接是否过多或疑似短链、跳转；"
-        "模板化夸张标题；事实型信息服务语气是否足够。\n"
-        "（退订入口、联系邮箱、multipart 由发送层保证，此处只审 payload 正文与链接字段。）\n\n"
-        + hint
-        + "\npayload JSON：\n"
-        + json.dumps(payload, ensure_ascii=False)
-        + "\n\n只输出 JSON：\n"
+    json_tail = (
+        "\n\n只输出 JSON：\n"
         "{\n"
         '  "deliverability_score": 0-100,\n'
         '  "risk_level": "low|medium|high",\n'
@@ -160,12 +157,44 @@ def run_deliverability_auditor(
         "}\n"
         "评分标准：>=85 可发送；70-84 建议改写；<70 必须改写。\n"
     )
+    if html_body is not None and text_body is not None:
+        user = (
+            "你是 Email Deliverability Auditor：下列为「渲染后的」周报邮件 HTML 与纯文本（节选），"
+            "审核是否可能触发 ESP 内容反垃圾（如阿里云直邮 554）。\n\n"
+            "检查：营销/夸张/诱导点击/高收益承诺；语气是否偏信息服务而非广告；链接观感是否过度推销。\n"
+            "（退订入口、multipart 由发送层保证。）\n\n"
+            + hint
+            + "\n--- HTML（节选） ---\n"
+            + (html_body[:16000])
+            + "\n--- TEXT（节选） ---\n"
+            + (text_body[:12000])
+            + json_tail
+        )
+    elif payload is not None:
+        user = (
+            "你是 Email Deliverability Auditor，审核 AI Pulse 周报结构化 JSON（PRD v3）是否可能触发"
+            "ESP 内容反垃圾（如阿里云直邮 554 content spam）。\n\n"
+            "检查：营销/夸张/诱导点击/高收益承诺类措辞；链接是否过多或疑似短链、跳转；"
+            "模板化夸张标题；事实型信息服务语气是否足够。\n\n"
+            + hint
+            + "\npayload JSON：\n"
+            + json.dumps(payload, ensure_ascii=False)
+            + json_tail
+        )
+    else:
+        return {}
+
     out = llm.complete_json(
         system="You output JSON only. You specialize in email deliverability for Chinese newsletters.",
         user=user,
         temperature=0.1,
     )
     return out if isinstance(out, dict) else {}
+
+
+def _preview_email_bodies(payload: dict[str, Any]) -> tuple[str, str]:
+    p = ensure_payload_v3(payload)
+    return render_issue_email(p, "normal", issue_heading=None)
 
 
 def run_deliverability_rewriter(
@@ -229,10 +258,16 @@ def apply_deliverability_pipeline(
         "url_tracking_stripped": True,
         "link_count": lc,
         "shortlink_hosts": short_hosts,
+        "auditor_input": "rendered_email",
     }
 
+    html_prev, text_prev = _preview_email_bodies(sanitized)
     audit1 = run_deliverability_auditor(
-        llm, payload=sanitized, link_count=lc, shortlink_hosts=short_hosts
+        llm,
+        html_body=html_prev,
+        text_body=text_prev,
+        link_count=lc,
+        shortlink_hosts=short_hosts,
     )
     artifact["audit_round1"] = audit1
 
@@ -252,8 +287,14 @@ def apply_deliverability_pipeline(
         new_p = rw.get("payload") if isinstance(rw.get("payload"), dict) else None
         if isinstance(new_p, dict) and new_p:
             current = new_p
+            cur_san = sanitize_urls_in_payload(copy.deepcopy(current))
+            h2, t2 = _preview_email_bodies(cur_san)
             audit2 = run_deliverability_auditor(
-                llm, payload=current, link_count=count_structured_http_links(current), shortlink_hosts=_shortlink_hosts_in_payload(current)
+                llm,
+                html_body=h2,
+                text_body=t2,
+                link_count=count_structured_http_links(cur_san),
+                shortlink_hosts=_shortlink_hosts_in_payload(cur_san),
             )
             artifact["audit_round2"] = audit2
             artifact["final_deliverability_score"] = _parse_score(audit2.get("deliverability_score"))

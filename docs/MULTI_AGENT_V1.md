@@ -56,7 +56,9 @@ flowchart TD
   DV --> R[finalize + validate]
 ```
 
-> 说明：**Cleaner** 为 Python 规则；**Merger** 不在此二次合并（见 `artifacts.merger`）。**Capability** 独立 LLM；**Composer** 生成整份 PRD v3；**Editor**（`MULTI_AGENT_ENABLE_EDITOR`）与 **Quality Auditor**（`MULTI_AGENT_ENABLE_AUDITOR`，事实与编造风险）默认均为关。**Email Deliverability**（`MULTI_AGENT_ENABLE_DELIVERABILITY`，默认 **开启**）在结构化 payload 上做链接清洗（去常见 tracking 参数）+ LLM 送达率审核与按需改写；详见 `app/services/deliverability_pipeline.py`，审计结果在 `artifacts.deliverability` / `audit_report.deliverability`。若开启 **`MULTI_AGENT_DELIVERABILITY_STRICT`**（默认 true）且改写后仍低于 `MULTI_AGENT_DELIVERABILITY_MIN_SCORE` 或仍为 high risk，则与 Fact Auditor 一样整包回退为确定性组装。
+> **Composer（实现更新）**：LLM 只输出「精简结构化 JSON」（`simple_lines` / `top3` / `sections` / `tools` / `glossary`）；**不写**嵌套巨型 PRD blob。**capabilities** 由上游 Capability 分析在服务端注入（`slim_weekly_render.slim_merge_to_prd_v3`）。邮件 HTML 仍由 **`digest_builder.render_issue_email`** 确定性渲染。**送达率审核**优先基于「渲染后的 HTML + 纯文本节选」，而非整份 payload JSON。
+
+> 说明：**Cleaner** 为 Python 规则；**Merger** 不在此二次合并（见 `artifacts.merger`）。**Capability** 独立 LLM；**Composer** 生成整份 PRD v3；**Editor**（`MULTI_AGENT_ENABLE_EDITOR`）与 **Quality Auditor**（`MULTI_AGENT_ENABLE_AUDITOR`，事实与编造风险）默认均为关。**Email Deliverability**（`MULTI_AGENT_ENABLE_DELIVERABILITY`，默认 **开启**）：链接清洗（去常见 tracking 参数）后，用 **`render_issue_email` 预览 HTML/纯文本** 再做 LLM 送达率审核与按需改写；详见 `app/services/deliverability_pipeline.py`。若开启 **`MULTI_AGENT_DELIVERABILITY_STRICT`**（默认 true）且改写后仍低于 `MULTI_AGENT_DELIVERABILITY_MIN_SCORE` 或仍为 high risk，则整包回退为确定性组装。
 
 ## 2. 核心理念：事件卡片（Event Card）
 
