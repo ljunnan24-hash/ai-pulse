@@ -51,7 +51,7 @@ export const Home: React.FC<HomeProps> = ({ onSubscribePending }) => {
           Curate Your <span className="text-primary">Intelligence.</span>
         </h1>
         <p className="text-lg text-on-surface-variant max-w-2xl leading-relaxed">
-          Stay ahead of the curve. Enter your interests and we'll notify you the moment relevant breakthroughs surface. No account required.
+          Stay ahead of the curve. Enter your interests and we&apos;ll notify you the moment relevant breakthroughs surface. No account required.
         </p>
       </header>
 
@@ -73,6 +73,11 @@ export const Home: React.FC<HomeProps> = ({ onSubscribePending }) => {
                 Normal
               </button>
             </div>
+            <p className="text-sm text-on-surface-variant max-w-xl leading-relaxed">
+              {mode === 'simple'
+                ? 'Simple：约 30 秒读完 · 3–5 条，每条含「发生了什么」「对你意味着什么」与链接。'
+                : 'Normal：Top3、分类事件流、AI 能力进展、工具机会与术语表，面向决策参考。'}
+            </p>
           </div>
 
           <form className="space-y-8" onSubmit={(e) => e.preventDefault()}>

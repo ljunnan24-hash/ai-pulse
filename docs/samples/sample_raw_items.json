@@ -1,0 +1,32 @@
+{
+  "raw_items": [
+    {
+      "source_type": "rss",
+      "source": "https://openai.com/blog/rss.xml",
+      "title": "OpenAI 发布新一代多模态模型（示例）",
+      "summary": "官方发布了新模型，强调更快的响应速度与更强的多模态能力。",
+      "link": "https://openai.com/blog/example-model",
+      "heat_score": 900,
+      "score_total": 92
+    },
+    {
+      "source_type": "github",
+      "source": "github_search",
+      "title": "awesome-agent-framework（+8000★/7d）（示例）",
+      "summary": "一个用于构建 Agent 工作流的开源框架，本周涨星迅猛。",
+      "link": "https://github.com/example/awesome-agent-framework",
+      "heat_score": 8000,
+      "score_total": 88
+    },
+    {
+      "source_type": "media",
+      "source": "https://www.jiqizhixin.com/rss",
+      "title": "行业观点：多模态应用进入实用化阶段（示例）",
+      "summary": "媒体总结本周多家大厂发布，认为 AI 正在从 demo 走向生产落地。",
+      "link": "https://www.jiqizhixin.com/articles/example",
+      "heat_score": 700,
+      "score_total": 80
+    }
+  ]
+}
+

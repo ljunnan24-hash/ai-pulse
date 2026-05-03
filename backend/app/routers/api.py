@@ -17,10 +17,12 @@ from app.models import SendLog, Subscriber, SubscriberStatus, WeeklyIssue, Issue
 from app.schemas import SubscribeIn, SubscribeOut, ManageUpdateIn
 from app.services.digest_builder import (
     append_subscription_footer,
-    filter_payload_for_keywords,
     parse_payload_json,
+    build_payload_from_raw_items,
     render_issue_email,
 )
+from app.services.issue_events_service import fetch_digest_candidates
+from app.timeutil import weekly_issue_heading_display
 from app.services.email_service import send_email
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -273,17 +275,21 @@ def confirm(
         k = _kind(f"confirm_digest:{issue_key}", confirmed_email)
         logger.warning("confirm_digest send: token=%s email=%s issue_key=%s", token, confirmed_email, issue_key)
         try:
-            payload = parse_payload_json(issue.payload_json)
             kws: list[str] = json.loads(confirmed_keywords_json or "[]")
-            filtered, matched = filter_payload_for_keywords(payload, kws)
+            digest_candidates = fetch_digest_candidates(db, issue.id)
+            filtered, matched = build_payload_from_raw_items(digest_candidates, mode=confirmed_mode, keywords=kws)
             banner = None
             if kws and not matched:
-                banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
+                banner = "本周期暂无与关键词直接匹配的内容，以下为本期最高分内容。"
+            heading = (
+                weekly_issue_heading_display(issue.period_start) if getattr(issue, "period_start", None) else None
+            )
             html_body, text_body = render_issue_email(
                 filtered,
                 confirmed_mode,
                 keyword_banner=banner,
                 recipient_email=confirmed_email,
+                issue_heading=heading,
             )
             html_body = append_subscription_footer(
                 html_body, settings.public_app_url, confirmed_unsub_token, confirmed_manage_token
@@ -291,7 +297,7 @@ def confirm(
             text_body += (
                 f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={confirmed_unsub_token}"
             )
-            send_email(confirmed_email, "AI Pulse · 最新一期", html_body, text_body)
+            send_email(confirmed_email, heading or "AI Pulse · 最新一期", html_body, text_body)
             try:
                 db.execute(
                     insert(SendLog).values(
@@ -379,23 +385,28 @@ def resend_latest(token: str, db: Session = Depends(get_db)):
     else:
         logger.warning("resend_latest send: email=%s issue_key=%s", target_email, issue_key)
         try:
-            payload = parse_payload_json(issue.payload_json)
             kws: list[str] = json.loads(target_keywords_json or "[]")
-            filtered, matched = filter_payload_for_keywords(payload, kws)
+            digest_candidates = fetch_digest_candidates(db, issue.id)
+            filtered, matched = build_payload_from_raw_items(digest_candidates, mode=target_mode, keywords=kws)
             banner = None
             if kws and not matched:
-                banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
+                banner = "本周期暂无与关键词直接匹配的内容，以下为本期最高分内容。"
+            heading = (
+                weekly_issue_heading_display(issue.period_start) if getattr(issue, "period_start", None) else None
+            )
             html_body, text_body = render_issue_email(
                 filtered,
                 target_mode,
                 keyword_banner=banner,
                 recipient_email=target_email,
+                issue_heading=heading,
             )
             html_body = append_subscription_footer(
                 html_body, settings.public_app_url, target_unsub_token, target_manage_token
             )
             text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={target_unsub_token}"
-            send_email(target_email, "AI Pulse · 最新一期（补发）", html_body, text_body)
+            subj = (heading + "（补发）") if heading else "AI Pulse · 最新一期（补发）"
+            send_email(target_email, subj, html_body, text_body)
             db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
             db.commit()
         except Exception:

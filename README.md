@@ -6,10 +6,15 @@ English marketing SPA (Vite + React) plus a **Python (FastAPI)** backend: RSS in
 
 | Path | Role |
 |------|------|
+| `prd.md` | Product requirements (**canonical**; do not maintain parallel Word copies in repo) |
 | `src/` | Frontend: subscription UI, demo Simple/Normal views |
 | `backend/` | API + cron jobs (`generate_weekly`, `send_weekly`) |
 | `sql/schema.sql` | MySQL DDL |
 | `deploy/crontab.example` | Beijing-time cron samples |
+| `docs/SCORING_V1.md` | Event scoring spec (v1) |
+| `docs/SOCIAL_SOURCES.md` | Social sources whitelist (v1) |
+| `docs/MULTI_AGENT_V1.md` | Multi-agent newsletter workflow (v1) |
+| `docs/部署与数据说明.md` | 迁移步骤、环境配置要点、数据库存储说明（中文） |
 
 ## Local development
 
@@ -237,3 +242,15 @@ sudo tail -n 200 /var/log/aipulse-send.log
 ## Volcengine Ark (豆包)
 
 Create an API key and an **endpoint model ID** (`ep-…`). Set `DOUBAO_API_KEY`, `DOUBAO_MODEL`, and optionally `DOUBAO_API_BASE` in `backend/.env`.
+
+## Content sources (RSS / GitHub / X)
+
+- **RSS**: the backend aggregates multiple RSS/Atom feeds for weekly generation.
+  - Configure in `backend/.env`:
+    - `OFFICIAL_RSS_URLS` (AI 公司官网/博客 RSS)
+    - `MEDIA_RSS_URLS` (行业媒体 RSS)
+    - `X_RSS_URLS` (X/Twitter 账号 RSS)
+- **X/Twitter**: this repo intentionally does **not** depend on the paid X API.
+  - Recommended: use an RSS bridge (e.g. RSSHub or a Nitter instance) to generate RSS URLs for official accounts, then put them into `X_RSS_URLS`.
+- **GitHub**: optional "Trending" approximation uses the GitHub Search API.
+  - Set `GITHUB_TOKEN` for higher rate limits (cron stability).

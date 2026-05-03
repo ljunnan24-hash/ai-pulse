@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from app.config import get_settings
+from app.services.payload_schema import finalize_payload_v3
 
 
 def _extract_json_block(text: str) -> dict[str, Any]:
@@ -26,32 +27,40 @@ def _extract_json_block(text: str) -> dict[str, Any]:
 def build_prompt(items: list[dict[str, Any]]) -> str:
     lines = []
     for i, it in enumerate(items[:60], 1):
+        score = it.get("_score_total")
         lines.append(
             f"{i}. [{it.get('source','')}] {it.get('title','')}\n"
             f"   摘要: {it.get('summary','')[:500]}\n"
             f"   链接: {it.get('link','')}\n"
+            f"   百分制评分: {score if score is not None else 0}\n"
             f"   热度分: {it.get('heat_score',0)}"
         )
     corpus = "\n".join(lines)
-    return f"""你是面向非技术职场人的中文科技编辑。根据下列本周资讯（已按热度大致排序），输出**严格 JSON**（不要 Markdown 外壳以外的文字）。
+    return f"""你是面向非技术职场人的中文科技编辑。根据下列本周资讯（已按「百分制评分」由高到低排序），输出**严格 JSON**（不要 Markdown 外壳以外的文字）。
 
-要求：
-1. simple：≤300 字等价的短讯。
-   - lines：数组，3-5 条，每项必须包含标题与链接：{{"text":"...","url":"https://..."}}（url 必须来自资讯列表中的链接）。
-   - text 必须是“一句话”，不要包含子编号格式（不要出现 1.1 / 2.3 / 1）——序号由渲染层自动生成。
-   - footer：一句话总结「本周 AI 突破对普通人的影响」。术语不要解释，留在正文里。
-2. normal：1200-1500 字左右。
-   - top3：数组，3 条本周热点，每项必须包含标题与链接：{{"title":"...","url":"https://..."}}（url 必须来自资讯列表中的链接）。
-   - sections：数组，每项 {{ "title": "大模型更新"|"AI工具/产品发布"|"行业重要动态", "paragraph": "该板块正文，非技术向，事件+影响。引用来源时请直接写出 url（不要用 markdown 链接语法）" }}。按热度组织，可引用来源链接。
-3. glossary：数组，每项 {{ "term": "术语", "explain": "≤50字通俗中文解释" }}，覆盖正文中较难术语，5-12 个。
+要求（PRD v3）：
+1. simple：供 Simple 模式邮件；lines 3-5 条（优先 5 条），每项必须包含：
+   - title：标题
+   - what_happened：≤30 字，发生了什么（禁止堆砌术语）
+   - what_it_means_for_you：对你意味着什么（用户视角）
+   - url：必须来自资讯列表中的链接
+2. normal：供 Normal 模式邮件。
+   - top3：固定 3 条；每项含 title, url, what_happened, why_important（行业层）, what_it_means_for_you（用户层）, attention_level（字符串 "1"–"5"）
+   - sections：固定 3 个板块，title 只能是「大模型更新」「工具/产品」「行业动态」；
+     每板块含 items 数组，每项含 title, url, what_happened, suitable_for,
+     worth_attention（High|Medium|Low）, what_it_means_for_you, see_top3（布尔）；
+     若该条与 Top3 重复，see_top3=true 且重点写事实、少写判断。
+   - capabilities：1–3 条能力进展，每项含 theme, can_do, cannot_do, cost, suitable_for, conclusion（一句话）
+   - tools：0–3 条工具机会，每项含 name, can_do, suitable_for, worth_trying（Yes|No）, what_it_means_for_you
+3. glossary：5–12 条，{{ "term", "explain": "≤50字" }}
 
 资讯列表：
 {corpus}
 
-只输出 JSON，结构如下：
+只输出 JSON，顶层结构示例：
 {{
-  "simple": {{ "lines": [{{"text":"...","url":"..."}}, {{"text":"...","url":"..."}}], "footer": "..." }},
-  "normal": {{ "top3": [{{"title":"...","url":"..."}}, {{"title":"...","url":"..."}}, {{"title":"...","url":"..."}}], "sections": [{{"title":"...","paragraph":"..."}}] }},
+  "simple": {{ "lines": [{{"title":"...","what_happened":"...","what_it_means_for_you":"...","url":"..."}}], "footer": "..." }},
+  "normal": {{ "top3": [...], "sections": [...], "capabilities": [...], "tools": [...] }},
   "glossary": [{{"term":"...","explain":"..."}}]
 }}
 """
@@ -87,28 +96,111 @@ def summarize_items(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def normalize_payload(parsed: dict[str, Any]) -> dict[str, Any]:
+    """兼容旧版 LLM 字段 + 收口为 PRD v3。"""
     simple = parsed.get("simple") or {}
     normal = parsed.get("normal") or {}
     glossary = parsed.get("glossary") or []
 
     lines_raw = simple.get("lines") if isinstance(simple.get("lines"), list) else []
     footer = str(simple.get("footer") or "")
-    top3_raw = normal.get("top3") if isinstance(normal.get("top3"), list) else []
-    sections = normal.get("sections") if isinstance(normal.get("sections"), list) else []
 
     clean_lines: list[dict[str, str]] = []
     for ln in lines_raw:
-        if isinstance(ln, dict) and ln.get("text") and ln.get("url"):
-            clean_lines.append({"text": str(ln["text"])[:300], "url": str(ln["url"])[:2048]})
+        if isinstance(ln, dict):
+            title = str(ln.get("title") or ln.get("text") or "").strip()
+            url = str(ln.get("url") or "").strip()
+            wh = str(ln.get("what_happened") or "").strip()
+            wu = str(ln.get("what_it_means_for_you") or "").strip()
+            if title or url:
+                clean_lines.append(
+                    {
+                        "title": title[:300] or url[:300],
+                        "what_happened": wh[:300],
+                        "what_it_means_for_you": wu[:400] or "帮助你判断是否与本周工作相关。",
+                        "url": url[:2048],
+                    }
+                )
         elif isinstance(ln, str) and ln.strip():
-            clean_lines.append({"text": ln.strip()[:300], "url": ""})
+            clean_lines.append(
+                {
+                    "title": ln.strip()[:300],
+                    "what_happened": ln.strip()[:30],
+                    "what_it_means_for_you": "帮助你判断是否与本周工作相关。",
+                    "url": "",
+                }
+            )
 
     clean_top3: list[dict[str, str]] = []
-    for t in top3_raw:
-        if isinstance(t, dict) and t.get("title") and t.get("url"):
-            clean_top3.append({"title": str(t["title"])[:200], "url": str(t["url"])[:2048]})
-        elif isinstance(t, str) and t.strip():
-            clean_top3.append({"title": t.strip()[:200], "url": ""})
+    for t in normal.get("top3") if isinstance(normal.get("top3"), list) else []:
+        if isinstance(t, dict) and (t.get("title") or t.get("url")):
+            clean_top3.append(
+                {
+                    "title": str(t.get("title", ""))[:200],
+                    "url": str(t.get("url", ""))[:2048],
+                    "what_happened": str(t.get("what_happened", ""))[:800],
+                    "why_important": str(t.get("why_important", ""))[:800],
+                    "what_it_means_for_you": str(t.get("what_it_means_for_you", ""))[:800],
+                    "attention_level": str(t.get("attention_level") or "3")[:8],
+                }
+            )
+
+    sections_out: list[dict[str, Any]] = []
+    for s in normal.get("sections") if isinstance(normal.get("sections"), list) else []:
+        if not isinstance(s, dict):
+            continue
+        st = str(s.get("title") or "")
+        if "items" in s and isinstance(s.get("items"), list):
+            sections_out.append({"title": st, "items": list(s.get("items") or [])})
+        elif str(s.get("paragraph") or "").strip():
+            sections_out.append(
+                {
+                    "title": st,
+                    "items": [
+                        {
+                            "title": "本板块要点",
+                            "url": "",
+                            "what_happened": str(s.get("paragraph", ""))[:500],
+                            "suitable_for": "",
+                            "worth_attention": "Medium",
+                            "what_it_means_for_you": "",
+                            "see_top3": False,
+                        }
+                    ],
+                }
+            )
+
+    caps_in = normal.get("capabilities")
+    if not isinstance(caps_in, list):
+        caps_in = []
+    capabilities: list[dict[str, str]] = []
+    for c in caps_in:
+        if isinstance(c, dict) and str(c.get("theme") or "").strip():
+            capabilities.append(
+                {
+                    "theme": str(c.get("theme", ""))[:200],
+                    "can_do": str(c.get("can_do", ""))[:1200],
+                    "cannot_do": str(c.get("cannot_do", ""))[:1200],
+                    "cost": str(c.get("cost", ""))[:400],
+                    "suitable_for": str(c.get("suitable_for", ""))[:400],
+                    "conclusion": str(c.get("conclusion", ""))[:500],
+                }
+            )
+
+    tools_in = normal.get("tools")
+    if not isinstance(tools_in, list):
+        tools_in = []
+    tools: list[dict[str, str]] = []
+    for t in tools_in:
+        if isinstance(t, dict) and str(t.get("name") or "").strip():
+            tools.append(
+                {
+                    "name": str(t.get("name", ""))[:200],
+                    "can_do": str(t.get("can_do", ""))[:800],
+                    "suitable_for": str(t.get("suitable_for", ""))[:400],
+                    "worth_trying": str(t.get("worth_trying") or "No"),
+                    "what_it_means_for_you": str(t.get("what_it_means_for_you", ""))[:800],
+                }
+            )
 
     clean_glossary: list[dict[str, str]] = []
     for g in glossary:
@@ -117,31 +209,33 @@ def normalize_payload(parsed: dict[str, Any]) -> dict[str, Any]:
                 {"term": str(g.get("term", ""))[:64], "explain": str(g.get("explain", ""))[:120]}
             )
 
-    return {
+    merged = {
         "simple": {"lines": clean_lines[:10], "footer": footer},
         "normal": {
             "top3": clean_top3[:5],
-            "sections": [
-                {"title": str(s.get("title", "")), "paragraph": str(s.get("paragraph", ""))}
-                for s in sections
-                if isinstance(s, dict)
-            ],
+            "sections": sections_out,
+            "capabilities": capabilities[:5],
+            "tools": tools[:10],
         },
         "glossary": clean_glossary,
     }
+    return finalize_payload_v3(merged)
 
 
 def payload_to_texts(payload: dict[str, Any]) -> tuple[str, str, str]:
-    s = payload["simple"]
-    n = payload["normal"]
-    g = payload["glossary"]
+    p = finalize_payload_v3(payload)
+    s = p["simple"]
+    n = p["normal"]
+    g = p["glossary"]
 
     simple_lines_txt: list[str] = []
     for ln in s.get("lines", []):
         if isinstance(ln, dict):
-            text = str(ln.get("text", ""))
-            url = str(ln.get("url", ""))
-            simple_lines_txt.append(f"{text} ({url})" if url else text)
+            simple_lines_txt.append(
+                f"{ln.get('title','')}\n  发生了什么：{ln.get('what_happened','')}\n"
+                f"  对你意味着什么：{ln.get('what_it_means_for_you','')}\n"
+                f"  链接：{ln.get('url','')}"
+            )
         else:
             simple_lines_txt.append(str(ln))
     simple_text = "\n".join(simple_lines_txt)
@@ -150,17 +244,61 @@ def payload_to_texts(payload: dict[str, Any]) -> tuple[str, str, str]:
 
     normal_parts: list[str] = []
     if n.get("top3"):
-        top3_lines: list[str] = []
+        normal_parts.append("## Top3\n")
         for t in n["top3"]:
             if isinstance(t, dict):
-                title = str(t.get("title", ""))
-                url = str(t.get("url", ""))
-                top3_lines.append(f"- {title} ({url})" if url else f"- {title}")
-            else:
-                top3_lines.append(f"- {t}")
-        normal_parts.append("## 本周 AI 热点排行（Top3）\n" + "\n".join(top3_lines))
+                normal_parts.append(
+                    "\n".join(
+                        [
+                            str(t.get("title", "")),
+                            f"发生了什么：{t.get('what_happened','')}",
+                            f"为什么重要：{t.get('why_important','')}",
+                            f"对你意味着什么：{t.get('what_it_means_for_you','')}",
+                            f"关注程度：{t.get('attention_level','')}",
+                            str(t.get("url", "")),
+                        ]
+                    )
+                )
     for sec in n.get("sections", []):
-        normal_parts.append(f"## {sec.get('title','')}\n\n{sec.get('paragraph','')}")
+        if isinstance(sec, dict):
+            buf = [f"## {sec.get('title','')}"]
+            for it in sec.get("items") or []:
+                if isinstance(it, dict):
+                    buf.append(
+                        "\n".join(
+                            [
+                                str(it.get("title", "")),
+                                f"发生了什么：{it.get('what_happened','')}",
+                                f"适合谁：{it.get('suitable_for','')}",
+                                f"值得关注：{it.get('worth_attention','')}",
+                                str(it.get("what_it_means_for_you", "")),
+                                str(it.get("url", "")),
+                            ]
+                        )
+                    )
+            normal_parts.append("\n".join(buf))
+
+    if n.get("capabilities"):
+        normal_parts.append("## AI能力进展\n")
+        for c in n["capabilities"]:
+            if isinstance(c, dict):
+                normal_parts.append(
+                    "\n".join(
+                        [
+                            str(c.get("theme", "")),
+                            str(c.get("can_do", "")),
+                            str(c.get("cannot_do", "")),
+                            str(c.get("conclusion", "")),
+                        ]
+                    )
+                )
+
+    if n.get("tools"):
+        normal_parts.append("## 工具机会\n")
+        for t in n["tools"]:
+            if isinstance(t, dict):
+                normal_parts.append(str(t.get("name", "")) + "\n" + str(t.get("can_do", "")))
+
     normal_text = "\n\n".join(normal_parts)
 
     glossary_json = json.dumps(g, ensure_ascii=False)

@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -25,9 +26,11 @@ from app.services.digest_builder import (
     parse_payload_json,
     render_issue_email,
 )
+from app.timeutil import weekly_issue_heading_display
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = logging.getLogger("uvicorn.error")
 
 # Optional deps (preferred in production)
 try:
@@ -500,7 +503,14 @@ def admin_resend_confirmation(
 <p style="font-size:13px;color:#666">不想订阅了？点击这里：<a href="{unsub_link}">取消订阅</a></p>
 </body></html>"""
     text = f"此确认邮件发送至：{email}\n\n请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
-    send_email(email, subject, html, text)
+    try:
+        send_email(email, subject, html, text)
+    except RuntimeError as exc:
+        logger.warning("admin resend confirmation mail failed: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("admin resend confirmation failed")
+        raise HTTPException(status_code=500, detail="邮件发送失败，请查看服务器日志。") from exc
     return {"ok": True}
 
 
@@ -537,15 +547,28 @@ def admin_resend_latest_weekly(
     banner = None
     if kws and not matched:
         banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
+    heading = weekly_issue_heading_display(issue.period_start) if issue.period_start else None
     html_body, text_body = render_issue_email(
         filtered,
         sub.mode,
         keyword_banner=banner,
         recipient_email=email,
+        issue_heading=heading,
     )
     html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
     text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
-    send_email(email, "AI Pulse · 最新一期（管理员补发）", html_body, text_body)
+    subj = (heading + "（管理员补发）") if heading else "AI Pulse · 最新一期（管理员补发）"
+    try:
+        send_email(email, subj, html_body, text_body)
+    except RuntimeError as exc:
+        logger.warning("admin resend weekly mail failed: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        logger.exception("admin resend weekly failed")
+        raise HTTPException(status_code=500, detail="补发失败（渲染或发信异常），请查看服务器日志。") from exc
 
     # Log as manual resend (best-effort)
     try:
