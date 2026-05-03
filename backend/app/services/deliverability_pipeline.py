@@ -196,6 +196,7 @@ def run_deliverability_rewriter(
         system="You output JSON only. Chinese editorial rewrite; preserve schema keys.",
         user=user,
         temperature=0.2,
+        timeout_s=300.0,
     )
     return out if isinstance(out, dict) else {}
 

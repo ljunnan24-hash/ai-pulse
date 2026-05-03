@@ -253,6 +253,7 @@ class MultiAgentOrchestrator:
                 "只输出 JSON。\n"
             ),
             temperature=0.2,
+            timeout_s=300.0,
         )
 
         # Editor（可选）：文体收口
@@ -265,6 +266,7 @@ class MultiAgentOrchestrator:
                     f"{_safe_json(composer_out if isinstance(composer_out, dict) else {})}\n"
                 ),
                 temperature=0.15,
+                timeout_s=240.0,
             )
             if not isinstance(editor_out, dict):
                 editor_out = composer_out if isinstance(composer_out, dict) else {}

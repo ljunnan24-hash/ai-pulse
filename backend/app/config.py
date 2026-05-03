@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     doubao_api_key: str = ""
     doubao_api_base: str = "https://ark.cn-beijing.volces.com/api/v3"
     doubao_model: str = ""
+    # Composer 等大 JSON 输出默认上限；过小会导致截断、JSONDecodeError（设为 0 则请求里不传，走平台默认）
+    doubao_max_tokens: int = 16384
 
     # 多 Agent 流水线（见 docs/MULTI_AGENT_V1.md / PRD §6.3）
     # weekly：默认 Cleaner→Verifier→…→Composer；设 MULTI_AGENT_WEEKLY=false 则退回单次 summarize
