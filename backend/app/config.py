@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     mail_from: str = "AI Pulse <noreply@example.com>"
     # If true, do not send real emails; only log.
     mail_dry_run: bool = False
-    # send_weekly 测试：只发给 weekly_test_inbox（默认下方 QQ）；上线务必保持 false
+    # 可选：仅用环境变量限制测试收件人（推荐改用命令行 send_weekly --test）
     weekly_send_test_mode: bool = False
     weekly_test_inbox: str = "2089128910@qq.com"
     # 进阶：手动指定单收件人（仅当未开 weekly_send_test_mode 时生效）

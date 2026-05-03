@@ -5,7 +5,7 @@
 # Monday 00:30 — crawl + summarize + mark issue ready
 30 0 * * 1 flock -n /var/lock/aipulse-generate.lock -c 'cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.generate_weekly' >> /var/log/aipulse-generate.log 2>&1
 #
-# Monday 09:00 — send weekly emails (no LLM)
+# Monday 09:00 — send weekly emails to all subscribers (no --test; 手动测试: ... send_weekly --test)
 0 9 * * 1 flock -n /var/lock/aipulse-send.lock -c 'cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.send_weekly' >> /var/log/aipulse-send.log 2>&1
 #
 # API (FastAPI) should run under systemd or supervisor, e.g.:

@@ -1,9 +1,13 @@
 """
 周一 9:00（北京时间）由 cron 调用：
   cd backend && python -m app.jobs.send_weekly
+
+测试只发固定收件人（默认 2089128910@qq.com），无需改 .env：
+  python -m app.jobs.send_weekly --test
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import logging
@@ -50,7 +54,7 @@ def _issue_key(issue: WeeklyIssue) -> str:
     return "unknown"
 
 
-def run(db: Session) -> None:
+def run(db: Session, *, cli_test_only: bool = False) -> None:
     period = current_period_monday()
     issue = db.execute(
         select(WeeklyIssue)
@@ -71,9 +75,13 @@ def run(db: Session) -> None:
     dry_run = (os.getenv("DRY_RUN") or "").strip() in ("1", "true", "True", "YES", "yes")
 
     only_to: str | None = None
-    if settings.weekly_send_test_mode:
+    if cli_test_only:
         only_to = (settings.weekly_test_inbox or "").strip().lower()
-        print(f"send_weekly: TEST MODE — only recipient {only_to}")
+        print(f"send_weekly: --test，仅发送至 {only_to}")
+        logger.warning("send_weekly: CLI --test, only recipient %s", only_to)
+    elif settings.weekly_send_test_mode:
+        only_to = (settings.weekly_test_inbox or "").strip().lower()
+        print(f"send_weekly: WEEKLY_SEND_TEST_MODE — only recipient {only_to}")
         logger.warning("send_weekly: WEEKLY_SEND_TEST_MODE=1, only sending to %s", only_to)
     else:
         only_to = (settings.target_email or os.getenv("TARGET_EMAIL") or "").strip().lower() or None
@@ -81,10 +89,15 @@ def run(db: Session) -> None:
     if only_to:
         subs = [s for s in subs if (s.email or "").strip().lower() == only_to]
         if not subs:
-            hint = "WEEKLY_SEND_TEST_MODE" if settings.weekly_send_test_mode else "TARGET_EMAIL"
+            if cli_test_only:
+                hint = "--test"
+            elif settings.weekly_send_test_mode:
+                hint = "WEEKLY_SEND_TEST_MODE"
+            else:
+                hint = "TARGET_EMAIL"
             msg = (
                 f"{hint} 指向 {only_to}，但 subscribers 中无该已确认用户。"
-                " 请用该邮箱完成订阅确认，或关闭测试模式/清空 TARGET_EMAIL。"
+                " 请用该邮箱完成订阅确认，或去掉 --test / 关闭环境里的测试开关 / 清空 TARGET_EMAIL。"
             )
             print(f"ERROR: {msg}")
             logger.error(msg)
@@ -149,9 +162,16 @@ def run(db: Session) -> None:
 
 
 def main():
+    ap = argparse.ArgumentParser(description="发送周刊邮件（send_weekly）")
+    ap.add_argument(
+        "--test",
+        action="store_true",
+        help="仅发给 weekly_test_inbox（默认 2089128910@qq.com）；生产 cron 不要带此参数",
+    )
+    args = ap.parse_args()
     db = SessionLocal()
     try:
-        run(db)
+        run(db, cli_test_only=args.test)
     finally:
         db.close()
 
