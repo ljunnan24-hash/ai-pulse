@@ -4,7 +4,7 @@ import enum
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -52,6 +52,47 @@ class WeeklyIssue(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     raw_items: Mapped[list["RawItem"]] = relationship(back_populates="issue")
+    issue_events: Mapped[list["IssueEvent"]] = relationship(back_populates="issue")
+
+
+class IssueEvent(Base):
+    """
+    PRD：Event = 同一事实的多来源聚合。每期周刊下一组 IssueEvent，指向多条 RawItem。
+    """
+
+    __tablename__ = "issue_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    issue_id: Mapped[int] = mapped_column(ForeignKey("weekly_issues.id"), index=True)
+    event_key: Mapped[str] = mapped_column(String(32), index=True)
+    canonical_title: Mapped[str] = mapped_column(String(512), default="")
+    canonical_url: Mapped[str] = mapped_column(String(1024), default="")
+    summary_merged: Mapped[str] = mapped_column(Text, default="")
+    category: Mapped[str] = mapped_column(String(64), default="")
+    fact_status: Mapped[str] = mapped_column(String(32), default="unverified")
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    score_total: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    heat_score: Mapped[int] = mapped_column(Integer, default=0)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sources_json: Mapped[str] = mapped_column(Text, default="[]")
+    enrichment_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    issue: Mapped["WeeklyIssue"] = relationship(back_populates="issue_events")
+    raw_items: Mapped[list["RawItem"]] = relationship(back_populates="event")
+
+    # 与 RawItem 对齐的只读别名，便于 digest / orchestrator 统一 getattr
+    @property
+    def title(self) -> str:
+        return self.canonical_title or ""
+
+    @property
+    def summary(self) -> str:
+        return self.summary_merged or ""
+
+    @property
+    def link(self) -> str:
+        return self.canonical_url or ""
 
 
 class RawItem(Base):
@@ -59,15 +100,22 @@ class RawItem(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     issue_id: Mapped[int | None] = mapped_column(ForeignKey("weekly_issues.id"), nullable=True, index=True)
+    event_id: Mapped[int | None] = mapped_column(ForeignKey("issue_events.id"), nullable=True, index=True)
+    source_type: Mapped[str] = mapped_column(String(32), default="rss")
     source: Mapped[str] = mapped_column(String(128), default="")
     title: Mapped[str] = mapped_column(String(512), default="")
     summary: Mapped[str] = mapped_column(Text, default="")
     link: Mapped[str] = mapped_column(String(1024), default="")
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     heat_score: Mapped[int] = mapped_column(Integer, default=0)
+    score_total: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    score_breakdown_json: Mapped[str] = mapped_column(Text, default="{}")
+    # PRD RawItem 扩展：feed_url、source_name、metrics、author、raw_text 片段等
+    extra_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     issue: Mapped[Optional["WeeklyIssue"]] = relationship(back_populates="raw_items")
+    event: Mapped[Optional["IssueEvent"]] = relationship(back_populates="raw_items")
 
 
 class SendLog(Base):
