@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import List
+from typing import List, Tuple
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     database_url: str = "mysql+pymysql://root:password@127.0.0.1:3306/aipulse?charset=utf8mb4"
+    # RDS 开启 SSL 时：阿里云下载的 ApsaraDB-CA-Chain.pem 绝对路径（与 mysql --ssl-ca 一致）
+    database_ssl_ca: str = ""
 
     public_app_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
@@ -17,6 +19,14 @@ class Settings(BaseSettings):
     doubao_api_base: str = "https://ark.cn-beijing.volces.com/api/v3"
     doubao_model: str = ""
 
+    # 多 Agent 流水线（见 docs/MULTI_AGENT_V1.md / PRD §6.3）
+    # weekly：默认 Cleaner→Verifier→…→Composer；设 MULTI_AGENT_WEEKLY=false 则退回单次 summarize
+    multi_agent_weekly: bool = True
+    multi_agent_digest_top_n: int = 20
+    # Editor：多一次 LLM 润色 payload，延时长；Auditor：风险检查，high/use_fallback 时回退确定性组装
+    multi_agent_enable_editor: bool = False
+    multi_agent_enable_auditor: bool = False
+
     # Aliyun DirectMail SMTP
     smtp_host: str = "smtpdm.aliyun.com"
     smtp_port: int = 465
@@ -25,9 +35,42 @@ class Settings(BaseSettings):
     mail_from: str = "AI Pulse <noreply@example.com>"
     # If true, do not send real emails; only log.
     mail_dry_run: bool = False
+    # send_weekly：仅向该邮箱发送（须与 subscribers 中某「已确认且 active」用户邮箱完全一致）；空则发给全员
+    target_email: str = ""
 
     # RSS sources (comma-separated URLs optional override)
-    rss_feed_urls: str = ""
+    # - official_rss_urls: AI 公司官网/博客 RSS（优先级高）
+    # - media_rss_urls: 行业媒体 RSS（如 机器之心/量子位/InfoQ 等）
+    # - x_rss_urls: X/Twitter 账号 RSS（建议用 RSSHub/Nitter 生成 RSS URL；避免依赖付费 X API）
+    # - meta_rss_urls: Meta AI Blog 等（可直接放 RSSHub /meta/ai/blog，不混在 X）
+    # - community_rss_urls: HN / Reddit / 等社区 RSS（P3，tier=3）
+    # - product_rss_urls: Product Hunt 等「产品/上新」类 RSS（tier=2）
+    # - official_page_urls: 仅列表页/HTML，尝试发现 <link rel="alternate" type="rss|atom"> 再抓 RSS
+    # - crawl_priority: 采集顺序，逗号分隔，例如 official,media,github,product,community
+    official_rss_urls: str = ""
+    media_rss_urls: str = ""
+    x_rss_urls: str = ""
+    meta_rss_urls: str = ""
+    community_rss_urls: str = ""
+    product_rss_urls: str = ""
+    official_page_urls: str = ""
+    crawl_priority: str = "official,meta,media,product,community,x,github"
+
+    # GitHub (optional) — used for Trending collection and metadata
+    github_token: str = ""
+    # Search API 回退：仓库创建时间窗口（天），与 PRD「约 180 天内」对齐
+    github_search_created_within_days: int = 180
+    # Search API：stars 下限（PRD 建议 >=500；过高会漏掉早期优质库）
+    github_search_min_stars: int = 500
+    # 仅保留描述/标题命中 AI 相关关键词的仓库（GitHub Search 回退路径）
+    github_ai_keyword_filter: bool = True
+    github_trending_since_days: int = 7
+    # 兼容旧名：若高于 github_search_min_stars，Search API 查询会采用更高下限
+    github_trending_min_stars_growth: int = 500
+    github_trending_language: str = ""  # empty = all
+
+    # Deprecated: merge 在入库后由 issue_events 表持久化完成；保留字段仅为兼容旧 .env。
+    enable_event_merge: bool = False
 
     # Admin auth
     admin_jwt_secret: str = ""
@@ -35,16 +78,72 @@ class Settings(BaseSettings):
     # Optional: admin console origin for CORS (e.g. https://admin.aipulse.asia)
     admin_frontend_url: str = ""
 
+    @staticmethod
+    def _split_urls(s: str) -> list[str]:
+        return [u.strip() for u in (s or "").split(",") if u.strip()]
+
+    _CRAWL_KEYS: tuple[str, ...] = ("official", "meta", "media", "product", "community", "x", "github")
+
+    def crawl_priority_order(self) -> list[str]:
+        """解析 CRAWL_PRIORITY；未出现的类别按默认顺序补全。"""
+        raw = [x.strip().lower() for x in (self.crawl_priority or "").split(",") if x.strip()]
+        seen: set[str] = set()
+        out: list[str] = []
+        for x in raw:
+            if x in self._CRAWL_KEYS and x not in seen:
+                out.append(x)
+                seen.add(x)
+        for x in self._CRAWL_KEYS:
+            if x not in seen:
+                out.append(x)
+        return out
+
+    def _feed_bucket(self, key: str) -> tuple[int, list[str], str]:
+        """tier, urls, feed_channel（传给 fetch_feed_items）"""
+        if key == "official":
+            return 0, self._split_urls(self.official_rss_urls), "official"
+        if key == "meta":
+            return 0, self._split_urls(self.meta_rss_urls), "meta"
+        if key == "media":
+            return 1, self._split_urls(self.media_rss_urls), "media"
+        if key == "product":
+            return 2, self._split_urls(self.product_rss_urls), "product"
+        if key == "community":
+            return 3, self._split_urls(self.community_rss_urls), "community"
+        if key == "x":
+            return 4, self._split_urls(self.x_rss_urls), "x"
+        return 0, [], "official"
+
+    def feed_sources_with_metadata(self) -> List[Tuple[int, str, str]]:
+        """
+        按 CRAWL_PRIORITY 展开 RSS（不含 github、不含 official_page 发现）。
+        tier：official/meta=0, media=1, product=2, community=3, x=4
+        """
+        out: list[tuple[int, str, str]] = []
+        for key in self.crawl_priority_order():
+            if key == "github":
+                continue
+            tier, urls, ch = self._feed_bucket(key)
+            for u in urls:
+                out.append((tier, u, ch))
+        return out
+
+    def feed_sources_with_tier(self) -> List[Tuple[int, str]]:
+        """
+        PRD §五 来源优先级：P0 官网 / P1 媒体 / P2 GitHub（爬虫中单列）/ P4 社媒。
+        返回 (tier, feed_url)，tier 越小越可信，用于评分加权。
+        """
+        return [(t, u) for t, u, _ in self.feed_sources_with_metadata()]
+
     @property
     def feed_list(self) -> List[str]:
-        default = [
-            "https://openai.com/blog/rss.xml",
-            "https://www.jiqizhixin.com/rss",
-            "https://www.qbitai.com/feed",
-        ]
-        if not self.rss_feed_urls.strip():
-            return default
-        return [u.strip() for u in self.rss_feed_urls.split(",") if u.strip()]
+        official = self._split_urls(self.official_rss_urls)
+        media = self._split_urls(self.media_rss_urls)
+        xfeeds = self._split_urls(self.x_rss_urls)
+        meta = self._split_urls(self.meta_rss_urls)
+        community = self._split_urls(self.community_rss_urls)
+        product = self._split_urls(self.product_rss_urls)
+        return official + media + xfeeds + meta + community + product
 
 
 @lru_cache
