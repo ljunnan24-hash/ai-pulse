@@ -8,6 +8,10 @@
 本期已是 ready 时默认跳过；若要**不改 period、整期重跑**（仍对应当周周一）：
   python -m app.jobs.generate_weekly --force
 或环境变量 GENERATE_WEEKLY_FORCE=1
+
+**不重爬**（沿用库里本期已入库的 raw_items / issue_events，只重做评分池之后的生成）：
+  python -m app.jobs.generate_weekly --reuse-crawl --force
+或仅生成：`python -m app.jobs.build_weekly_multi_agent`
 """
 from __future__ import annotations
 
@@ -88,11 +92,18 @@ def _crawler_item_to_extra_json(it: dict) -> str:
     return json.dumps(out, ensure_ascii=False)
 
 
-def run(db: Session, *, force: bool = False) -> None:
+def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
     _require_migrations_applied(db)
 
     if not force:
         force = (os.getenv("GENERATE_WEEKLY_FORCE") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+    if not reuse_crawl:
+        reuse_crawl = (os.getenv("GENERATE_WEEKLY_REUSE_CRAWL") or "").strip().lower() in (
             "1",
             "true",
             "yes",
@@ -109,13 +120,20 @@ def run(db: Session, *, force: bool = False) -> None:
     if existing_ready and not force:
         print(f"Issue for {period} already ready, skip.")
         return
-    if existing_ready and force:
+    if existing_ready and force and not reuse_crawl:
         print(f"generate_weekly: --force / GENERATE_WEEKLY_FORCE，将重新爬取并覆盖本期 {period} 的 payload（period_start 不变）。")
+    if existing_ready and force and reuse_crawl:
+        print(
+            f"generate_weekly: --reuse-crawl + --force，将沿用库内抓取数据并覆盖本期 {period} 的 payload。"
+        )
 
     issue = db.execute(
         select(WeeklyIssue).where(WeeklyIssue.period_start == period).order_by(WeeklyIssue.id.asc())
     ).scalars().first()
     if not issue:
+        if reuse_crawl:
+            print("reuse_crawl: 本期尚无 weekly_issues 记录，请先完整运行一次 generate_weekly（含抓取）。")
+            return
         issue = WeeklyIssue(
             period_start=period,
             simple_text="",
@@ -127,74 +145,80 @@ def run(db: Session, *, force: bool = False) -> None:
         db.add(issue)
         db.commit()
         db.refresh(issue)
-    else:
+    elif not reuse_crawl:
         issue.status = IssueStatus.draft.value
         db.commit()
 
-    db.execute(delete(IssueEvent).where(IssueEvent.issue_id == issue.id))
-    db.execute(delete(RawItem).where(RawItem.issue_id == issue.id))
-    db.commit()
+    if reuse_crawl:
+        print(
+            "generate_weekly: --reuse-crawl，跳过清空表、抓取与 rebuild_issue_events；"
+            "直接使用本期已有 raw_items / issue_events。"
+        )
+    else:
+        db.execute(delete(IssueEvent).where(IssueEvent.issue_id == issue.id))
+        db.execute(delete(RawItem).where(RawItem.issue_id == issue.id))
+        db.commit()
 
-    items = collect_all_feed_items()
-    if not items:
-        print("No feed items collected; abort without marking ready.")
-        return
+        items = collect_all_feed_items()
+        if not items:
+            print("No feed items collected; abort without marking ready.")
+            return
 
-    # Pre-compute PRD scoring once (deterministic) and keep it in-memory for sorting & prompt.
-    for it in items:
-        bd = score_item(it)
-        it["_score_total"] = int(bd.total)
-        try:
-            breakdown_obj = json.loads(bd.to_json())
-            if isinstance(breakdown_obj, dict):
-                breakdown_obj["meta"] = {"source_tier": int(it.get("source_tier", 2))}
-            it["_score_breakdown_json"] = json.dumps(breakdown_obj, ensure_ascii=False)
-        except Exception:
-            it["_score_breakdown_json"] = bd.to_json()
+        # Pre-compute PRD scoring once (deterministic) and keep it in-memory for sorting & prompt.
+        for it in items:
+            bd = score_item(it)
+            it["_score_total"] = int(bd.total)
+            try:
+                breakdown_obj = json.loads(bd.to_json())
+                if isinstance(breakdown_obj, dict):
+                    breakdown_obj["meta"] = {"source_tier": int(it.get("source_tier", 2))}
+                it["_score_breakdown_json"] = json.dumps(breakdown_obj, ensure_ascii=False)
+            except Exception:
+                it["_score_breakdown_json"] = bd.to_json()
 
-    # Detect whether DB schema already has new columns.
-    existing_cols = set()
-    try:
-        insp = inspect(db.get_bind())
-        existing_cols = {c["name"] for c in insp.get_columns("raw_items")}
-    except Exception:
+        # Detect whether DB schema already has new columns.
         existing_cols = set()
+        try:
+            insp = inspect(db.get_bind())
+            existing_cols = {c["name"] for c in insp.get_columns("raw_items")}
+        except Exception:
+            existing_cols = set()
 
-    has_source_type = "source_type" in existing_cols
-    has_score_total = "score_total" in existing_cols
-    has_score_breakdown = "score_breakdown_json" in existing_cols
-    has_extra_json = "extra_json" in existing_cols
+        has_source_type = "source_type" in existing_cols
+        has_score_total = "score_total" in existing_cols
+        has_score_breakdown = "score_breakdown_json" in existing_cols
+        has_extra_json = "extra_json" in existing_cols
 
-    mappings: list[dict[str, Any]] = []
-    for it in items:
-        row: dict[str, Any] = {
-            "issue_id": issue.id,
-            "source": it.get("source", ""),
-            "title": it.get("title", ""),
-            "summary": it.get("summary", ""),
-            "link": it.get("link", ""),
-            "published_at": it.get("published_at"),
-            "heat_score": int(it.get("heat_score") or 0),
-        }
-        if has_source_type:
-            row["source_type"] = it.get("source_type", "rss")
-        if has_score_total:
-            row["score_total"] = int(it.get("_score_total") or 0)
-        if has_score_breakdown:
-            row["score_breakdown_json"] = str(it.get("_score_breakdown_json") or "{}")
-        if has_extra_json:
-            row["extra_json"] = _crawler_item_to_extra_json(it)
-        mappings.append(row)
+        mappings: list[dict[str, Any]] = []
+        for it in items:
+            row: dict[str, Any] = {
+                "issue_id": issue.id,
+                "source": it.get("source", ""),
+                "title": it.get("title", ""),
+                "summary": it.get("summary", ""),
+                "link": it.get("link", ""),
+                "published_at": it.get("published_at"),
+                "heat_score": int(it.get("heat_score") or 0),
+            }
+            if has_source_type:
+                row["source_type"] = it.get("source_type", "rss")
+            if has_score_total:
+                row["score_total"] = int(it.get("_score_total") or 0)
+            if has_score_breakdown:
+                row["score_breakdown_json"] = str(it.get("_score_breakdown_json") or "{}")
+            if has_extra_json:
+                row["extra_json"] = _crawler_item_to_extra_json(it)
+            mappings.append(row)
 
-    if mappings:
-        db.bulk_insert_mappings(RawItem, mappings)
-    db.commit()
+        if mappings:
+            db.bulk_insert_mappings(RawItem, mappings)
+        db.commit()
 
-    try:
-        n_ev = rebuild_issue_events(db, issue.id)
-        print(f"Issue events rebuilt for issue {issue.id}: {n_ev} clusters.")
-    except Exception as exc:
-        print(f"rebuild_issue_events failed (apply sql/migrations/2026-05-02_issue_events.sql?): {exc}")
+        try:
+            n_ev = rebuild_issue_events(db, issue.id)
+            print(f"Issue events rebuilt for issue {issue.id}: {n_ev} clusters.")
+        except Exception as exc:
+            print(f"rebuild_issue_events failed (apply sql/migrations/2026-05-02_issue_events.sql?): {exc}")
 
     candidates = fetch_digest_candidates(db, issue.id)
     items = candidates_to_summarize_input(candidates)
@@ -234,7 +258,10 @@ def run(db: Session, *, force: bool = False) -> None:
     issue.payload_json = json.dumps(payload, ensure_ascii=False)
     issue.status = IssueStatus.ready.value
     issue.ready_at = datetime.now(timezone.utc)
-    snap_src = "generate_weekly_force" if force else "generate_weekly"
+    if reuse_crawl:
+        snap_src = "generate_weekly_reuse_force" if force else "generate_weekly_reuse"
+    else:
+        snap_src = "generate_weekly_force" if force else "generate_weekly"
     append_weekly_issue_snapshot(
         db, issue, source=snap_src, audit_report=audit_report_to_store
     )
@@ -247,12 +274,18 @@ def main():
     ap.add_argument(
         "--force",
         action="store_true",
-        help="本期已是 ready 时也重新生成（不清 period_start，仅覆盖该期内容与 raw/issue_events）",
+        help="本期已是 ready 时也重新生成（不清 period_start；默认仍清空并重爬 raw/issue_events）",
+    )
+    ap.add_argument(
+        "--reuse-crawl",
+        action="store_true",
+        dest="reuse_crawl",
+        help="不重爬：沿用库里本期 raw_items / issue_events，仅重做摘要与 payload（常与 --force 同用）",
     )
     args = ap.parse_args()
     db = SessionLocal()
     try:
-        run(db, force=args.force)
+        run(db, force=args.force, reuse_crawl=args.reuse_crawl)
     finally:
         db.close()
 
