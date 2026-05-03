@@ -4,9 +4,14 @@
 
 默认多 Agent（Cleaner→Verifier→Impact→…→Composer）。
 单次豆包 summarize：MULTI_AGENT_WEEKLY=false（可选 MULTI_AGENT_DIGEST_TOP_N=20）
+
+本期已是 ready 时默认跳过；若要**不改 period、整期重跑**（仍对应当周周一）：
+  python -m app.jobs.generate_weekly --force
+或环境变量 GENERATE_WEEKLY_FORCE=1
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from datetime import datetime, timezone
@@ -82,8 +87,16 @@ def _crawler_item_to_extra_json(it: dict) -> str:
     return json.dumps(out, ensure_ascii=False)
 
 
-def run(db: Session) -> None:
+def run(db: Session, *, force: bool = False) -> None:
     _require_migrations_applied(db)
+
+    if not force:
+        force = (os.getenv("GENERATE_WEEKLY_FORCE") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
 
     period = current_period_monday()
     # 若库中曾有重复 period_start（未跑 UNIQUE 迁移前），取最小 id 以免 scalar_one 抛错
@@ -92,9 +105,11 @@ def run(db: Session) -> None:
         .where(WeeklyIssue.period_start == period, WeeklyIssue.status == IssueStatus.ready.value)
         .order_by(WeeklyIssue.id.asc())
     ).scalars().first()
-    if existing_ready:
+    if existing_ready and not force:
         print(f"Issue for {period} already ready, skip.")
         return
+    if existing_ready and force:
+        print(f"generate_weekly: --force / GENERATE_WEEKLY_FORCE，将重新爬取并覆盖本期 {period} 的 payload（period_start 不变）。")
 
     issue = db.execute(
         select(WeeklyIssue).where(WeeklyIssue.period_start == period).order_by(WeeklyIssue.id.asc())
@@ -221,9 +236,16 @@ def run(db: Session) -> None:
 
 
 def main():
+    ap = argparse.ArgumentParser(description="抓取 + 生成周刊 payload 并标记 ready")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="本期已是 ready 时也重新生成（不清 period_start，仅覆盖该期内容与 raw/issue_events）",
+    )
+    args = ap.parse_args()
     db = SessionLocal()
     try:
-        run(db)
+        run(db, force=args.force)
     finally:
         db.close()
 
