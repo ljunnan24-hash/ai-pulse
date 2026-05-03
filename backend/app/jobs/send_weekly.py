@@ -68,14 +68,23 @@ def run(db: Session) -> None:
             Subscriber.confirmed_at.is_not(None),
         )
     ).scalars().all()
-    target_email = (settings.target_email or os.getenv("TARGET_EMAIL") or "").strip().lower()
     dry_run = (os.getenv("DRY_RUN") or "").strip() in ("1", "true", "True", "YES", "yes")
-    if target_email:
-        subs = [s for s in subs if (s.email or "").strip().lower() == target_email]
+
+    only_to: str | None = None
+    if settings.weekly_send_test_mode:
+        only_to = (settings.weekly_test_inbox or "").strip().lower()
+        print(f"send_weekly: TEST MODE — only recipient {only_to}")
+        logger.warning("send_weekly: WEEKLY_SEND_TEST_MODE=1, only sending to %s", only_to)
+    else:
+        only_to = (settings.target_email or os.getenv("TARGET_EMAIL") or "").strip().lower() or None
+
+    if only_to:
+        subs = [s for s in subs if (s.email or "").strip().lower() == only_to]
         if not subs:
+            hint = "WEEKLY_SEND_TEST_MODE" if settings.weekly_send_test_mode else "TARGET_EMAIL"
             msg = (
-                f"TARGET_EMAIL={target_email} 在 subscribers 中无匹配（需已确认且 active）。"
-                " 测试前请用该邮箱完成订阅确认，或清空 TARGET_EMAIL。"
+                f"{hint} 指向 {only_to}，但 subscribers 中无该已确认用户。"
+                " 请用该邮箱完成订阅确认，或关闭测试模式/清空 TARGET_EMAIL。"
             )
             print(f"ERROR: {msg}")
             logger.error(msg)
