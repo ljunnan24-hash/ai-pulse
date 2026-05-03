@@ -122,7 +122,9 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 </body></html>"""
             text = f"此确认邮件发送至：{str(body.email)}\n\n请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
             try:
-                send_email(str(body.email), subject, html, text)
+                send_email(
+                    str(body.email), subject, html, text, list_unsubscribe_url=unsub_link
+                )
             except Exception:
                 raise HTTPException(status_code=503, detail="Mail service unavailable. Check SMTP configuration.")
 
@@ -160,7 +162,9 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 </body></html>"""
         text = f"此确认邮件发送至：{str(body.email)}\n\n请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
         try:
-            send_email(str(body.email), subject, html, text)
+            send_email(
+                str(body.email), subject, html, text, list_unsubscribe_url=unsub_link
+            )
         except Exception:
             raise HTTPException(status_code=503, detail="Mail service unavailable. Check SMTP configuration.")
 
@@ -194,7 +198,9 @@ def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
 </body></html>"""
     text = f"此确认邮件发送至：{str(body.email)}\n\n请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
     try:
-        send_email(str(body.email), subject, html, text)
+        send_email(
+            str(body.email), subject, html, text, list_unsubscribe_url=unsub_link
+        )
     except Exception:
         db.delete(sub)
         db.commit()
@@ -294,10 +300,15 @@ def confirm(
             html_body = append_subscription_footer(
                 html_body, settings.public_app_url, confirmed_unsub_token, confirmed_manage_token
             )
-            text_body += (
-                f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={confirmed_unsub_token}"
+            unsub_u = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={confirmed_unsub_token}"
+            text_body += f"\n\n退订: {unsub_u}"
+            send_email(
+                confirmed_email,
+                heading or "AI Pulse · 最新一期",
+                html_body,
+                text_body,
+                list_unsubscribe_url=unsub_u,
             )
-            send_email(confirmed_email, heading or "AI Pulse · 最新一期", html_body, text_body)
             try:
                 db.execute(
                     insert(SendLog).values(
@@ -404,9 +415,12 @@ def resend_latest(token: str, db: Session = Depends(get_db)):
             html_body = append_subscription_footer(
                 html_body, settings.public_app_url, target_unsub_token, target_manage_token
             )
-            text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={target_unsub_token}"
+            unsub_u = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={target_unsub_token}"
+            text_body += f"\n\n退订: {unsub_u}"
             subj = (heading + "（补发）") if heading else "AI Pulse · 最新一期（补发）"
-            send_email(target_email, subj, html_body, text_body)
+            send_email(
+                target_email, subj, html_body, text_body, list_unsubscribe_url=unsub_u
+            )
             db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
             db.commit()
         except Exception:

@@ -136,13 +136,14 @@ def run(db: Session, *, cli_test_only: bool = False) -> None:
             issue_heading=heading,
         )
         html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
-        text_body += f"\n\n退订: {pub}/api/unsubscribe?token={sub.unsubscribe_token}"
+        unsub_url = f"{pub}/api/unsubscribe?token={sub.unsubscribe_token}"
+        text_body += f"\n\n退订: {unsub_url}"
         subject = heading if heading else f"AI Pulse · 周刊 · {period.isoformat()}"
         if dry_run:
             print(f"[DRY_RUN] Would send weekly to {sub.email} (kind={k})")
             continue
         try:
-            send_email(sub.email, subject, html_body, text_body)
+            send_email(sub.email, subject, html_body, text_body, list_unsubscribe_url=unsub_url)
             db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
             db.commit()
             print(f"Sent weekly to {sub.email} (kind={k})")

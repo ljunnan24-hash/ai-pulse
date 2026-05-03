@@ -51,11 +51,12 @@ flowchart TD
   GL --> CP
   CAP --> CP
   CP --> ED[Editor 润色 可选]
-  ED --> AU[Auditor 风险 可选]
-  AU --> R[finalize + validate]
+  ED --> AU[Quality Auditor 事实/安全 可选]
+  AU --> DV[Email Deliverability Auditor + Rewriter]
+  DV --> R[finalize + validate]
 ```
 
-> 说明：**Cleaner** 为 Python 规则；**Merger** 不在此二次合并（见 `artifacts.merger`）。**Capability** 独立 LLM；**Composer** 生成整份 PRD v3；**Editor**（`MULTI_AGENT_ENABLE_EDITOR`）与 **Auditor**（`MULTI_AGENT_ENABLE_AUDITOR`）默认均为关，需则显式设为 `true`。
+> 说明：**Cleaner** 为 Python 规则；**Merger** 不在此二次合并（见 `artifacts.merger`）。**Capability** 独立 LLM；**Composer** 生成整份 PRD v3；**Editor**（`MULTI_AGENT_ENABLE_EDITOR`）与 **Quality Auditor**（`MULTI_AGENT_ENABLE_AUDITOR`，事实与编造风险）默认均为关。**Email Deliverability**（`MULTI_AGENT_ENABLE_DELIVERABILITY`，默认 **开启**）在结构化 payload 上做链接清洗（去常见 tracking 参数）+ LLM 送达率审核与按需改写；详见 `app/services/deliverability_pipeline.py`，审计结果在 `artifacts.deliverability` / `audit_report.deliverability`。若开启 **`MULTI_AGENT_DELIVERABILITY_STRICT`**（默认 true）且改写后仍低于 `MULTI_AGENT_DELIVERABILITY_MIN_SCORE` 或仍为 high risk，则与 Fact Auditor 一样整包回退为确定性组装。
 
 ## 2. 核心理念：事件卡片（Event Card）
 

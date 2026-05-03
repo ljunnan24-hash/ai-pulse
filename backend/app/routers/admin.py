@@ -504,7 +504,7 @@ def admin_resend_confirmation(
 </body></html>"""
     text = f"此确认邮件发送至：{email}\n\n请打开链接确认订阅：{confirm_link}\n\n取消订阅：{unsub_link}"
     try:
-        send_email(email, subject, html, text)
+        send_email(email, subject, html, text, list_unsubscribe_url=unsub_link)
     except RuntimeError as exc:
         logger.warning("admin resend confirmation mail failed: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -556,10 +556,11 @@ def admin_resend_latest_weekly(
         issue_heading=heading,
     )
     html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
-    text_body += f"\n\n退订: {settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
+    unsub_u = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
+    text_body += f"\n\n退订: {unsub_u}"
     subj = (heading + "（管理员补发）") if heading else "AI Pulse · 最新一期（管理员补发）"
     try:
-        send_email(email, subj, html_body, text_body)
+        send_email(email, subj, html_body, text_body, list_unsubscribe_url=unsub_u)
     except RuntimeError as exc:
         logger.warning("admin resend weekly mail failed: %s", exc)
         raise HTTPException(

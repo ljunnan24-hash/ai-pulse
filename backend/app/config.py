@@ -23,9 +23,16 @@ class Settings(BaseSettings):
     # weekly：默认 Cleaner→Verifier→…→Composer；设 MULTI_AGENT_WEEKLY=false 则退回单次 summarize
     multi_agent_weekly: bool = True
     multi_agent_digest_top_n: int = 20
-    # Editor：多一次 LLM 润色 payload，延时长；Auditor：风险检查，high/use_fallback 时回退确定性组装
+    # Editor：多一次 LLM 润色 payload，延时长；Auditor：事实/安全审计，high/use_fallback 时回退确定性组装
     multi_agent_enable_editor: bool = False
     multi_agent_enable_auditor: bool = False
+    # Email Deliverability Auditor + Rewriter（结构化 payload，在 finalize 之前；默认开启）
+    multi_agent_enable_deliverability: bool = True
+    # 低于该分触发改写（与文档「85 以下建议改写」对齐）
+    multi_agent_deliverability_rewrite_below: int = 85
+    # 改写后二次审核仍低于该分，或仍为 high risk（且 strict 开启）→ 回退确定性组装
+    multi_agent_deliverability_min_score: int = 70
+    multi_agent_deliverability_strict: bool = True
 
     # Aliyun DirectMail SMTP
     smtp_host: str = "smtpdm.aliyun.com"

@@ -2,7 +2,7 @@ import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.utils import formataddr, parseaddr
+from email.utils import formataddr, make_msgid, parseaddr
 
 from app.config import get_settings
 
@@ -17,7 +17,20 @@ def _parse_from_header(from_header: str) -> tuple[str, str]:
     return name or "", addr
 
 
-def send_email(to_addr: str, subject: str, html_body: str, text_body: str | None = None) -> None:
+def _domain_for_message_id(from_addr: str) -> str:
+    if "@" in from_addr:
+        return from_addr.rsplit("@", 1)[-1].strip() or "localhost"
+    return "localhost"
+
+
+def send_email(
+    to_addr: str,
+    subject: str,
+    html_body: str,
+    text_body: str | None = None,
+    *,
+    list_unsubscribe_url: str | None = None,
+) -> None:
     settings = get_settings()
     if settings.mail_dry_run:
         logger.warning("MAIL_DRY_RUN=1 skip send: to=%s subject=%s", to_addr, subject)
@@ -30,6 +43,11 @@ def send_email(to_addr: str, subject: str, html_body: str, text_body: str | None
     msg["Subject"] = subject
     msg["From"] = formataddr((name, from_addr)) if name else from_addr
     msg["To"] = to_addr
+    msg["Message-ID"] = make_msgid(domain=_domain_for_message_id(from_addr))
+    msg["Auto-Submitted"] = "auto-generated"
+    if list_unsubscribe_url:
+        msg["List-Unsubscribe"] = f"<{list_unsubscribe_url}>"
+        msg["Precedence"] = "bulk"
 
     if text_body:
         msg.attach(MIMEText(text_body, "plain", "utf-8"))

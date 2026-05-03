@@ -6,6 +6,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.config import get_settings
+from app.services.deliverability_pipeline import (
+    apply_deliverability_pipeline,
+    should_fallback_after_deliverability,
+)
 from app.services.digest_builder import build_payload_from_raw_items
 from app.services.llm_json_client import LlmJsonClient
 from app.services.payload_schema import finalize_payload_v3, format_errors, validate_payload
@@ -70,7 +74,8 @@ class MultiAgentOrchestrator:
     """
     PRD §6.3 多 Agent 流水线（串行 JSON 调用 + 确定性 Cleaner）：
     Cleaner → Merger(说明) → Verifier → Impact → Scoring → EventCards →
-    Capability → Trend → Glossary → Composer → Editor(可选) → Auditor(可选)
+    Capability → Trend → Glossary → Composer → Editor(可选) → Quality Auditor(可选) →
+    Email Deliverability Auditor → Rewriter(按需) → finalize
 
     候选池默认已由 IssueEvent 预合并；Merger 阶段仅记录说明，不二次调用 LLM。
     """
@@ -289,7 +294,28 @@ class MultiAgentOrchestrator:
                         extra_notes=[_safe_json(auditor_report)],
                     )
 
-        payload_in = editor_out
+        payload_in = editor_out if isinstance(editor_out, dict) else {}
+
+        deliverability_artifact: dict[str, Any]
+        d_min = int(getattr(settings, "multi_agent_deliverability_min_score", 70))
+        d_rw = int(getattr(settings, "multi_agent_deliverability_rewrite_below", 85))
+        d_en = getattr(settings, "multi_agent_enable_deliverability", True)
+        payload_in, deliverability_artifact = apply_deliverability_pipeline(
+            self.llm,
+            payload_in,
+            enabled=d_en,
+            rewrite_score_threshold=d_rw,
+        )
+        if d_en and getattr(settings, "multi_agent_deliverability_strict", True):
+            fb_d, reason_d = should_fallback_after_deliverability(
+                deliverability_artifact, min_score=d_min
+            )
+            if fb_d:
+                return _fallback(
+                    f"deliverability: {reason_d}",
+                    extra_notes=[_safe_json(deliverability_artifact)],
+                )
+
         f_out = finalize_payload_v3(payload_in if isinstance(payload_in, dict) else {})
         errors = validate_payload(f_out)
         if errors:
@@ -314,10 +340,14 @@ class MultiAgentOrchestrator:
                 "composer",
                 "editor" if getattr(settings, "multi_agent_enable_editor", False) else "editor_skipped",
                 "auditor" if getattr(settings, "multi_agent_enable_auditor", False) else "auditor_skipped",
+                "deliverability"
+                if getattr(settings, "multi_agent_enable_deliverability", True)
+                else "deliverability_skipped",
             ],
             "issues": (scoring.get("issues") if isinstance(scoring, dict) else []) or [],
             "notes": [],
             "auditor": auditor_report if isinstance(auditor_report, dict) else {},
+            "deliverability": deliverability_artifact,
         }
 
         artifacts: dict[str, Any] = {
@@ -333,5 +363,6 @@ class MultiAgentOrchestrator:
             "composer": composer_out,
             "editor": editor_out,
             "auditor": auditor_report,
+            "deliverability": deliverability_artifact,
         }
         return MultiAgentResult(payload=f_out, audit_report=audit, artifacts=artifacts)

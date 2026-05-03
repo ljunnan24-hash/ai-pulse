@@ -615,7 +615,9 @@ def render_issue_email(
                 parts_html.append(f"<div style='font-size:18px;font-weight:700'>{tit}</div>")
                 parts_html.append(f"<p><strong>发生了什么：</strong>{html.escape(str(t.get('what_happened','')))}</p>")
                 parts_html.append(f"<p><strong>为什么重要：</strong>{html.escape(str(t.get('why_important','')))}</p>")
-                parts_html.append(f"<p><strong>👉 对你意味着什么：</strong>{html.escape(str(t.get('what_it_means_for_you','')))}</p>")
+                parts_html.append(
+                    f"<p><strong>👉 对你意味着什么：</strong>{html.escape(str(t.get('what_it_means_for_you','')))}</p>"
+                )
                 parts_html.append(
                     f"<p><strong>关注程度：</strong>{_stars_html(str(t.get('attention_level','3')))}</p>"
                 )
