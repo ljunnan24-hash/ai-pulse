@@ -3,4 +3,4 @@
 --   SOURCE sql/migrations/2026-05-03_raw_items_extra_json.sql;
 
 ALTER TABLE raw_items
-  ADD COLUMN extra_json TEXT NOT NULL DEFAULT '{}' AFTER score_breakdown_json;
+  ADD COLUMN extra_json TEXT NOT NULL AFTER score_breakdown_json;

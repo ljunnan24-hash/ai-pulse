@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS issue_events (
   heat_score INT NOT NULL DEFAULT 0,
   published_at DATETIME(6) NULL,
   sources_json TEXT NOT NULL,
-  enrichment_json TEXT NOT NULL DEFAULT '{}',
+  -- RDS：TEXT 列勿设 DEFAULT（部分 sql_mode 报 ERROR 1101）；应用/ORM 写入 '{}'
+  enrichment_json TEXT NOT NULL,
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   CONSTRAINT fk_issue_events_issue FOREIGN KEY (issue_id) REFERENCES weekly_issues (id) ON DELETE CASCADE,
   UNIQUE KEY uk_issue_event_key (issue_id, event_key),

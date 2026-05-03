@@ -6,6 +6,6 @@
 ALTER TABLE raw_items
   ADD COLUMN source_type VARCHAR(32) NOT NULL DEFAULT 'rss' AFTER issue_id,
   ADD COLUMN score_total INT NOT NULL DEFAULT 0 AFTER heat_score,
-  ADD COLUMN score_breakdown_json TEXT NOT NULL DEFAULT '{}' AFTER score_total;
+  ADD COLUMN score_breakdown_json TEXT NOT NULL AFTER score_total;
 
 CREATE INDEX ix_raw_score_total ON raw_items (score_total);
