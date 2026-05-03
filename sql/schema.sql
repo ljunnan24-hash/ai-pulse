@@ -35,6 +35,24 @@ CREATE TABLE IF NOT EXISTS weekly_issues (
   KEY ix_weekly_status (status)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS weekly_issue_snapshots (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  issue_id BIGINT NOT NULL,
+  period_start DATE NOT NULL,
+  simple_text TEXT NOT NULL,
+  normal_text TEXT NOT NULL,
+  glossary_json TEXT NOT NULL,
+  payload_json LONGTEXT NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  ready_at DATETIME(6) NULL,
+  source VARCHAR(64) NOT NULL,
+  audit_report_json LONGTEXT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  CONSTRAINT fk_wis_issue FOREIGN KEY (issue_id) REFERENCES weekly_issues (id) ON DELETE CASCADE,
+  KEY ix_wis_issue_created (issue_id, created_at),
+  KEY ix_wis_period_created (period_start, created_at)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS issue_events (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   issue_id BIGINT NOT NULL,

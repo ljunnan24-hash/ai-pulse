@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import IssueStatus, WeeklyIssue
 from app.services.issue_events_service import fetch_digest_candidates
+from app.services.weekly_issue_snapshot import append_weekly_issue_snapshot
 from app.services.multi_agent_orchestrator import MultiAgentOrchestrator
 from app.services.summarizer_service import normalize_payload, payload_to_texts
 from app.timeutil import current_period_monday
@@ -60,6 +61,12 @@ def run(db: Session) -> None:
     issue.glossary_json = glossary_json
     issue.status = IssueStatus.ready.value
     issue.ready_at = datetime.now(timezone.utc)
+    append_weekly_issue_snapshot(
+        db,
+        issue,
+        source="build_weekly_multi_agent",
+        audit_report=res.audit_report if isinstance(res.audit_report, dict) else None,
+    )
     db.commit()
 
     # Persist audit report as a JSON blob inside payload_json? (kept separate by default)

@@ -25,6 +25,11 @@ def main() -> int:
             "WARN: raw_items.extra_json missing — run sql/migrations/2026-05-03_raw_items_extra_json.sql "
             "(crawler metadata / PRD RawItem 扩展)"
         )
+    if not insp.has_table("weekly_issue_snapshots"):
+        print(
+            "WARN: weekly_issue_snapshots missing — optional history table; "
+            "run sql/migrations/2026-05-05_weekly_issue_snapshots.sql to retain each generation."
+        )
     print("OK: issue_events table and raw_items.event_id present.")
     return 0
 

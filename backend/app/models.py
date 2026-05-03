@@ -4,7 +4,7 @@ import enum
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import BigInteger, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -53,6 +53,33 @@ class WeeklyIssue(Base):
 
     raw_items: Mapped[list["RawItem"]] = relationship(back_populates="issue")
     issue_events: Mapped[list["IssueEvent"]] = relationship(back_populates="issue")
+    snapshots: Mapped[list["WeeklyIssueSnapshot"]] = relationship(back_populates="issue")
+
+
+class WeeklyIssueSnapshot(Base):
+    """
+    周刊生成历史：同一 issue_id 可有多条（首次生成、--force 重跑、build_weekly_multi_agent 等）。
+    weekly_issues 始终为当前最新一版；排查旧版按本表 created_at 对比 payload_json / audit_report_json。
+    """
+
+    __tablename__ = "weekly_issue_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    issue_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("weekly_issues.id", ondelete="CASCADE"), index=True
+    )
+    period_start: Mapped[date] = mapped_column(Date, index=True)
+    simple_text: Mapped[str] = mapped_column(Text, default="")
+    normal_text: Mapped[str] = mapped_column(Text, default="")
+    glossary_json: Mapped[str] = mapped_column(Text, default="[]")
+    payload_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(16), default="")
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source: Mapped[str] = mapped_column(String(64), default="")
+    audit_report_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    issue: Mapped["WeeklyIssue"] = relationship(back_populates="snapshots")
 
 
 class IssueEvent(Base):

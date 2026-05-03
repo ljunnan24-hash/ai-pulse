@@ -29,6 +29,7 @@ from app.services.issue_events_service import (
     fetch_digest_candidates,
     rebuild_issue_events,
 )
+from app.services.weekly_issue_snapshot import append_weekly_issue_snapshot
 from app.services.multi_agent_orchestrator import MultiAgentOrchestrator
 from app.services.scoring_service import score_item
 from app.services.summarizer_service import normalize_payload, payload_to_texts, summarize_items
@@ -205,10 +206,12 @@ def run(db: Session, *, force: bool = False) -> None:
     use_ma = bool(getattr(settings, "multi_agent_weekly", False))
     top_n = max(5, min(int(getattr(settings, "multi_agent_digest_top_n", 20) or 20), 60))
 
+    audit_report_to_store: dict[str, Any] | None = None
     if use_ma:
         orch = MultiAgentOrchestrator()
         res = orch.build(raw_items=list(candidates), top_n=top_n)
         payload = normalize_payload(res.payload)
+        audit_report_to_store = res.audit_report if isinstance(res.audit_report, dict) else None
         audit_path = os.path.join(os.getcwd(), f"audit_report_{period.isoformat()}.json")
         try:
             with open(audit_path, "w", encoding="utf-8") as f:
@@ -231,6 +234,10 @@ def run(db: Session, *, force: bool = False) -> None:
     issue.payload_json = json.dumps(payload, ensure_ascii=False)
     issue.status = IssueStatus.ready.value
     issue.ready_at = datetime.now(timezone.utc)
+    snap_src = "generate_weekly_force" if force else "generate_weekly"
+    append_weekly_issue_snapshot(
+        db, issue, source=snap_src, audit_report=audit_report_to_store
+    )
     db.commit()
     print(f"Weekly issue {issue.id} for {period} marked ready.")
 
