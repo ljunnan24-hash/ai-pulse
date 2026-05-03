@@ -17,3 +17,25 @@ backend/dev.db
 
 # TLS material (never commit private keys / bundles)
 aipulse.asia_nginx/
+admin.aipulse.asia_nginx/
+
+# Never commit certificate/private key files (even outside the folders above)
+*.key
+*.pem
+*.crt
+*.cer
+*.pfx
+*.p12
+*.csr
+
+# Office temp files
+~$*.doc*
+
+# Canonical PRD is `prd.md` only — ignore exported Word copies (e.g. *prd.docx)
+*prd.docx
+
+# Local scratch / extraction artifacts
+._docx_extract/
+
+# Do not commit local copies of RDS CA material (e.g. ApsaraDB-Chain)
+ssl/
