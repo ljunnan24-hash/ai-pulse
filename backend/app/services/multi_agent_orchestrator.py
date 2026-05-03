@@ -15,6 +15,14 @@ from app.services.digest_builder import build_payload_from_raw_items
 from app.services.llm_json_client import LlmJsonClient
 from app.services.payload_schema import finalize_payload_v3, format_errors, validate_payload
 from app.services.slim_weekly_render import is_full_prd_v3_payload, slim_merge_to_prd_v3
+from app.services.top3_selector import (
+    apply_locked_top3_merge,
+    build_enriched_event_cards,
+    calculate_top3_score,
+    compact_for_section_prompt,
+    compact_for_top3_prompt,
+    select_top3,
+)
 
 
 def _now_iso() -> str:
@@ -221,6 +229,27 @@ class MultiAgentOrchestrator:
         ev_pack = event_cards if isinstance(event_cards, dict) else {}
         cards_list = ev_pack.get("event_cards") if isinstance(ev_pack.get("event_cards"), list) else []
 
+        enriched_events = build_enriched_event_cards(
+            cards_list,
+            pool,
+            verifier=verifier if isinstance(verifier, dict) else None,
+            impact=impact if isinstance(impact, dict) else None,
+            scoring=scoring if isinstance(scoring, dict) else None,
+        )
+        top3_locked = select_top3(enriched_events)
+        if not top3_locked and enriched_events:
+            rough: list[dict[str, Any]] = []
+            for e in enriched_events:
+                ee = dict(e)
+                ee.pop("_exclude_top3", None)
+                ee["top3_score"] = calculate_top3_score(ee)
+                rough.append(ee)
+            rough.sort(key=lambda x: float(x.get("top3_score") or 0), reverse=True)
+            top3_locked = rough[:3]
+        top3_ids = {str(x.get("event_id")) for x in top3_locked if x.get("event_id")}
+        section_enriched = [e for e in enriched_events if str(e.get("event_id")) not in top3_ids]
+        top3_prompt_rows = [compact_for_top3_prompt(e) for e in top3_locked]
+
         # Capability Analyst（结论型：强判断 + 禁止模糊总结段落）
         capability = self.llm.complete_json(
             system=(
@@ -272,30 +301,20 @@ class MultiAgentOrchestrator:
         cap_block = capability if isinstance(capability, dict) else {}
         caps_for_prompt = cap_block.get("capabilities") if isinstance(cap_block.get("capabilities"), list) else []
 
-        cards_compact: list[dict[str, Any]] = []
-        for c in cards_list[:48]:
-            if not isinstance(c, dict):
-                continue
-            cards_compact.append(
-                {
-                    "event_id": c.get("event_id"),
-                    "title": c.get("title"),
-                    "url": c.get("url"),
-                    "one_liner": c.get("one_liner"),
-                }
-            )
+        cards_compact = [compact_for_section_prompt(e) for e in section_enriched[:48]]
 
-        # Composer：短 JSON；capabilities 仍由 slim_merge 注入；此处强调 Top3=决策、分类=补充事实、去重
+        # Composer：短 JSON；capabilities 仍由 slim_merge 注入；Top3 条目由算法锁定，模型仅润色
         composer_raw = self.llm.complete_json(
             system=(
                 "You output JSON only. "
                 "You are generating a high-value AI decision newsletter. "
-                "Top3 is for decision. Sections are for facts. "
-                "NEVER repeat the same explanation in both Top3 and sections. "
-                "Top3 must include actionable decisions."
+                "Top3 entries are FIXED by the server: you must NOT change Top3 URLs or order. "
+                "Sections are for facts. NEVER repeat the same explanation in both Top3 and sections."
             ),
             user=(
                 "根据下列材料写中文周报要点。禁止输出 capabilities 字段（由服务端注入 capability 分析结果）。\n\n"
+                "【Top3 已由系统算法选定】不得更换 Top3 条目、顺序或 URL；只能润色 top3 的中文字段；"
+                "须与 top3_candidates 三条一一对应。\n\n"
                 "【输出 JSON 键名固定】\n"
                 "{\n"
                 '  "simple_lines": [ {"title","what_happened"(<=30字),"what_it_means_for_you","url"} ] 约5条,\n'
@@ -321,10 +340,11 @@ class MultiAgentOrchestrator:
                 "   - 不允许 '可尝试','可参考','可能','有望'\n\n"
                 "5. tools 模块必须包含：\n"
                 "   - worth_trying: Yes 或 No\n\n"
-                "6. 所有 url 必须从 event_cards_compact 逐字复制。\n\n"
+                "6. section 条目 url 须来自 section_candidates；Top3 url 须与 top3_candidates 完全一致。\n\n"
+                f"top3_candidates：{_safe_json(top3_prompt_rows)}\n\n"
+                f"section_candidates（用于三大板块；勿与 Top3 重复叙事）：{_safe_json(cards_compact)}\n\n"
                 "capability 正文参考（勿写入 JSON 的 capabilities 键）：\n"
                 f"{_safe_json(caps_for_prompt)}\n\n"
-                f"event_cards_compact：{_safe_json(cards_compact)}\n\n"
                 f"trends：{_safe_json(trends)}\n\n"
                 f"glossary_hint：{_safe_json(glossary_out)}\n\n"
                 "只输出一个 JSON 对象。\n"
@@ -363,6 +383,8 @@ class MultiAgentOrchestrator:
         editor_out = _force_replace_text(editor_out)
         if not isinstance(editor_out, dict):
             editor_out = composer_out if isinstance(composer_out, dict) else {}
+
+        apply_locked_top3_merge(editor_out, top3_locked)
 
         # Auditor（可选）：高风险则回退确定性组装
         auditor_report: dict[str, Any] = {"stage": "auditor", "skipped": True}
@@ -427,6 +449,7 @@ class MultiAgentOrchestrator:
                 "impact_analyst",
                 "scoring",
                 "event_cards",
+                "top3_selector",
                 "capability",
                 "trends",
                 "glossary",
@@ -450,6 +473,7 @@ class MultiAgentOrchestrator:
             "impact_analyst": impact,
             "scoring": scoring,
             "event_cards": event_cards,
+            "top3_locked": top3_locked,
             "capability": capability,
             "trends": trends,
             "glossary": glossary_out,
