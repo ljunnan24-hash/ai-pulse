@@ -1,4 +1,4 @@
-"""公开周报页 GET /weekly/:date"""
+"""服务端渲染的公开周报 HTML：GET /weekly-html/:date（/weekly/* 交给前端 SPA + /api/weekly/* JSON）。"""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from app.services.tracking_tokens import sign_tracking_payload, verify_tracking_
 router = APIRouter(tags=["weekly"])
 
 
-@router.get("/weekly/{report_date}", response_class=HTMLResponse)
+@router.get("/weekly-html/{report_date}", response_class=HTMLResponse)
 def weekly_report_public(
     report_date: str,
     request: Request,

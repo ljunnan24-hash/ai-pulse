@@ -1,18 +1,28 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import MarketingApp from './marketing/MarketingApp';
 import { AdminApp } from './admin/AdminApp';
+import { SiteLayout } from './layouts/SiteLayout';
+import ArchivePage from './pages/ArchivePage';
+import EventDetailPage from './pages/EventDetailPage';
+import HomePage from './pages/HomePage';
+import RankingsPage from './pages/RankingsPage';
+import WeeklyLatestPage from './pages/WeeklyLatestPage';
+import WeeklyReportPage from './pages/WeeklyReportPage';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 官网：保持原有逻辑与 UI，不受后台影响 */}
-        <Route path="/" element={<MarketingApp />} />
-
-        {/* 后台：仅 /admin/* 命中，完全隔离 */}
         <Route path="/admin/*" element={<AdminApp />} />
 
-        {/* 兜底 */}
+        <Route element={<SiteLayout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/rankings" element={<RankingsPage />} />
+          <Route path="/events/:eventId" element={<EventDetailPage />} />
+          <Route path="/weekly/latest" element={<WeeklyLatestPage />} />
+          <Route path="/weekly/:date" element={<WeeklyReportPage />} />
+          <Route path="/archive" element={<ArchivePage />} />
+        </Route>
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

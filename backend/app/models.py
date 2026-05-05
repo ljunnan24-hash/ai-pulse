@@ -166,6 +166,58 @@ class RawItem(Base):
     event: Mapped[Optional["IssueEvent"]] = relationship(back_populates="raw_items")
 
 
+class GlobalEvent(Base):
+    """全站 AI 事件（每日排行榜）；与周刊 issue_events 解耦。"""
+
+    __tablename__ = "global_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    stable_key: Mapped[str] = mapped_column(String(96), unique=True, index=True)
+    canonical_title: Mapped[str] = mapped_column(String(512), default="")
+    canonical_url: Mapped[str] = mapped_column(String(2048), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    category: Mapped[str] = mapped_column(String(32), default="application", index=True)
+    source_type: Mapped[str] = mapped_column(String(32), default="rss")
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    source_count: Mapped[int] = mapped_column(Integer, default=1)
+    heat_score: Mapped[int] = mapped_column(Integer, default=0)
+    freshness_score: Mapped[float] = mapped_column(Float, default=50.0)
+    trust_score: Mapped[float] = mapped_column(Float, default=50.0)
+    user_value_score: Mapped[float] = mapped_column(Float, default=50.0)
+    trend_score: Mapped[float] = mapped_column(Float, default=50.0)
+    weekly_score: Mapped[float] = mapped_column(Float, default=0.0)
+    ranking_score: Mapped[float] = mapped_column(Float, default=0.0, index=True)
+    action_suggestion: Mapped[str] = mapped_column(String(32), default="先观望")
+    what_happened: Mapped[str] = mapped_column(String(512), default="")
+    why_important: Mapped[str] = mapped_column(String(1024), default="")
+    what_it_means_for_you: Mapped[str] = mapped_column(String(1024), default="")
+    status: Mapped[str] = mapped_column(String(16), default="active", index=True)
+    sources_json: Mapped[str] = mapped_column(Text, default="[]")
+    metrics_json: Mapped[str] = mapped_column(Text, default="{}")
+    capability_tags_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    sources: Mapped[list["GlobalEventSource"]] = relationship(back_populates="global_event", cascade="all, delete-orphan")
+
+
+class GlobalEventSource(Base):
+    __tablename__ = "global_event_sources"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    global_event_id: Mapped[int] = mapped_column(ForeignKey("global_events.id", ondelete="CASCADE"), index=True)
+    raw_item_id: Mapped[int] = mapped_column(ForeignKey("raw_items.id", ondelete="CASCADE"), index=True)
+    source_name: Mapped[str] = mapped_column(String(256), default="")
+    source_type: Mapped[str] = mapped_column(String(32), default="")
+    url: Mapped[str] = mapped_column(String(2048), default="")
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    global_event: Mapped["GlobalEvent"] = relationship(back_populates="sources")
+
+
 class WeeklyClickLog(Base):
     """周刊打开/点击/落地页浏览（邮件像素、重定向、公开页 ?t=）。"""
 

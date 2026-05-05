@@ -1,5 +1,5 @@
 """
-将已定稿的 PRD v3 周报发布到 weekly_reports，供 GET /weekly/:date 浏览。
+将已定稿的 PRD v3 周报发布到 weekly_reports；对外 weekly_url 仍为 /weekly/:date（SPA）；可选 HTML 版 GET /weekly-html/:date。
 """
 
 from __future__ import annotations

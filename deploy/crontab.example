@@ -8,5 +8,10 @@
 # Monday 09:00 — send weekly emails to all subscribers (no --test; 手动测试: ... send_weekly --test)
 0 9 * * 1 flock -n /var/lock/aipulse-send.lock -c 'cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.send_weekly' >> /var/log/aipulse-send.log 2>&1
 #
+# Daily rankings — global_events（北京时间示例：8:00 / 14:00 / 21:00）
+0 8 * * * flock -n /var/lock/aipulse-daily.lock -c 'cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.daily_rankings' >> /var/log/aipulse-daily.log 2>&1
+0 14 * * * flock -n /var/lock/aipulse-daily.lock -c 'cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.daily_rankings' >> /var/log/aipulse-daily.log 2>&1
+0 21 * * * flock -n /var/lock/aipulse-daily.lock -c 'cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.daily_rankings' >> /var/log/aipulse-daily.log 2>&1
+#
 # API (FastAPI) should run under systemd or supervisor, e.g.:
 #   uvicorn app.main:app --host 0.0.0.0 --port 8000
