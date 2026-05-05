@@ -33,6 +33,43 @@ ACTION_CHOICES = frozenset({"现在试用", "先观望", "可以忽略"})
 
 _BANNED_SUBSTR = ("可能", "或许", "可尝试", "值得一看")
 
+# 入库或兜底文案：视为「尚未真实 enrich」，须优先进入 Insight 候选
+_PLACEHOLDER_MARKERS: tuple[str, ...] = (
+    "若与你的场景相关",
+    "建议安排短时间跟进",
+    "该事件仍在分析中",
+)
+
+
+def _text_has_placeholder(text: str | None) -> bool:
+    t = text or ""
+    return any(m in t for m in _PLACEHOLDER_MARKERS)
+
+
+def needs_ranking_insight_refresh(ge: GlobalEvent) -> bool:
+    """
+    是否需要纳入 Ranking Insight（占位文案一律视为未 enrich；
+    metrics_json.ranking_insight.applied=true 且无占位则视为已处理）。
+    """
+    if _text_has_placeholder(ge.what_happened) or _text_has_placeholder(ge.why_important) or _text_has_placeholder(
+        ge.what_it_means_for_you
+    ):
+        return True
+    try:
+        m = json.loads(ge.metrics_json or "{}")
+        ri = m.get("ranking_insight") if isinstance(m, dict) else None
+        if isinstance(ri, dict) and ri.get("applied") is True:
+            return False
+    except Exception:
+        pass
+    if not (ge.what_happened or "").strip():
+        return True
+    if not (ge.what_it_means_for_you or "").strip():
+        return True
+    if not (ge.action_suggestion or "").strip():
+        return True
+    return False
+
 
 def _today_effective_top_ids(db: Session, top_n: int) -> list[int]:
     """与公开排行榜 today 范围一致的有效分 Top N（用于 Insight 候选）。"""
@@ -49,10 +86,62 @@ def _today_effective_top_ids(db: Session, top_n: int) -> list[int]:
     return [x[1] for x in scored[:top_n]]
 
 
-def _collect_candidate_ids(db: Session, *, limit: int) -> list[int]:
+def _priority_needs_insight_ids(db: Session, *, cap: int, scan_limit: int = 4000) -> list[int]:
     """
-    优先：今日有效分 Top 30 → ranking_score>=70 → 65+ 且任一路径「待补全」判断字段。
-    去重后取前 limit 个。
+    占位 / 未 applied / 关键字段为空 — 优先纳入。
+    先用 SQL 拉出含占位关键词的行（避免低分占位落在扫描窗口之外），再扫榜补「未 applied」等。
+    """
+    like_conds: list = []
+    for m in _PLACEHOLDER_MARKERS:
+        pat = f"%{m}%"
+        like_conds.extend(
+            [
+                GlobalEvent.what_happened.like(pat),
+                GlobalEvent.why_important.like(pat),
+                GlobalEvent.what_it_means_for_you.like(pat),
+            ]
+        )
+    ph_ids: list[int] = []
+    if like_conds:
+        ph_ids = list(
+            db.scalars(
+                select(GlobalEvent.id)
+                .where(GlobalEvent.status == "active", or_(*like_conds))
+                .order_by(GlobalEvent.ranking_score.desc(), GlobalEvent.heat_score.desc())
+                .limit(cap)
+            ).all()
+        )
+    seen: set[int] = set(ph_ids)
+    out: list[int] = list(ph_ids)
+    if len(out) >= cap:
+        return out[:cap]
+
+    rows = db.scalars(
+        select(GlobalEvent)
+        .where(GlobalEvent.status == "active")
+        .order_by(GlobalEvent.ranking_score.desc(), GlobalEvent.heat_score.desc())
+        .limit(max(200, min(scan_limit, 8000)))
+    ).all()
+    for ge in rows:
+        if ge.id in seen:
+            continue
+        if needs_ranking_insight_refresh(ge):
+            out.append(ge.id)
+            seen.add(ge.id)
+            if len(out) >= cap:
+                break
+    return out
+
+
+def _collect_candidate_ids(db: Session, *, limit: int, force: bool = False) -> list[int]:
+    """
+    候选顺序（去重）：
+    1. 须刷新 Insight 的事件（含占位文案、未 applied、关键字段空）— **先于** Top30；
+    2. 今日有效分 Top30；
+    3. ranking_score>=70；
+    4. ranking_score>=65 且（字段空 **或** 占位）— 捕获 <70 但仅占位的条目。
+
+    force=True 时：在前述合并后若仍不足 limit，再按分数从高到低补足（用于批量覆盖旧兜底文案）。
     """
     top30 = _today_effective_top_ids(db, 30)
     s70 = list(
@@ -62,12 +151,13 @@ def _collect_candidate_ids(db: Session, *, limit: int) -> list[int]:
             .order_by(GlobalEvent.ranking_score.desc())
         ).all()
     )
-    s65_empty = list(
+    s65_need = list(
         db.scalars(
             select(GlobalEvent.id)
             .where(
                 GlobalEvent.status == "active",
                 GlobalEvent.ranking_score >= 65.0,
+                GlobalEvent.ranking_score < 70.0,
                 or_(
                     GlobalEvent.what_happened == "",
                     GlobalEvent.what_it_means_for_you == "",
@@ -77,17 +167,46 @@ def _collect_candidate_ids(db: Session, *, limit: int) -> list[int]:
             .order_by(GlobalEvent.ranking_score.desc())
         ).all()
     )
+    priority = _priority_needs_insight_ids(db, cap=limit)
+
+    fill_top_score: list[int] = []
+    if force:
+        fill_top_score = list(
+            db.scalars(
+                select(GlobalEvent.id)
+                .where(GlobalEvent.status == "active")
+                .order_by(GlobalEvent.ranking_score.desc(), GlobalEvent.heat_score.desc())
+                .limit(limit * 3)
+            ).all()
+        )
+
     out: list[int] = []
     seen: set[int] = set()
-    for bucket in (top30, s70, s65_empty):
+
+    def extend(bucket: list[int]) -> None:
         for gid in bucket:
             if gid in seen:
                 continue
             seen.add(gid)
             out.append(gid)
             if len(out) >= limit:
-                return out
-    return out
+                return
+
+    extend(priority)
+    if len(out) >= limit:
+        return out[:limit]
+    extend(top30)
+    if len(out) >= limit:
+        return out[:limit]
+    extend(s70)
+    if len(out) >= limit:
+        return out[:limit]
+    extend(s65_need)
+    if len(out) >= limit:
+        return out[:limit]
+    if force:
+        extend(fill_top_score)
+    return out[:limit]
 
 
 def _chunks(xs: list[int], n: int) -> Iterable[list[int]]:
@@ -198,11 +317,14 @@ def _parse_insights_response(data: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
-def enrich_ranking_insights(db: Session, limit: int | None = None) -> int:
+def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: bool = False) -> int:
     """
     对候选 global_events 分批调用 LLM，写入判断字段与 capability_tags；
     单批失败仅记录日志；成功批次内逐条 recalculate_global_event 刷新 ranking_score。
     返回成功写入并参与重算的事件数（近似）。
+
+    force=True：忽略 RANKING_INSIGHT_ENABLED；候选不足时用高分事件补足；成功写入后一律
+    metrics_json.ranking_insight.applied=true（覆盖旧兜底）。
     """
     settings = get_settings()
     lim = int(limit if limit is not None else settings.ranking_insight_limit)
@@ -210,16 +332,18 @@ def enrich_ranking_insights(db: Session, limit: int | None = None) -> int:
     batch_size = int(settings.ranking_insight_batch_size or 8)
     batch_size = max(4, min(batch_size, 10))
 
-    if not settings.ranking_insight_enabled:
+    if not force and not settings.ranking_insight_enabled:
         _log.info("ranking_insight: disabled (RANKING_INSIGHT_ENABLED=false)")
         return 0
+    if force and not settings.ranking_insight_enabled:
+        _log.warning("ranking_insight: force mode bypasses RANKING_INSIGHT_ENABLED=false")
 
     client = LlmJsonClient()
     if not client.is_configured():
         _log.info("ranking_insight: skipped (DOUBAO_API_KEY / DOUBAO_MODEL not set)")
         return 0
 
-    ids = _collect_candidate_ids(db, limit=lim)
+    ids = _collect_candidate_ids(db, limit=lim, force=force)
     if not ids:
         _log.info("ranking_insight: no candidates")
         return 0
@@ -285,6 +409,12 @@ def enrich_ranking_insights(db: Session, limit: int | None = None) -> int:
                 if not wm:
                     wm = "结合标题与来源核对是否与你业务相关。"
 
+                if _text_has_placeholder(wh) or _text_has_placeholder(wi) or _text_has_placeholder(wm):
+                    _log.warning(
+                        "ranking_insight: LLM output still contains placeholder-like copy event_id=%s",
+                        ge.id,
+                    )
+
                 ge.what_happened = wh[:512]
                 ge.why_important = wi[:1024]
                 ge.what_it_means_for_you = wm[:1024]
@@ -298,11 +428,14 @@ def enrich_ranking_insights(db: Session, limit: int | None = None) -> int:
                     m_prev = {}
                 if not isinstance(m_prev, dict):
                     m_prev = {}
-                m_prev["ranking_insight"] = {
+                ri_meta: dict[str, Any] = {
                     "applied": True,
                     "user_value_score": uv,
                     "enriched_at": now_iso,
                 }
+                if force:
+                    ri_meta["forced"] = True
+                m_prev["ranking_insight"] = ri_meta
                 ge.metrics_json = json.dumps(m_prev, ensure_ascii=False)
                 batch_updated.append(ge.id)
             except Exception as exc:
