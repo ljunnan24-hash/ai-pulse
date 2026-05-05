@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import copy
 import json
+import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
+
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.services.deliverability_pipeline import (
-    apply_deliverability_pipeline,
-    should_fallback_after_deliverability,
+    apply_email_notification_pipeline,
+    sanitize_urls_in_payload,
 )
+from app.services.email_notification import format_email_validation_errors, validate_email_payload
+from app.services.publish_weekly_page import publish_weekly_report, weekly_report_public_url
 from app.services.digest_builder import build_payload_from_raw_items
 from app.services.llm_json_client import LlmJsonClient
 from app.services.payload_schema import finalize_payload_v3, format_errors, validate_payload
@@ -18,11 +24,16 @@ from app.services.slim_weekly_render import is_full_prd_v3_payload, slim_merge_t
 from app.services.top3_selector import (
     apply_locked_top3_merge,
     build_enriched_event_cards,
+    build_top3_comparison_log,
+    build_top3_selection_audit,
     calculate_top3_score,
     compact_for_section_prompt,
     compact_for_top3_prompt,
+    count_candidates_passing_user_value_gate,
     select_top3,
 )
+
+_log = logging.getLogger("uvicorn.error")
 
 
 def _now_iso() -> str:
@@ -104,9 +115,9 @@ class MultiAgentResult:
 class MultiAgentOrchestrator:
     """
     PRD §6.3 多 Agent 流水线（串行 JSON 调用 + 确定性 Cleaner）：
-    Cleaner → Merger(说明) → Verifier → Impact → Scoring → EventCards →
-    Capability → Trend → Glossary → Composer → Editor(可选) → Quality Auditor(可选) →
-    Email Deliverability Auditor → Rewriter(按需) → finalize
+    Cleaner → … → Composer → Editor(可选) → Quality Auditor(可选) →
+    finalize_payload_v3 + validate_payload → Publish Weekly Page →
+    Email Packager / 通知邮件 → validate_email_payload
 
     候选池默认已由 IssueEvent 预合并；Merger 阶段仅记录说明，不二次调用 LLM。
     """
@@ -114,7 +125,15 @@ class MultiAgentOrchestrator:
     def __init__(self) -> None:
         self.llm = LlmJsonClient()
 
-    def build(self, *, raw_items: list[Any], top_n: int = 20) -> MultiAgentResult:
+    def build(
+        self,
+        *,
+        raw_items: list[Any],
+        top_n: int = 20,
+        weekly_main_link: str | None = None,
+        report_date: date | None = None,
+        db: Session | None = None,
+    ) -> MultiAgentResult:
         settings = get_settings()
         pool_all = list(raw_items)[: max(int(top_n), 1)]
 
@@ -176,23 +195,33 @@ class MultiAgentOrchestrator:
         impact = self.llm.complete_json(
             system=(
                 "You output JSON only. "
-                "You are an AI decision analyst for non-technical users. "
-                "You MUST translate events into actionable decisions. "
+                "You are an AI decision analyst for NON-TECHNICAL readers (busy professionals, not developers). "
+                "You MUST translate events into actionable decisions AND score direct user value. "
                 "Avoid vague language like '可尝试','可参考','可能'. "
                 "Every output must include a clear action suggestion."
             ),
             user=(
-                "基于 fact_sheet 和事件摘要，为每条事件输出：\n"
+                "基于 fact_sheet 和事件摘要，为每条事件输出（缺一不可）：\n"
                 "- one_liner（<=40字，事实）\n"
                 "- impact_bullets（最多2条）\n"
-                "- action（必须是明确动作：现在用 / 可以替代 / 建议忽略 / 先观望）\n\n"
+                "- action（必须是明确动作：现在用 / 可以替代 / 建议忽略 / 先观望）\n"
+                "- user_value_score：整数 0-100，衡量「普通非技术读者是否有直接可用价值」"
+                "（产品可试用、明确省时间/省钱、对日常工作有帮助 → 高分；"
+                "纯论文/基准/GitHub star、融资八卦、仅开发者关心的框架细节 → 低分）\n"
+                "- user_value_reason：<=120字，一句话解释分数依据（中文）\n"
+                "- audience_type：必须是下列之一："
+                "general_user | founder | manager | student | developer | enterprise\n"
+                "- actionability：必须是下列之一："
+                "now_try（现在可试用）| watch（值得关注但不必马上动手）| ignore（可对本期忽略）| "
+                "not_for_general_user（主要面向开发者/研究者，不适合作为本周大众 Top3）\n\n"
                 "要求：\n"
                 "1. 必须是“你”视角\n"
                 "2. 禁止使用：可尝试、可参考、可能\n"
-                "3. 必须替用户做判断\n\n"
+                "3. 必须替用户做判断；若条目只对开发者重要，actionability 必须 not_for_general_user\n\n"
                 f"fact_sheet：{_safe_json(verifier)}\n\n"
                 f"事件列表：{_safe_json(events)}\n\n"
-                '输出结构：{ "events": [ {"event_id","one_liner","impact_bullets","action"} ] }\n'
+                '输出结构：{ "events": [ {"event_id","one_liner","impact_bullets","action",'
+                '"user_value_score","user_value_reason","audience_type","actionability"} ] }\n'
             ),
             temperature=0.4,
         )
@@ -236,19 +265,35 @@ class MultiAgentOrchestrator:
             impact=impact if isinstance(impact, dict) else None,
             scoring=scoring if isinstance(scoring, dict) else None,
         )
+        for ee in enriched_events:
+            ee["top3_score"] = calculate_top3_score(ee)
+
         top3_locked = select_top3(enriched_events)
-        if not top3_locked and enriched_events:
-            rough: list[dict[str, Any]] = []
-            for e in enriched_events:
-                ee = dict(e)
-                ee.pop("_exclude_top3", None)
-                ee["top3_score"] = calculate_top3_score(ee)
-                rough.append(ee)
-            rough.sort(key=lambda x: float(x.get("top3_score") or 0), reverse=True)
-            top3_locked = rough[:3]
+        if not top3_locked:
+            return _fallback(
+                "Top3 为空：候选池内无任何条目同时满足置信度/品类/事实校验与用户价值门槛。",
+                extra_notes=["检查 Impact user_value / actionability，或放宽入库噪声过滤。"],
+            )
+
+        uv_gate_count = count_candidates_passing_user_value_gate(enriched_events)
+        insufficient_high_value_events = uv_gate_count < 3
+        top3_comparison_log = build_top3_comparison_log(enriched_events, top3_locked)
+
+        top3_selection_audit = build_top3_selection_audit(enriched_events, top3_locked)
         top3_ids = {str(x.get("event_id")) for x in top3_locked if x.get("event_id")}
         section_enriched = [e for e in enriched_events if str(e.get("event_id")) not in top3_ids]
         top3_prompt_rows = [compact_for_top3_prompt(e) for e in top3_locked]
+
+        n_top = len(top3_locked)
+        heading_cn = "本周重点事件" if insufficient_high_value_events else "Top3 关键事件"
+
+        _log.info(
+            "top3_p0_compare final=%s uv_gate_count=%s insufficient_uv=%s hi_heat_uv_blocked=%d",
+            [x.get("event_id") for x in top3_locked],
+            uv_gate_count,
+            insufficient_high_value_events,
+            len(top3_comparison_log.get("high_heat_blocked_by_user_value") or []),
+        )
 
         # Capability Analyst（结论型：强判断 + 禁止模糊总结段落）
         capability = self.llm.complete_json(
@@ -313,12 +358,12 @@ class MultiAgentOrchestrator:
             ),
             user=(
                 "根据下列材料写中文周报要点。禁止输出 capabilities 字段（由服务端注入 capability 分析结果）。\n\n"
-                "【Top3 已由系统算法选定】不得更换 Top3 条目、顺序或 URL；只能润色 top3 的中文字段；"
-                "须与 top3_candidates 三条一一对应。\n\n"
+                f"【{heading_cn}】已由系统算法选定：共 {n_top} 条，不得更换条目、顺序或 URL；只能润色 top3 的中文字段；"
+                "须与 top3_candidates 条数与顺序完全一致。\n\n"
                 "【输出 JSON 键名固定】\n"
                 "{\n"
                 '  "simple_lines": [ {"title","what_happened"(<=30字),"what_it_means_for_you","url"} ] 约5条,\n'
-                '  "top3": [ {"title","url","what_happened","why_important","what_it_means_for_you","attention_level":"1"-"5"} ] 恰好3条,\n'
+                f'  "top3": [ {{"title","url","what_happened","why_important","what_it_means_for_you","attention_level":"1"-"5"}} ] 恰好{n_top}条,\n'
                 '  "sections": [ {"title":"大模型更新"|"工具/产品"|"行业动态",'
                 ' "items":[{"title","url","what_happened","suitable_for","worth_attention":"High|Medium|Low",'
                 '"what_it_means_for_you","see_top3":bool}] } ] 恰好3个板块,\n'
@@ -385,6 +430,10 @@ class MultiAgentOrchestrator:
             editor_out = composer_out if isinstance(composer_out, dict) else {}
 
         apply_locked_top3_merge(editor_out, top3_locked)
+        if len(top3_locked) < 3:
+            editor_out["allow_short_top3"] = True
+        if insufficient_high_value_events:
+            editor_out.setdefault("normal", {})["top3_section_title"] = "本周重点事件"
 
         # Auditor（可选）：高风险则回退确定性组装
         auditor_report: dict[str, Any] = {"stage": "auditor", "skipped": True}
@@ -410,28 +459,9 @@ class MultiAgentOrchestrator:
                     )
 
         payload_in = editor_out if isinstance(editor_out, dict) else {}
+        sanitized_prd = sanitize_urls_in_payload(copy.deepcopy(payload_in))
 
-        deliverability_artifact: dict[str, Any]
-        d_min = int(getattr(settings, "multi_agent_deliverability_min_score", 70))
-        d_rw = int(getattr(settings, "multi_agent_deliverability_rewrite_below", 85))
-        d_en = getattr(settings, "multi_agent_enable_deliverability", True)
-        payload_in, deliverability_artifact = apply_deliverability_pipeline(
-            self.llm,
-            payload_in,
-            enabled=d_en,
-            rewrite_score_threshold=d_rw,
-        )
-        if d_en and getattr(settings, "multi_agent_deliverability_strict", True):
-            fb_d, reason_d = should_fallback_after_deliverability(
-                deliverability_artifact, min_score=d_min
-            )
-            if fb_d:
-                return _fallback(
-                    f"deliverability: {reason_d}",
-                    extra_notes=[_safe_json(deliverability_artifact)],
-                )
-
-        f_out = finalize_payload_v3(payload_in if isinstance(payload_in, dict) else {})
+        f_out = finalize_payload_v3(sanitized_prd)
         errors = validate_payload(f_out)
         if errors:
             return _fallback(
@@ -439,9 +469,40 @@ class MultiAgentOrchestrator:
                 extra_notes=[format_errors(errors)],
             )
 
+        d_min = int(getattr(settings, "multi_agent_deliverability_min_score", 70))
+        d_rw = int(getattr(settings, "multi_agent_deliverability_rewrite_below", 85))
+        d_en = getattr(settings, "multi_agent_enable_deliverability", True)
+        d_strict = getattr(settings, "multi_agent_deliverability_strict", True)
+
+        if report_date is not None:
+            if db is not None:
+                weekly_url = publish_weekly_report(db, f_out, report_date, settings=settings)
+            else:
+                weekly_url = weekly_report_public_url(report_date, settings=settings)
+        else:
+            weekly_url = (weekly_main_link or "").strip() or (
+                f"{settings.weekly_public_base_url.rstrip('/')}/weekly/latest"
+            )
+        f_out["weekly_url"] = weekly_url
+
+        f_out, email_notification_artifact = apply_email_notification_pipeline(
+            self.llm,
+            f_out,
+            enabled=d_en,
+            weekly_main_link=weekly_url,
+            rewrite_score_threshold=d_rw,
+            min_score=d_min,
+            strict=d_strict,
+        )
+
+        ev_errors = validate_email_payload(f_out.get("email_payload") or {}, settings=settings)
+
         audit = {
             "generated_at": _now_iso(),
             "mode": "multi_agent_prd_v3",
+            "top3_comparison_log": top3_comparison_log,
+            "insufficient_high_value_events": insufficient_high_value_events,
+            "top3_selection_audit": top3_selection_audit,
             "pipeline": [
                 "cleaner",
                 "merger",
@@ -456,14 +517,26 @@ class MultiAgentOrchestrator:
                 "composer",
                 "editor" if getattr(settings, "multi_agent_enable_editor", False) else "editor_skipped",
                 "auditor" if getattr(settings, "multi_agent_enable_auditor", False) else "auditor_skipped",
-                "deliverability"
+                "finalize_payload_v3",
+                "validate_payload",
+                "publish_weekly_page",
+                "email_notification"
                 if getattr(settings, "multi_agent_enable_deliverability", True)
-                else "deliverability_skipped",
+                else "email_notification_skipped",
+                "validate_email_payload",
             ],
             "issues": (scoring.get("issues") if isinstance(scoring, dict) else []) or [],
             "notes": [],
             "auditor": auditor_report if isinstance(auditor_report, dict) else {},
-            "deliverability": deliverability_artifact,
+            "publish_weekly_page": {
+                "weekly_url": weekly_url,
+                "report_date": report_date.isoformat() if report_date else None,
+            },
+            "validate_email_payload": {
+                "ok": not bool(ev_errors),
+                "errors": [f"{e.path}: {e.message}" for e in ev_errors] if ev_errors else [],
+            },
+            "email_notification": email_notification_artifact,
         }
 
         artifacts: dict[str, Any] = {
@@ -474,6 +547,9 @@ class MultiAgentOrchestrator:
             "scoring": scoring,
             "event_cards": event_cards,
             "top3_locked": top3_locked,
+            "top3_comparison_log": top3_comparison_log,
+            "insufficient_high_value_events": insufficient_high_value_events,
+            "top3_selection_audit": top3_selection_audit,
             "capability": capability,
             "trends": trends,
             "glossary": glossary_out,
@@ -481,6 +557,8 @@ class MultiAgentOrchestrator:
             "composer": composer_out,
             "editor": editor_out,
             "auditor": auditor_report,
-            "deliverability": deliverability_artifact,
+            "publish_weekly_page": {"weekly_url": weekly_url, "report_date": report_date.isoformat() if report_date else None},
+            "validate_email_payload": {"ok": not bool(ev_errors), "errors": [f"{e.path}: {e.message}" for e in ev_errors] if ev_errors else []},
+            "email_notification": email_notification_artifact,
         }
         return MultiAgentResult(payload=f_out, audit_report=audit, artifacts=artifacts)

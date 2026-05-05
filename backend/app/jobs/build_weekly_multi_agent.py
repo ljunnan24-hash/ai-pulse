@@ -50,7 +50,12 @@ def run(db: Session) -> None:
         return
 
     orch = MultiAgentOrchestrator()
-    res = orch.build(raw_items=digest_candidates, top_n=20)
+    res = orch.build(
+        raw_items=digest_candidates,
+        top_n=20,
+        report_date=period,
+        db=db,
+    )
 
     payload = normalize_payload(res.payload)
     simple_text, normal_text, glossary_json = payload_to_texts(payload)

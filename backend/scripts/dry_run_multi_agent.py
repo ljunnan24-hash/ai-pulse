@@ -94,7 +94,12 @@ def main() -> int:
             return 1
 
         orch = MultiAgentOrchestrator()
-        res = orch.build(raw_items=digest_candidates, top_n=int(args.top_n))
+        res = orch.build(
+            raw_items=digest_candidates,
+            top_n=int(args.top_n),
+            report_date=period,
+            db=None,
+        )
 
         payload = normalize_payload(res.payload if isinstance(res.payload, dict) else {})
         (out_dir / "payload.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

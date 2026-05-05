@@ -190,7 +190,7 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
                 }
             )
 
-    return {
+    out: dict[str, Any] = {
         "simple": {
             "lines": clean_lines[:10],
             "footer": str(simple.get("footer") or ""),
@@ -203,6 +203,13 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
         },
         "glossary": glossary,
     }
+    if isinstance(raw, dict):
+        if raw.get("allow_short_top3"):
+            out["allow_short_top3"] = True
+        nraw = raw.get("normal")
+        if isinstance(nraw, dict) and str(nraw.get("top3_section_title") or "").strip():
+            out.setdefault("normal", {})["top3_section_title"] = str(nraw["top3_section_title"]).strip()[:80]
+    return out
 
 
 _GLOSS_PAD: Final[list[dict[str, str]]] = [
@@ -271,9 +278,13 @@ def finalize_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
 
     norm = dict(p.get("normal") or {})
     top3 = list(norm.get("top3") or [])
-    while len(top3) < 3:
-        top3.append(dict(_pad_top3_row()))
-    norm["top3"] = top3[:3]
+    allow_short = bool(p.get("allow_short_top3"))
+    if not allow_short:
+        while len(top3) < 3:
+            top3.append(dict(_pad_top3_row()))
+        norm["top3"] = top3[:3]
+    else:
+        norm["top3"] = top3[:3]
 
     by_title: dict[str, dict[str, Any]] = {}
     for s in norm.get("sections") or []:
@@ -392,8 +403,12 @@ def validate_payload(payload: dict[str, Any]) -> list[ValidationError]:
         if not isinstance(top3, list):
             errs.append(ValidationError("$.normal.top3", "must be an array"))
             top3 = []
+        allow_short = bool(p.get("allow_short_top3"))
         if isinstance(top3, list):
-            if len(top3) != 3:
+            if allow_short:
+                if len(top3) < 1 or len(top3) > 3:
+                    errs.append(ValidationError("$.normal.top3", "must have 1-3 items when allow_short_top3"))
+            elif len(top3) != 3:
                 errs.append(ValidationError("$.normal.top3", "must have exactly 3 items"))
             for i, t in enumerate(top3):
                 path = f"$.normal.top3[{i}]"

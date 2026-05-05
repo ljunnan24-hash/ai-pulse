@@ -3,7 +3,7 @@ from __future__ import annotations
 import html
 import json
 import re
-from typing import Any
+from typing import Any, Callable
 
 from app.services.payload_schema import SECTION_ORDER, ensure_payload_v3, finalize_payload_v3
 from app.services.scoring_service import score_item
@@ -527,9 +527,11 @@ def render_issue_email(
     keyword_banner: str | None = None,
     recipient_email: str | None = None,
     issue_heading: str | None = None,
+    top3_link_wrap: Callable[[str, int], str] | None = None,
 ) -> tuple[str, str]:
     """返回 (html, plain_text)；payload 建议先经 ensure_payload_v3。
     issue_heading：PRD 固定标题行，如「AI Pulse 周报 · 2026年第19周」。
+    top3_link_wrap：可选，将 Top3 外链替换为追踪跳转 URL（第二个参数为 0-based 序号）。
     """
     p = ensure_payload_v3(payload)
     s = p.get("simple") or {}
@@ -604,9 +606,10 @@ def render_issue_email(
 
         top3 = n.get("top3") or []
         if top3:
-            parts_html.append("<h3>Top3 关键事件</h3>")
-            parts_txt.append("Top3 关键事件")
-            for t in top3:
+            top3_heading = str(n.get("top3_section_title") or "").strip() or "Top3 关键事件"
+            parts_html.append(f"<h3>{html.escape(top3_heading)}</h3>")
+            parts_txt.append(top3_heading)
+            for idx, t in enumerate(top3):
                 if not isinstance(t, dict):
                     continue
                 tit = html.escape(str(t.get("title", "")))
@@ -622,7 +625,10 @@ def render_issue_email(
                     f"<p><strong>关注程度：</strong>{_stars_html(str(t.get('attention_level','3')))}</p>"
                 )
                 if url:
-                    parts_html.append(f'<p>🔗 <a href="{html.escape(url, quote=True)}">{html.escape(url)}</a></p>')
+                    href_url = top3_link_wrap(url, idx) if top3_link_wrap else url
+                    parts_html.append(
+                        f'<p>🔗 <a href="{html.escape(href_url, quote=True)}">{html.escape(url)}</a></p>'
+                    )
                 parts_html.append("</div>")
 
                 tx = "\n".join(
@@ -714,8 +720,8 @@ def render_issue_email(
 
         tools = n.get("tools") or []
         if tools:
-            parts_html.append("<h3>AI 工具机会</h3>")
-            parts_txt.append("AI 工具机会")
+            parts_html.append("<h3>本周工具观察</h3>")
+            parts_txt.append("本周工具观察")
             for tool in tools:
                 if not isinstance(tool, dict):
                     continue
@@ -763,6 +769,31 @@ def render_issue_email(
     )
     text_body = "\n\n".join(parts_txt)
     return html_body, text_body
+
+
+def render_weekly_public_page(
+    payload: dict[str, Any],
+    *,
+    page_heading: str | None = None,
+    top3_link_wrap: Callable[[str, int], str] | None = None,
+) -> str:
+    """
+    浏览器可读的完整周报 HTML（数据来源 payload_json / PRD v3），与邮件正文无关。
+    """
+    p = ensure_payload_v3(payload)
+    heading = (page_heading or "").strip() or "AI Pulse 周报"
+    html_body, _text = render_issue_email(
+        p, "normal", issue_heading=heading, top3_link_wrap=top3_link_wrap
+    )
+    if "<head" not in html_body.lower():
+        title = html.escape(heading)
+        head = (
+            f"<head><meta charset=\"utf-8\"/>"
+            f"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>"
+            f"<title>{title}</title></head>"
+        )
+        html_body = html_body.replace("<html>", f"<html>{head}", 1)
+    return html_body
 
 
 def append_subscription_footer(html_body: str, public_app_url: str, unsub_token: str, manage_token: str) -> str:

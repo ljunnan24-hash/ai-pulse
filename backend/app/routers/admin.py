@@ -20,13 +20,8 @@ from app.database import get_db
 from app.models import AdminUser, Subscriber, SendLog, SubscriberStatus, WeeklyIssue, IssueStatus
 from app.routers.api import _fresh_tokens  # reuse collision-safe token generation
 from app.services.email_service import send_email
-from app.services.digest_builder import (
-    append_subscription_footer,
-    filter_payload_for_keywords,
-    parse_payload_json,
-    render_issue_email,
-)
-from app.timeutil import weekly_issue_heading_display
+from app.services.digest_builder import append_subscription_footer
+from app.services.email_notification import try_render_stored_notification
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -541,24 +536,21 @@ def admin_resend_latest_weekly(
         raise HTTPException(status_code=404, detail="No ready issue.")
 
     email = str(sub.email).strip()
-    kws = _parse_keywords(sub.keywords_json)
-    payload_data = parse_payload_json(issue.payload_json)
-    filtered, matched = filter_payload_for_keywords(payload_data, kws)
-    banner = None
-    if kws and not matched:
-        banner = "本周期暂无与关键词直接匹配的内容，以下为本期全文。"
-    heading = weekly_issue_heading_display(issue.period_start) if issue.period_start else None
-    html_body, text_body = render_issue_email(
-        filtered,
-        sub.mode,
-        keyword_banner=banner,
+    notification = try_render_stored_notification(
+        issue.payload_json or "{}",
         recipient_email=email,
-        issue_heading=heading,
+        settings=settings,
     )
+    if not notification:
+        raise HTTPException(
+            status_code=503,
+            detail="本期无可用的邮件通知内容（缺少合规 email_payload），请先完成周报生成。",
+        )
+    subj, html_body, text_body = notification
+    subj = subj + "（管理员补发）"
     html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
     unsub_u = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={sub.unsubscribe_token}"
     text_body += f"\n\n退订: {unsub_u}"
-    subj = (heading + "（管理员补发）") if heading else "AI Pulse · 最新一期（管理员补发）"
     try:
         send_email(email, subj, html_body, text_body, list_unsubscribe_url=unsub_u)
     except RuntimeError as exc:

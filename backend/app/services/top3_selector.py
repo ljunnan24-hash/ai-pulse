@@ -31,6 +31,28 @@ _SOURCE_TRUST_SCORE: dict[str, float] = {
     "event": 65.0,
 }
 
+# Impact Analyst：用户价值（非技术读者）
+_AUDIENCE_TYPES = frozenset(
+    {"general_user", "founder", "manager", "student", "developer", "enterprise"}
+)
+_ACTIONABILITY_TYPES = frozenset({"now_try", "watch", "ignore", "not_for_general_user"})
+
+_USER_VALUE_GATE_MIN = 55.0
+
+_TECH_LIB_PAT = re.compile(
+    r"(benchmark|基准测试|开源框架|\blibrary\b|\bsdk\b|pytorch|tensorflow|cuda|kernel|npm i\b|pip install|git clone|"
+    r"纯技术|论文复现)",
+    re.I,
+)
+_FUNDING_NO_ACTION_PAT = re.compile(r"(融资|亿元|万美元|轮融资|估值|IPO|并购)", re.I)
+_USER_VALUE_SIGNAL_PAT = re.compile(
+    r"(可试用|免费|注册|下载|App|小程序|网页版|开放体验|立即使用|节省|提效|替代人工|办公|写作|画图|普通用户|无需代码)",
+    re.I,
+)
+_PRODUCT_USER_PAT = re.compile(
+    r"(发布|上线|推出|新版|开放注册|ChatGPT|Claude|Gemini|豆包|通义|文心)", re.I,
+)
+
 
 def normalize_url(url: str) -> str:
     if not url:
@@ -83,7 +105,66 @@ def _attention_bucket(score_total: float, pool_scores: list[float]) -> str:
     return "Low"
 
 
-def calculate_top3_score(event: dict[str, Any]) -> float:
+def _clamp_user_value(raw: Any) -> float | None:
+    if raw is None:
+        return None
+    try:
+        v = float(raw)
+    except Exception:
+        return None
+    return max(0.0, min(100.0, v))
+
+
+def normalize_audience_type(raw: Any) -> str:
+    s = str(raw or "").strip().lower()
+    return s if s in _AUDIENCE_TYPES else "general_user"
+
+
+def normalize_actionability(raw: Any) -> str:
+    s = str(raw or "").strip().lower()
+    return s if s in _ACTIONABILITY_TYPES else "watch"
+
+
+def estimate_user_value_fallback(event: dict[str, Any]) -> tuple[float, str]:
+    """
+    Impact Analyst 未给出 user_value_score 时的确定性估算（P0 兜底）。
+    区间对齐产品：非技术读者的直接价值。
+    """
+    blob = " ".join(
+        [
+            str(event.get("title") or ""),
+            str(event.get("one_liner") or ""),
+            str(event.get("_text_blob") or ""),
+        ]
+    )
+    st = str(event.get("source_type") or "").lower()
+
+    if _TECH_LIB_PAT.search(blob):
+        return 47.0, "规则兜底：偏技术库/基准/框架类，对一般读者直接价值有限。"
+    if _PRODUCT_USER_PAT.search(blob) and _USER_VALUE_SIGNAL_PAT.search(blob):
+        return 78.0, "规则兜底：产品化或可用性信号强，偏「现在可试」。"
+    if _PRODUCT_USER_PAT.search(blob):
+        return 74.0, "规则兜底：偏新产品/能力发布，普通用户可关注。"
+    if _FUNDING_NO_ACTION_PAT.search(blob) and not _USER_VALUE_SIGNAL_PAT.search(blob):
+        return 58.0, "规则兜底：融资/商业叙事为主，缺少明确用户行动点。"
+    if _USER_VALUE_SIGNAL_PAT.search(blob):
+        return 72.0, "规则兜底：可见提效/试用/替代人工类表述。"
+    if st == "github":
+        return 50.0, "规则兜底：GitHub 来源默认偏开发者向，保守评分。"
+    return 62.0, "规则兜底：缺少 Impact 用户价值字段，中性估计。"
+
+
+def heat_score_for_top3(event: dict[str, Any]) -> float:
+    """GitHub 来源时对 heat 输入封顶，避免 stars 统治排序。"""
+    h = get_num(event, "heat_score")
+    st = str(event.get("source_type", "")).lower()
+    if st == "github":
+        return min(h, 55.0)
+    return h
+
+
+def calculate_top3_score_legacy_for_audit(event: dict[str, Any]) -> float:
+    """改版前 Top3 综合分（仅对比日志用）：热度/来源权重较高。"""
     base_score = get_num(event, "base_score")
     heat_score = get_num(event, "heat_score")
     freshness_score = get_num(event, "freshness_score")
@@ -124,6 +205,34 @@ def calculate_top3_score(event: dict[str, Any]) -> float:
     return round(score, 2)
 
 
+def calculate_top3_score(event: dict[str, Any]) -> float:
+    """
+    Top3 综合分（P0）：用户价值优先，其次基础分与可信源，热度弱化且 GitHub heat 封顶。
+    """
+    uv = get_num(event, "user_value_score")
+    base_score = get_num(event, "base_score")
+    source_trust_score = get_num(event, "source_trust_score")
+    freshness_score = get_num(event, "freshness_score")
+    heat_eff = heat_score_for_top3(event)
+
+    score = (
+        uv * 0.45
+        + base_score * 0.20
+        + source_trust_score * 0.15
+        + freshness_score * 0.10
+        + heat_eff * 0.10
+    )
+    return round(score, 2)
+
+
+def passes_user_value_hard_gates(event: dict[str, Any]) -> bool:
+    if get_num(event, "user_value_score") < _USER_VALUE_GATE_MIN:
+        return False
+    if normalize_actionability(event.get("actionability")) == "not_for_general_user":
+        return False
+    return True
+
+
 def is_valid_top3_candidate(event: dict[str, Any]) -> bool:
     confidence = get_num(event, "confidence")
     url = str(event.get("url", "") or "")
@@ -140,6 +249,9 @@ def is_valid_top3_candidate(event: dict[str, Any]) -> bool:
         return False
 
     if category not in ("model_update", "tool_product", "industry"):
+        return False
+
+    if not passes_user_value_hard_gates(event):
         return False
 
     return False if event.get("_exclude_top3") else True
@@ -204,27 +316,6 @@ def select_top3(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
             if len(selected) == 3:
                 break
-
-    # 仍不足 3 条：放宽校验，按 top3_score 补齐（避免 validate 失败）
-    if len(selected) < 3 and events:
-        relaxed: list[dict[str, Any]] = []
-        for event in events:
-            row = dict(event)
-            if row.get("top3_score") is None:
-                row["top3_score"] = calculate_top3_score(row)
-            relaxed.append(row)
-        relaxed.sort(key=lambda x: float(x.get("top3_score") or 0), reverse=True)
-        for event in relaxed:
-            if len(selected) >= 3:
-                break
-            eid = str(event.get("event_id") or "")
-            if any(str(s.get("event_id")) == eid for s in selected):
-                continue
-            if any(is_duplicate_event(event, s) for s in selected):
-                continue
-            if not str(event.get("url", "") or "").strip():
-                continue
-            selected.append(event)
 
     return selected[:3]
 
@@ -419,6 +510,34 @@ def build_enriched_event_cards(
         if isinstance(imp_row, dict):
             action = str(imp_row.get("action") or "").strip()
 
+        _text_blob = re.sub(r"\s+", " ", summary).strip()[:1200] if summary else ""
+
+        uv_reason_imp = ""
+        aud_t = "general_user"
+        act_b = "watch"
+        uv_clamped: float | None = None
+        if isinstance(imp_row, dict):
+            uv_clamped = _clamp_user_value(imp_row.get("user_value_score"))
+            uv_reason_imp = str(imp_row.get("user_value_reason") or "").strip()
+            aud_t = normalize_audience_type(imp_row.get("audience_type"))
+            act_b = normalize_actionability(imp_row.get("actionability"))
+
+        if uv_clamped is None:
+            uv_score_final, fb_reason = estimate_user_value_fallback(
+                {
+                    "title": title,
+                    "one_liner": one_liner,
+                    "_text_blob": _text_blob,
+                    "source_type": st,
+                }
+            )
+            uv_reason = uv_reason_imp or fb_reason
+            user_value_from_impact = False
+        else:
+            uv_score_final = uv_clamped
+            uv_reason = uv_reason_imp or "Impact Analyst 输出。"
+            user_value_from_impact = True
+
         attention_level = _attention_bucket(base_score, pool_scores)
 
         row: dict[str, Any] = {
@@ -437,6 +556,12 @@ def build_enriched_event_cards(
             "fact_status": fs,
             "one_liner": one_liner,
             "action": action,
+            "user_value_score": uv_score_final,
+            "user_value_reason": uv_reason,
+            "audience_type": aud_t,
+            "actionability": act_b,
+            "user_value_from_impact": user_value_from_impact,
+            "_text_blob": _text_blob,
         }
 
         if high_noise_ids and eid in high_noise_ids:
@@ -479,6 +604,140 @@ def compact_for_top3_prompt(enriched: dict[str, Any]) -> dict[str, Any]:
         "one_liner": enriched.get("one_liner"),
         "action": enriched.get("action"),
         "top3_score": enriched.get("top3_score"),
+        "user_value_score": enriched.get("user_value_score"),
+        "actionability": enriched.get("actionability"),
+    }
+
+
+def build_top3_selection_audit(
+    enriched_events: list[dict[str, Any]],
+    selected: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """供 audit_report_json / 运维排查：每条事件的 Top3 分、用户价值门槛命中情况。"""
+    sel_ids = {str(x.get("event_id")) for x in selected if x.get("event_id")}
+    out: list[dict[str, Any]] = []
+    for ev in enriched_events:
+        eid = str(ev.get("event_id") or "")
+        raw_score = calculate_top3_score(ev)
+        uv = get_num(ev, "user_value_score")
+        blocked_uv = uv < _USER_VALUE_GATE_MIN
+        blocked_action = normalize_actionability(ev.get("actionability")) == "not_for_general_user"
+        excluded_low_user_value = blocked_uv or blocked_action
+        reasons: list[str] = []
+        if blocked_uv:
+            reasons.append("user_value_below_55")
+        if blocked_action:
+            reasons.append("actionability_not_for_general_user")
+
+        out.append(
+            {
+                "event_id": eid,
+                "top3_score": raw_score,
+                "user_value_score": uv,
+                "user_value_reason": str(ev.get("user_value_reason") or ""),
+                "audience_type": ev.get("audience_type"),
+                "actionability": ev.get("actionability"),
+                "user_value_from_impact": bool(ev.get("user_value_from_impact")),
+                "excluded_low_user_value": excluded_low_user_value,
+                "selected_for_top3": eid in sel_ids,
+                "low_user_value_gate_notes": reasons,
+            }
+        )
+    return out
+
+
+def count_candidates_passing_user_value_gate(events: list[dict[str, Any]]) -> int:
+    """仅统计通过 user_value 硬门槛（不含置信度/板块等）的候选数，用于 insufficient 判定。"""
+    return sum(1 for e in events if passes_user_value_hard_gates(e))
+
+
+def build_top3_comparison_log(
+    enriched_events: list[dict[str, Any]],
+    final_top3: list[dict[str, Any]],
+    *,
+    heat_high_percentile: float = 0.75,
+    heat_floor: float = 55.0,
+) -> dict[str, Any]:
+    """
+    P0 验证日志：旧版热度导向排序 vs 用户价值排序 vs 最终 Top3 vs 高热度但被 UV 拦截。
+    """
+    rows = list(enriched_events)
+    legacy_ranked = sorted(
+        rows,
+        key=lambda e: calculate_top3_score_legacy_for_audit(e),
+        reverse=True,
+    )[:10]
+    old_score_rank_top10 = [
+        {
+            "rank": i + 1,
+            "event_id": str(e.get("event_id") or ""),
+            "title": str(e.get("title") or "")[:120],
+            "legacy_top3_score": calculate_top3_score_legacy_for_audit(e),
+            "heat_score": get_num(e, "heat_score"),
+            "source_type": str(e.get("source_type") or ""),
+        }
+        for i, e in enumerate(legacy_ranked)
+    ]
+
+    uv_ranked = sorted(rows, key=lambda e: get_num(e, "user_value_score"), reverse=True)[:10]
+    new_user_value_rank_top10 = [
+        {
+            "rank": i + 1,
+            "event_id": str(e.get("event_id") or ""),
+            "title": str(e.get("title") or "")[:120],
+            "user_value_score": get_num(e, "user_value_score"),
+            "new_top3_score": calculate_top3_score(e),
+            "actionability": str(e.get("actionability") or ""),
+        }
+        for i, e in enumerate(uv_ranked)
+    ]
+
+    final_top3_summary = [
+        {
+            "rank": i + 1,
+            "event_id": str(x.get("event_id") or ""),
+            "title": str(x.get("title") or "")[:120],
+            "user_value_score": get_num(x, "user_value_score"),
+            "top3_score": calculate_top3_score(x),
+        }
+        for i, x in enumerate(final_top3[:3])
+    ]
+
+    heats_sorted = sorted([get_num(e, "heat_score") for e in rows])
+    if heats_sorted:
+        idx = min(len(heats_sorted) - 1, int(len(heats_sorted) * heat_high_percentile))
+        heat_threshold = max(heat_floor, heats_sorted[idx])
+    else:
+        heat_threshold = heat_floor
+
+    high_heat_blocked_by_user_value: list[dict[str, Any]] = []
+    for e in rows:
+        if get_num(e, "heat_score") < heat_threshold:
+            continue
+        if passes_user_value_hard_gates(e):
+            continue
+        high_heat_blocked_by_user_value.append(
+            {
+                "event_id": str(e.get("event_id") or ""),
+                "title": str(e.get("title") or "")[:120],
+                "heat_score": get_num(e, "heat_score"),
+                "user_value_score": get_num(e, "user_value_score"),
+                "actionability": str(e.get("actionability") or ""),
+                "block_reason": (
+                    "actionability_not_for_general_user"
+                    if normalize_actionability(e.get("actionability")) == "not_for_general_user"
+                    else "user_value_below_55"
+                ),
+            }
+        )
+
+    return {
+        "heat_threshold_used": heat_threshold,
+        "old_score_rank_top10": old_score_rank_top10,
+        "new_user_value_rank_top10": new_user_value_rank_top10,
+        "final_top3": final_top3_summary,
+        "high_heat_blocked_by_user_value": high_heat_blocked_by_user_value,
+        "candidates_passing_user_value_gate_count": count_candidates_passing_user_value_gate(rows),
     }
 
 
@@ -493,10 +752,13 @@ def attention_level_to_digit(att: str | None) -> str:
 
 def apply_locked_top3_merge(payload: dict[str, Any], locked: list[dict[str, Any]]) -> None:
     """将算法选定的 Top3 固定到 payload.normal.top3（保留 Composer 已生成的中文段落字段）。"""
-    if not locked or not isinstance(payload, dict):
+    if not isinstance(payload, dict):
         return
     normal = payload.get("normal")
     if not isinstance(normal, dict):
+        return
+    if not locked:
+        normal["top3"] = []
         return
     old_t3 = normal.get("top3") if isinstance(normal.get("top3"), list) else []
     new_t3: list[dict[str, str]] = []

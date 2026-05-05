@@ -34,10 +34,144 @@ from app.services.issue_events_service import (
     rebuild_issue_events,
 )
 from app.services.weekly_issue_snapshot import append_weekly_issue_snapshot
+from app.services.deliverability_pipeline import apply_email_notification_pipeline
+from app.services.llm_json_client import LlmJsonClient
 from app.services.multi_agent_orchestrator import MultiAgentOrchestrator
+from app.services.publish_weekly_page import publish_weekly_report, weekly_report_public_url
 from app.services.scoring_service import score_item
 from app.services.summarizer_service import normalize_payload, payload_to_texts, summarize_items
+from app.services.email_notification import validate_email_payload
 from app.timeutil import current_period_monday
+
+
+def _top3_titles_from_payload(payload: dict[str, Any]) -> list[str]:
+    normal = payload.get("normal") if isinstance(payload.get("normal"), dict) else {}
+    top3 = normal.get("top3") if isinstance(normal.get("top3"), list) else []
+    out: list[str] = []
+    for t in top3:
+        if isinstance(t, dict):
+            tit = str(t.get("title") or "").strip()
+            if tit:
+                out.append(tit[:300])
+    return out
+
+
+def _weekly_quality_summary_multi_agent(
+    audit: dict[str, Any] | None,
+    artifacts: dict[str, Any] | None,
+    payload: dict[str, Any],
+    *,
+    settings: Any,
+) -> dict[str, Any]:
+    """generate_weekly 多 Agent 成功路径后的质量摘要（写入 audit_report_json）。"""
+    warnings: list[str] = []
+    audit = audit if isinstance(audit, dict) else {}
+    artifacts = artifacts if isinstance(artifacts, dict) else {}
+
+    normal = payload.get("normal") if isinstance(payload.get("normal"), dict) else {}
+    top3 = normal.get("top3") if isinstance(normal.get("top3"), list) else []
+    final_top3_count = len(top3)
+    top3_titles = _top3_titles_from_payload(payload)
+
+    comp = audit.get("top3_comparison_log")
+    if not isinstance(comp, dict):
+        comp = {}
+
+    final_entries = comp.get("final_top3")
+    if not isinstance(final_entries, list) or not final_entries:
+        sel_audit = audit.get("top3_selection_audit")
+        if isinstance(sel_audit, list):
+            uvs = []
+            sel_ids = {str(x.get("event_id")) for x in (artifacts.get("top3_locked") or []) if isinstance(x, dict)}
+            for row in sel_audit:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("event_id")) in sel_ids and row.get("selected_for_top3"):
+                    uvs.append(float(row.get("user_value_score") or 0))
+            avg_user_value_score = round(sum(uvs) / len(uvs), 1) if uvs else 0.0
+        else:
+            avg_user_value_score = 0.0
+    else:
+        uvs = [float(x.get("user_value_score") or 0) for x in final_entries if isinstance(x, dict)]
+        avg_user_value_score = round(sum(uvs) / len(uvs), 1) if uvs else 0.0
+
+    locked = artifacts.get("top3_locked")
+    github_count_in_top3 = 0
+    if isinstance(locked, list):
+        for row in locked:
+            if isinstance(row, dict) and str(row.get("source_type") or "").lower() == "github":
+                github_count_in_top3 += 1
+
+    blocked = comp.get("high_heat_blocked_by_user_value")
+    high_heat_blocked_count = len(blocked) if isinstance(blocked, list) else 0
+
+    insufficient_high_value_events = bool(audit.get("insufficient_high_value_events"))
+
+    ep_direct = validate_email_payload(payload.get("email_payload") or {}, settings=settings)
+    email_payload_valid = len(ep_direct) == 0
+    if ep_direct:
+        warnings.append("email_payload: " + "; ".join(f"{e.path}: {e.message}" for e in ep_direct[:3]))
+
+    weekly_url = str(payload.get("weekly_url") or "").strip()
+
+    if audit.get("mode") == "fallback":
+        warnings.append("multi_agent_mode=fallback")
+    if insufficient_high_value_events:
+        warnings.append("insufficient_high_value_events")
+    if final_top3_count < 3:
+        warnings.append(f"short_top3_count={final_top3_count}")
+
+    return {
+        "final_top3_count": final_top3_count,
+        "top3_titles": top3_titles,
+        "avg_user_value_score": avg_user_value_score,
+        "github_count_in_top3": github_count_in_top3,
+        "high_heat_blocked_count": high_heat_blocked_count,
+        "insufficient_high_value_events": insufficient_high_value_events,
+        "email_payload_valid": email_payload_valid,
+        "weekly_url": weekly_url,
+        "warnings": warnings,
+    }
+
+
+def _weekly_quality_summary_summarize_path(payload: dict[str, Any], *, settings: Any) -> dict[str, Any]:
+    """单次 summarize 路径（无多 Agent / 无 UV 审计）。"""
+    warnings: list[str] = []
+    normal = payload.get("normal") if isinstance(payload.get("normal"), dict) else {}
+    top3 = normal.get("top3") if isinstance(normal.get("top3"), list) else []
+    final_top3_count = len(top3)
+    top3_titles = _top3_titles_from_payload(payload)
+
+    ep_errs = validate_email_payload(payload.get("email_payload") or {}, settings=settings)
+    email_payload_valid = len(ep_errs) == 0
+    if not email_payload_valid:
+        warnings.append("email_payload: " + "; ".join(f"{e.path}: {e.message}" for e in ep_errs[:3]))
+
+    weekly_url = str(payload.get("weekly_url") or "").strip()
+
+    return {
+        "final_top3_count": final_top3_count,
+        "top3_titles": top3_titles,
+        "avg_user_value_score": 0.0,
+        "github_count_in_top3": 0,
+        "high_heat_blocked_count": 0,
+        "insufficient_high_value_events": False,
+        "email_payload_valid": email_payload_valid,
+        "weekly_url": weekly_url,
+        "warnings": warnings + ["pipeline=summarize_items_only"],
+    }
+
+
+def _print_weekly_quality_line(qs: dict[str, Any]) -> None:
+    print(
+        "AI Pulse Weekly Quality: "
+        f"Top3={qs.get('final_top3_count')}, "
+        f"AvgUV={qs.get('avg_user_value_score')}, "
+        f"GitHubTop3={qs.get('github_count_in_top3')}, "
+        f"BlockedHighHeat={qs.get('high_heat_blocked_count')}, "
+        f"EmailOK={str(qs.get('email_payload_valid')).lower()}, "
+        f"URL={qs.get('weekly_url') or ''}"
+    )
 
 
 def _require_migrations_applied(db: Session) -> None:
@@ -231,15 +365,30 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
     top_n = max(5, min(int(getattr(settings, "multi_agent_digest_top_n", 20) or 20), 60))
 
     audit_report_to_store: dict[str, Any] | None = None
+    weekly_quality_summary: dict[str, Any] | None = None
+
     if use_ma:
         orch = MultiAgentOrchestrator()
-        res = orch.build(raw_items=list(candidates), top_n=top_n)
+        res = orch.build(
+            raw_items=list(candidates),
+            top_n=top_n,
+            report_date=period,
+            db=db,
+        )
         payload = normalize_payload(res.payload)
-        audit_report_to_store = res.audit_report if isinstance(res.audit_report, dict) else None
+        audit_report_to_store = res.audit_report if isinstance(res.audit_report, dict) else {}
+        weekly_quality_summary = _weekly_quality_summary_multi_agent(
+            audit_report_to_store,
+            res.artifacts,
+            payload,
+            settings=settings,
+        )
+        audit_report_to_store["weekly_quality_summary"] = weekly_quality_summary
+
         audit_path = os.path.join(os.getcwd(), f"audit_report_{period.isoformat()}.json")
         try:
             with open(audit_path, "w", encoding="utf-8") as f:
-                json.dump(res.audit_report, f, ensure_ascii=False, indent=2)
+                json.dump(audit_report_to_store, f, ensure_ascii=False, indent=2)
             print(f"Multi-agent pipeline OK; audit: {audit_path}")
         except OSError as exc:
             print(f"audit report write failed: {exc}")
@@ -249,6 +398,20 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
         except Exception as e:
             print(f"Summarizer failed: {e}")
             raise
+        publish_weekly_report(db, payload, period, settings=settings)
+        payload["weekly_url"] = weekly_report_public_url(period, settings=settings)
+        llm = LlmJsonClient()
+        payload, _ = apply_email_notification_pipeline(
+            llm,
+            payload,
+            enabled=bool(getattr(settings, "multi_agent_enable_deliverability", True)),
+            weekly_main_link=payload["weekly_url"],
+            rewrite_score_threshold=int(getattr(settings, "multi_agent_deliverability_rewrite_below", 85)),
+            min_score=int(getattr(settings, "multi_agent_deliverability_min_score", 70)),
+            strict=bool(getattr(settings, "multi_agent_deliverability_strict", True)),
+        )
+        weekly_quality_summary = _weekly_quality_summary_summarize_path(payload, settings=settings)
+        audit_report_to_store = {"weekly_quality_summary": weekly_quality_summary}
 
     simple_text, normal_text, glossary_json = payload_to_texts(payload)
 
@@ -267,6 +430,8 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
     )
     db.commit()
     print(f"Weekly issue {issue.id} for {period} marked ready.")
+    if weekly_quality_summary:
+        _print_weekly_quality_line(weekly_quality_summary)
 
 
 def main():

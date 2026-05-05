@@ -20,14 +20,11 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import IssueStatus, SendLog, Subscriber, SubscriberStatus, WeeklyIssue
-from app.services.digest_builder import (
-    append_subscription_footer,
-    build_payload_from_raw_items,
-    render_issue_email,
-)
+from app.services.digest_builder import append_subscription_footer
+from app.services.email_notification import parse_stored_payload, try_render_stored_notification
 from app.services.email_service import send_email
-from app.services.issue_events_service import fetch_digest_candidates
-from app.timeutil import current_period_monday, weekly_issue_heading_display
+from app.services.email_tracking import inject_weekly_email_tracking
+from app.timeutil import current_period_monday
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -106,7 +103,6 @@ def run(db: Session, *, cli_test_only: bool = False) -> None:
             print(f"ERROR: {msg}")
             logger.error(msg)
             return
-    raw_items = fetch_digest_candidates(db, issue.id)
     pub = settings.public_app_url.rstrip("/")
 
     if not dry_run and (not settings.smtp_user or not settings.smtp_password):
@@ -122,23 +118,33 @@ def run(db: Session, *, cli_test_only: bool = False) -> None:
         if sent:
             continue
 
-        kws: list[str] = json.loads(sub.keywords_json or "[]")
-        filtered, matched = build_payload_from_raw_items(raw_items, mode=sub.mode, keywords=kws)
-        banner = None
-        if kws and not matched:
-            banner = "本周期暂无与关键词直接匹配的内容，以下为本期最高分内容。"
-        heading = weekly_issue_heading_display(issue.period_start) if issue.period_start else None
-        html_body, text_body = render_issue_email(
-            filtered,
-            sub.mode,
-            keyword_banner=banner,
+        notification = try_render_stored_notification(
+            issue.payload_json or "{}",
             recipient_email=sub.email,
-            issue_heading=heading,
+            settings=settings,
         )
+        if not notification:
+            logger.warning(
+                "send_weekly skip %s: no valid email_payload for issue %s",
+                sub.email,
+                getattr(issue, "id", None),
+            )
+            continue
+        subject, html_body, text_body = notification
         html_body = append_subscription_footer(html_body, settings.public_app_url, sub.unsubscribe_token, sub.manage_token)
+        _, ep = parse_stored_payload(issue.payload_json or "{}")
+        main_link = str((ep or {}).get("main_link") or "").strip()
+        if main_link:
+            html_body = inject_weekly_email_tracking(
+                html_body,
+                main_link=main_link,
+                subscriber_id=sub.id,
+                weekly_issue_id=issue.id,
+                report_date_iso=issue.period_start.isoformat(),
+                settings=settings,
+            )
         unsub_url = f"{pub}/api/unsubscribe?token={sub.unsubscribe_token}"
         text_body += f"\n\n退订: {unsub_url}"
-        subject = heading if heading else f"AI Pulse · 周刊 · {period.isoformat()}"
         if dry_run:
             print(f"[DRY_RUN] Would send weekly to {sub.email} (kind={k})")
             continue

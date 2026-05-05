@@ -76,7 +76,7 @@ export const Home: React.FC<HomeProps> = ({ onSubscribePending }) => {
             <p className="text-sm text-on-surface-variant max-w-xl leading-relaxed">
               {mode === 'simple'
                 ? 'Simple：约 30 秒读完 · 3–5 条，每条含「发生了什么」「对你意味着什么」与链接。'
-                : 'Normal：Top3、分类事件流、AI 能力进展、工具机会与术语表，面向决策参考。'}
+                : 'Normal：Top3、分类事件流、AI 能力进展、本周工具观察与术语表，面向决策参考。'}
             </p>
           </div>
 

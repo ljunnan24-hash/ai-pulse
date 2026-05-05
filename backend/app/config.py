@@ -13,6 +13,8 @@ class Settings(BaseSettings):
 
     public_app_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
+    # 对外周报页与邮件 main_link 使用的站点根（须含协议与域名），如 https://aipulse.asia
+    weekly_public_base_url: str = "https://aipulse.asia"
 
     # Volcengine Ark (豆包) — OpenAI-compatible chat completions
     doubao_api_key: str = ""
@@ -83,6 +85,9 @@ class Settings(BaseSettings):
 
     # Deprecated: merge 在入库后由 issue_events 表持久化完成；保留字段仅为兼容旧 .env。
     enable_event_merge: bool = False
+
+    # 周刊邮件追踪：HMAC 签名 token；为空则不注入像素与重定向链接
+    tracking_hmac_secret: str = ""
 
     # Admin auth
     admin_jwt_secret: str = ""

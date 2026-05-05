@@ -51,7 +51,7 @@ def build_prompt(items: list[dict[str, Any]]) -> str:
      worth_attention（High|Medium|Low）, what_it_means_for_you, see_top3（布尔）；
      若该条与 Top3 重复，see_top3=true 且重点写事实、少写判断。
    - capabilities：1–3 条能力进展，每项含 theme, can_do, cannot_do, cost, suitable_for, conclusion（一句话）
-   - tools：0–3 条工具机会，每项含 name, can_do, suitable_for, worth_trying（Yes|No）, what_it_means_for_you
+   - tools：0–3 条本周工具观察，每项含 name, can_do, suitable_for, worth_trying（Yes|No）, what_it_means_for_you
 3. glossary：5–12 条，{{ "term", "explain": "≤50字" }}
 
 资讯列表：
@@ -97,6 +97,8 @@ def summarize_items(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 def normalize_payload(parsed: dict[str, Any]) -> dict[str, Any]:
     """兼容旧版 LLM 字段 + 收口为 PRD v3。"""
+    email_payload = parsed.get("email_payload") if isinstance(parsed.get("email_payload"), dict) else None
+    weekly_url_raw = parsed.get("weekly_url")
     simple = parsed.get("simple") or {}
     normal = parsed.get("normal") or {}
     glossary = parsed.get("glossary") or []
@@ -219,7 +221,12 @@ def normalize_payload(parsed: dict[str, Any]) -> dict[str, Any]:
         },
         "glossary": clean_glossary,
     }
-    return finalize_payload_v3(merged)
+    out = finalize_payload_v3(merged)
+    if email_payload is not None:
+        out = {**out, "email_payload": email_payload}
+    if isinstance(weekly_url_raw, str) and weekly_url_raw.strip():
+        out = {**out, "weekly_url": weekly_url_raw.strip()}
+    return out
 
 
 def payload_to_texts(payload: dict[str, Any]) -> tuple[str, str, str]:
@@ -294,7 +301,7 @@ def payload_to_texts(payload: dict[str, Any]) -> tuple[str, str, str]:
                 )
 
     if n.get("tools"):
-        normal_parts.append("## 工具机会\n")
+        normal_parts.append("## 本周工具观察\n")
         for t in n["tools"]:
             if isinstance(t, dict):
                 normal_parts.append(str(t.get("name", "")) + "\n" + str(t.get("can_do", "")))

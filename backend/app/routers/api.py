@@ -15,14 +15,8 @@ from app.config import get_settings
 from app.database import get_db
 from app.models import SendLog, Subscriber, SubscriberStatus, WeeklyIssue, IssueStatus
 from app.schemas import SubscribeIn, SubscribeOut, ManageUpdateIn
-from app.services.digest_builder import (
-    append_subscription_footer,
-    parse_payload_json,
-    build_payload_from_raw_items,
-    render_issue_email,
-)
-from app.services.issue_events_service import fetch_digest_candidates
-from app.timeutil import weekly_issue_heading_display
+from app.services.digest_builder import append_subscription_footer
+from app.services.email_notification import try_render_stored_notification
 from app.services.email_service import send_email
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -281,49 +275,45 @@ def confirm(
         k = _kind(f"confirm_digest:{issue_key}", confirmed_email)
         logger.warning("confirm_digest send: token=%s email=%s issue_key=%s", token, confirmed_email, issue_key)
         try:
-            kws: list[str] = json.loads(confirmed_keywords_json or "[]")
-            digest_candidates = fetch_digest_candidates(db, issue.id)
-            filtered, matched = build_payload_from_raw_items(digest_candidates, mode=confirmed_mode, keywords=kws)
-            banner = None
-            if kws and not matched:
-                banner = "本周期暂无与关键词直接匹配的内容，以下为本期最高分内容。"
-            heading = (
-                weekly_issue_heading_display(issue.period_start) if getattr(issue, "period_start", None) else None
-            )
-            html_body, text_body = render_issue_email(
-                filtered,
-                confirmed_mode,
-                keyword_banner=banner,
+            notification = try_render_stored_notification(
+                issue.payload_json or "{}",
                 recipient_email=confirmed_email,
-                issue_heading=heading,
+                settings=settings,
             )
-            html_body = append_subscription_footer(
-                html_body, settings.public_app_url, confirmed_unsub_token, confirmed_manage_token
-            )
-            unsub_u = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={confirmed_unsub_token}"
-            text_body += f"\n\n退订: {unsub_u}"
-            send_email(
-                confirmed_email,
-                heading or "AI Pulse · 最新一期",
-                html_body,
-                text_body,
-                list_unsubscribe_url=unsub_u,
-            )
-            try:
-                db.execute(
-                    insert(SendLog).values(
-                        subscriber_id=subscriber_id,
-                        issue_id=issue.id,
-                        kind=k,
-                    )
+            if notification:
+                subj, html_body, text_body = notification
+                html_body = append_subscription_footer(
+                    html_body, settings.public_app_url, confirmed_unsub_token, confirmed_manage_token
                 )
-                db.commit()
-            except Exception:
-                # Audit record failure should not block delivery.
-                db.rollback()
-                logger.exception(
-                    "confirm_digest send_log failed: token=%s email=%s issue_id=%s",
-                    token,
+                unsub_u = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={confirmed_unsub_token}"
+                text_body += f"\n\n退订: {unsub_u}"
+                send_email(
+                    confirmed_email,
+                    subj,
+                    html_body,
+                    text_body,
+                    list_unsubscribe_url=unsub_u,
+                )
+                try:
+                    db.execute(
+                        insert(SendLog).values(
+                            subscriber_id=subscriber_id,
+                            issue_id=issue.id,
+                            kind=k,
+                        )
+                    )
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    logger.exception(
+                        "confirm_digest send_log failed: token=%s email=%s issue_id=%s",
+                        token,
+                        confirmed_email,
+                        getattr(issue, "id", None),
+                    )
+            else:
+                logger.warning(
+                    "confirm_digest skip send: no valid email_payload (email=%s issue_id=%s)",
                     confirmed_email,
                     getattr(issue, "id", None),
                 )
@@ -396,33 +386,30 @@ def resend_latest(token: str, db: Session = Depends(get_db)):
     else:
         logger.warning("resend_latest send: email=%s issue_key=%s", target_email, issue_key)
         try:
-            kws: list[str] = json.loads(target_keywords_json or "[]")
-            digest_candidates = fetch_digest_candidates(db, issue.id)
-            filtered, matched = build_payload_from_raw_items(digest_candidates, mode=target_mode, keywords=kws)
-            banner = None
-            if kws and not matched:
-                banner = "本周期暂无与关键词直接匹配的内容，以下为本期最高分内容。"
-            heading = (
-                weekly_issue_heading_display(issue.period_start) if getattr(issue, "period_start", None) else None
-            )
-            html_body, text_body = render_issue_email(
-                filtered,
-                target_mode,
-                keyword_banner=banner,
+            notification = try_render_stored_notification(
+                issue.payload_json or "{}",
                 recipient_email=target_email,
-                issue_heading=heading,
+                settings=settings,
             )
-            html_body = append_subscription_footer(
-                html_body, settings.public_app_url, target_unsub_token, target_manage_token
-            )
-            unsub_u = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={target_unsub_token}"
-            text_body += f"\n\n退订: {unsub_u}"
-            subj = (heading + "（补发）") if heading else "AI Pulse · 最新一期（补发）"
-            send_email(
-                target_email, subj, html_body, text_body, list_unsubscribe_url=unsub_u
-            )
-            db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
-            db.commit()
+            if notification:
+                subj, html_body, text_body = notification
+                subj = subj + "（补发）"
+                html_body = append_subscription_footer(
+                    html_body, settings.public_app_url, target_unsub_token, target_manage_token
+                )
+                unsub_u = f"{settings.public_app_url.rstrip('/')}/api/unsubscribe?token={target_unsub_token}"
+                text_body += f"\n\n退订: {unsub_u}"
+                send_email(
+                    target_email, subj, html_body, text_body, list_unsubscribe_url=unsub_u
+                )
+                db.execute(insert(SendLog).values(subscriber_id=sub.id, issue_id=issue.id, kind=k))
+                db.commit()
+            else:
+                logger.warning(
+                    "resend_latest skip: no valid email_payload (email=%s issue_id=%s)",
+                    target_email,
+                    getattr(issue, "id", None),
+                )
         except Exception:
             logger.exception("resend_latest failed: email=%s issue_id=%s", target_email, getattr(issue, "id", None))
 

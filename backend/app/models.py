@@ -38,6 +38,27 @@ class Subscriber(Base):
     send_logs: Mapped[list["SendLog"]] = relationship(back_populates="subscriber")
 
 
+class WeeklyReport(Base):
+    """
+    公开周报页数据源：与 weekly_issues 分离，按 report_date 唯一 upsert。
+    """
+
+    __tablename__ = "weekly_reports"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    report_date: Mapped[date] = mapped_column(Date, unique=True, index=True)
+    slug: Mapped[str] = mapped_column(String(32), default="")
+    title: Mapped[str] = mapped_column(String(512), default="")
+    payload_json: Mapped[str] = mapped_column(Text, default="{}")
+    html_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="published", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class WeeklyIssue(Base):
     __tablename__ = "weekly_issues"
 
@@ -143,6 +164,25 @@ class RawItem(Base):
 
     issue: Mapped[Optional["WeeklyIssue"]] = relationship(back_populates="raw_items")
     event: Mapped[Optional["IssueEvent"]] = relationship(back_populates="raw_items")
+
+
+class WeeklyClickLog(Base):
+    """周刊打开/点击/落地页浏览（邮件像素、重定向、公开页 ?t=）。"""
+
+    __tablename__ = "weekly_click_logs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    subscriber_id: Mapped[int | None] = mapped_column(ForeignKey("subscribers.id", ondelete="SET NULL"), nullable=True, index=True)
+    weekly_issue_id: Mapped[int | None] = mapped_column(
+        ForeignKey("weekly_issues.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    report_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(16), index=True)
+    click_target: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    top3_slot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dest_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class SendLog(Base):
