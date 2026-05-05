@@ -11,12 +11,13 @@ from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import GlobalEvent, GlobalEventSource, RawItem
 from app.services.digest_builder import classify_item_section
 from app.services.event_merge_service import _canonical_url, _norm_title
+from app.services.url_normalize import normalize_event_source_url, source_type_trust_rank
 from app.services.ranking_score import (
     compute_ranking_score,
     freshness_from_published,
@@ -95,36 +96,180 @@ def _merge_sources_json(existing: str, new_row: dict[str, Any]) -> str:
     if not isinstance(arr, list):
         arr = []
     arr.append(new_row)
-    # 按 url 去重保留最新
+    # 按规范化 URL 去重保留最新（同 URL 不同追踪参数视为一条）
     seen: set[str] = set()
+    empty_kept = False
     out: list[dict[str, Any]] = []
     for row in reversed(arr):
         u = str(row.get("url") or "")
-        if u and u in seen:
-            continue
-        if u:
-            seen.add(u)
+        nu = normalize_event_source_url(u)
+        if nu:
+            if nu in seen:
+                continue
+            seen.add(nu)
+        else:
+            if empty_kept:
+                continue
+            empty_kept = True
         out.append(row)
     out.reverse()
     return json.dumps(out[-30:], ensure_ascii=False)
 
 
+def _published_at_sort_key(dt: datetime | None) -> datetime:
+    if dt is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def build_deduped_sources_for_api(db: Session, ge: GlobalEvent) -> list[dict[str, Any]]:
+    """
+    合并 global_event_sources 与 sources_json，按规范化 URL 去重。
+    同 URL 保留 source_type 更可信的一条；并列则 published_at 更新者优先。
+    """
+    merged: list[dict[str, Any]] = []
+    for ges in db.scalars(
+        select(GlobalEventSource).where(GlobalEventSource.global_event_id == ge.id).order_by(GlobalEventSource.id.asc())
+    ).all():
+        merged.append(
+            {
+                "source_name": ges.source_name,
+                "source_type": ges.source_type,
+                "url": ges.url,
+                "published_at": ges.published_at,
+                "raw_item_id": ges.raw_item_id,
+            }
+        )
+    try:
+        arr = json.loads(ge.sources_json or "[]")
+    except json.JSONDecodeError:
+        arr = []
+    if isinstance(arr, list):
+        for row in arr:
+            if not isinstance(row, dict):
+                continue
+            url = str(row.get("url") or "").strip()
+            merged.append(
+                {
+                    "source_name": str(row.get("source") or row.get("source_name") or ""),
+                    "source_type": str(row.get("source_type") or ""),
+                    "url": url[:2048],
+                    "published_at": None,
+                    "raw_item_id": None,
+                }
+            )
+
+    best: dict[str, dict[str, Any]] = {}
+    for item in merged:
+        nu = normalize_event_source_url(str(item.get("url") or ""))
+        key = nu if nu else f"__empty:{item.get('raw_item_id') or id(item)}"
+        cur = best.get(key)
+        if cur is None:
+            best[key] = item
+            continue
+        rt_new = source_type_trust_rank(item.get("source_type"))
+        rt_old = source_type_trust_rank(cur.get("source_type"))
+        if rt_new > rt_old:
+            best[key] = item
+        elif rt_new == rt_old:
+            if _published_at_sort_key(item.get("published_at")) >= _published_at_sort_key(cur.get("published_at")):
+                best[key] = item
+
+    out: list[dict[str, Any]] = []
+    for item in best.values():
+        pa = item.get("published_at")
+        out.append(
+            {
+                "source_name": item["source_name"],
+                "source_type": item["source_type"],
+                "url": item["url"],
+                "published_at": pa.isoformat() if isinstance(pa, datetime) else None,
+                "raw_item_id": item.get("raw_item_id"),
+            }
+        )
+    out.sort(
+        key=lambda x: (
+            -source_type_trust_rank(x.get("source_type")),
+            x.get("published_at") or "",
+        )
+    )
+    return out
+
+
 def merge_raw_into_global(db: Session, ge: GlobalEvent, raw: RawItem) -> None:
-    dup = db.execute(
+    dup_same_raw = db.execute(
         select(GlobalEventSource.id).where(
             GlobalEventSource.global_event_id == ge.id,
             GlobalEventSource.raw_item_id == raw.id,
         )
     ).scalar_one_or_none()
+
     now = datetime.now(timezone.utc)
-    if dup is None:
+    raw_link = str(raw.link or "")[:2048]
+    norm_url = normalize_event_source_url(raw_link)
+
+    if dup_same_raw is not None:
+        ge.last_seen_at = now
+        src_snippet = {
+            "source": raw.source,
+            "source_type": raw.source_type,
+            "url": raw.link,
+            "title": raw.title[:300],
+        }
+        ge.sources_json = _merge_sources_json(ge.sources_json, src_snippet)
+        if len((raw.title or "").strip()) > len(ge.canonical_title or ""):
+            ge.canonical_title = (raw.title or "")[:512]
+        if not (ge.canonical_url or "").strip() and (raw.link or "").strip():
+            ge.canonical_url = raw_link
+        if len((raw.summary or "").strip()) > len(ge.summary or ""):
+            ge.summary = (raw.summary or "")[:8000]
+        db.flush()
+        return
+
+    if norm_url:
+        existing_rows = list(
+            db.scalars(
+                select(GlobalEventSource).where(GlobalEventSource.global_event_id == ge.id)
+            ).all()
+        )
+        for ges in existing_rows:
+            if normalize_event_source_url(ges.url) != norm_url:
+                continue
+            rp = raw.published_at
+            gp = ges.published_at
+            if rp and rp.tzinfo is None:
+                rp = rp.replace(tzinfo=timezone.utc)
+            if gp and gp.tzinfo is None:
+                gp = gp.replace(tzinfo=timezone.utc)
+            if rp and (gp is None or rp > gp):
+                ges.published_at = raw.published_at
+            if source_type_trust_rank(raw.source_type) > source_type_trust_rank(ges.source_type):
+                ges.source_type = str(raw.source_type or "")[:32]
+                ges.source_name = str(raw.source or "")[:256]
+            ges.raw_item_id = raw.id
+            ges.url = raw_link
+            break
+        else:
+            db.add(
+                GlobalEventSource(
+                    global_event_id=ge.id,
+                    raw_item_id=raw.id,
+                    source_name=str(raw.source or "")[:256],
+                    source_type=str(raw.source_type or "")[:32],
+                    url=raw_link,
+                    published_at=raw.published_at,
+                )
+            )
+    else:
         db.add(
             GlobalEventSource(
                 global_event_id=ge.id,
                 raw_item_id=raw.id,
                 source_name=str(raw.source or "")[:256],
                 source_type=str(raw.source_type or "")[:32],
-                url=str(raw.link or "")[:2048],
+                url=raw_link,
                 published_at=raw.published_at,
             )
         )
@@ -238,10 +383,14 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
     pubs = [r.published_at for r in rows if r.published_at]
     types = [str(r.source_type or "") for r in rows]
 
-    ge.source_count = int(
-        db.execute(select(func.count()).select_from(GlobalEventSource).where(GlobalEventSource.global_event_id == ge.id)).scalar()
-        or 0
-    )
+    src_only = db.scalars(
+        select(GlobalEventSource).where(GlobalEventSource.global_event_id == ge.id)
+    ).all()
+    dedupe_keys: set[str] = set()
+    for s in src_only:
+        n = normalize_event_source_url(s.url)
+        dedupe_keys.add(n if n else f"empty:{s.id}")
+    ge.source_count = len(dedupe_keys)
     ge.heat_score = max(heats) if heats else 0
     pub_max = max(pubs) if pubs else ge.published_at
     ge.published_at = pub_max

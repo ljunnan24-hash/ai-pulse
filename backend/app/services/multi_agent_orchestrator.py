@@ -20,7 +20,17 @@ from app.services.publish_weekly_page import publish_weekly_report, weekly_repor
 from app.services.digest_builder import build_payload_from_raw_items
 from app.services.llm_json_client import LlmJsonClient
 from app.services.payload_schema import finalize_payload_v3, format_errors, validate_payload
-from app.services.slim_weekly_render import is_full_prd_v3_payload, slim_merge_to_prd_v3
+from app.services.phase35_compat import (
+    apply_locked_top3_merge_judgments,
+    compute_weekly_quality_v2_audit,
+    sync_legacy_top3_from_judgments,
+    weekly_prompt_hard_rules,
+)
+from app.services.slim_weekly_render import (
+    is_full_prd_v3_payload,
+    merge_phase35_into_payload,
+    slim_merge_to_prd_v3,
+)
 from app.services.top3_selector import (
     apply_locked_top3_merge,
     build_enriched_event_cards,
@@ -382,28 +392,23 @@ class MultiAgentOrchestrator:
             len(top3_comparison_log.get("high_heat_blocked_by_user_value") or []),
         )
 
-        # Capability Analyst（结论型：强判断 + 禁止模糊总结段落）
+        # Capability Analyst：legacy capabilities + Phase 3.5 capability_boundaries
         capability = self.llm.complete_json(
             system=(
                 "You output JSON only. "
                 "You analyze AI capability boundaries. "
-                "Your goal is to answer: Can AI replace something now?"
+                "Your goal is to answer: Can AI do X now — yes or no, under what limits?"
             ),
             user=(
-                "从 event_cards 中选择 1-2 个最重要能力主题，输出结构化判断：\n\n"
-                "每个主题必须包含：\n"
-                "- theme（问题形式，如：AI编程工具现在能不能替代付费工具？）\n"
-                "- can_do（3条以内）\n"
-                "- cannot_do（2条以内）\n"
-                "- cost（低/中/高）\n"
-                "- suitable_for\n"
-                "- conclusion（必须是强判断：可以替代 / 不建议现在用 / 仅适合部分场景）\n\n"
-                "要求：\n"
-                "1. 必须给结论\n"
-                "2. 不允许写总结段落\n"
-                "3. 不允许模糊表达\n\n"
+                weekly_prompt_hard_rules()
+                + "\n\n从 event_cards 中选择 1-2 个最重要能力主题，输出两部分：\n\n"
+                "A) capabilities（兼容旧渲染）：每项含 theme/can_do/cannot_do/cost/suitable_for/conclusion。\n"
+                "B) capability_boundaries（新版）：每项必须含 question、conclusion（明确能不能）、"
+                "can_do（最多3条字符串）、cannot_do（最多3条）、best_for、recommendation（行动建议）、"
+                "confidence（高|中|低）、related_event_ids（可为空数组）。\n\n"
+                "硬规则：conclusion 必须明确；不能只提问不给答案。\n\n"
                 f"event_cards：{_safe_json(cards_list[:24])}\n\n"
-                '输出 JSON：{ "capabilities": [ ... ] }\n'
+                '输出 JSON：{ "capabilities": [ ... ], "capability_boundaries": [ ... ] }\n'
             ),
             temperature=0.35,
         )
@@ -419,15 +424,58 @@ class MultiAgentOrchestrator:
             temperature=0.4,
         )
 
-        # Glossary
+        # Glossary（只允许技术/能力概念；禁止公司名、活动名当术语）
         glossary_out = self.llm.complete_json(
             system="You output JSON only. You write a concise Chinese glossary.",
             user=(
-                "基于 event_cards 输出 glossary 数组（5-12条），每条 {term,explain<=50字}。\n\n"
+                weekly_prompt_hard_rules()
+                + "\n\n基于 event_cards 输出 glossary 数组（5-10条，不要超过10条），每条 {term,explain<=50字}。\n"
+                "只允许：技术概念、模型能力、Agent/工作流概念、本周反复出现的新能力名词。\n"
+                "禁止：普通公司名、活动名、新闻标题、人名、一次性品牌动作。\n\n"
                 f"event_cards：{_safe_json(event_cards)}\n\n"
                 "输出结构：{ \"glossary\": [ ... ] }\n"
             ),
             temperature=0.3,
+        )
+
+        # Thesis Agent（本周主线判断）
+        thesis_out = self.llm.complete_json(
+            system="You output JSON only. You are the editor-in-chief of AI Pulse.",
+            user=(
+                weekly_prompt_hard_rules()
+                + "\n\n你是主编。任务不是汇总新闻，而是提炼本周 AI 行业主线判断。\n"
+                "必须输出 JSON：{ \"weekly_thesis\": { \"headline\", \"summary\", \"trend_lines\": [] } }\n"
+                "headline 必须是一句判断式陈述（不是标题党）。summary 2-3 句解释主线。trend_lines 最多 3 条。\n"
+                "禁止罗列新闻标题；禁止空泛词。\n\n"
+                f"event_cards：{_safe_json(cards_list[:28])}\n\n"
+                "只输出 JSON。\n"
+            ),
+            temperature=0.35,
+        )
+
+        noise_compact = [
+            {
+                "event_id": e.get("event_id"),
+                "title": e.get("title"),
+                "category": e.get("category"),
+                "user_value_score": e.get("user_value_score"),
+                "actionability": e.get("actionability"),
+                "source_type": e.get("source_type"),
+            }
+            for e in enriched_events[:48]
+        ]
+        noise_out = self.llm.complete_json(
+            system="You output JSON only. You filter noisy AI news for busy readers.",
+            user=(
+                weekly_prompt_hard_rules()
+                + "\n\n你是噪音过滤器：帮用户节省注意力。\n"
+                "找出至少 2 条：看起来热闹但对普通用户/创业者行动价值弱的事件（活动预告、品牌 PR、节日内容、弱相关营销等）。\n"
+                '输出 JSON：{ "noise_to_ignore": [ {"name","why_not_important","recommendation":"可以忽略","related_event_ids":[]} ] }\n'
+                "related_event_ids 使用下列 event_id。\n\n"
+                f"候选事件：{_safe_json(noise_compact)}\n\n"
+                "只输出 JSON。\n"
+            ),
+            temperature=0.35,
         )
 
         cap_block = capability if isinstance(capability, dict) else {}
@@ -439,43 +487,43 @@ class MultiAgentOrchestrator:
         composer_raw = self.llm.complete_json(
             system=(
                 "You output JSON only. "
-                "You are generating a high-value AI decision newsletter. "
+                "You are generating a high-value AI judgment weekly — not a news digest. "
                 "Top3 entries are FIXED by the server: you must NOT change Top3 URLs or order. "
                 "Sections are for facts. NEVER repeat the same explanation in both Top3 and sections."
             ),
             user=(
-                "根据下列材料写中文周报要点。禁止输出 capabilities 字段（由服务端注入 capability 分析结果）。\n\n"
-                f"【{heading_cn}】已由系统算法选定：共 {n_top} 条，不得更换条目、顺序或 URL；只能润色 top3 的中文字段；"
-                "须与 top3_candidates 条数与顺序完全一致。\n\n"
+                weekly_prompt_hard_rules()
+                + "\n\n根据下列材料写中文周报 JSON。禁止输出 capabilities / capability_boundaries（由服务端注入）。\n\n"
+                f"【{heading_cn}】已由系统算法选定：共 {n_top} 条；top3 与 top3_judgments 必须与 top3_candidates 顺序、条数一致；"
+                "不得更换 URL。\n\n"
+                "【weekly_thesis 草案】（正文须与之共振，可改写措辞）：\n"
+                f"{_safe_json(thesis_out)}\n\n"
                 "【输出 JSON 键名固定】\n"
                 "{\n"
                 '  "simple_lines": [ {"title","what_happened"(<=30字),"what_it_means_for_you","url"} ] 约5条,\n'
                 f'  "top3": [ {{"title","url","what_happened","why_important","what_it_means_for_you","attention_level":"1"-"5"}} ] 恰好{n_top}条,\n'
+                f'  "top3_judgments": [ {{"title","related_event_ids":[],"what_happened","why_it_matters","who_should_care","what_to_do_now",'
+                f'"action_level":"现在试用|先观望|可以忽略","pulse_score":0,"source_urls":[]}} ] 恰好{n_top}条（判断式，不得写成纯新闻摘要；'
+                "三条不得全部同一 category；不得全部为 GitHub/开源项目叙事；必须与 weekly_thesis 主线一致），\n"
                 '  "sections": [ {"title":"大模型更新"|"工具/产品"|"行业动态",'
                 ' "items":[{"title","url","what_happened","suitable_for","worth_attention":"High|Medium|Low",'
                 '"what_it_means_for_you","see_top3":bool}] } ] 恰好3个板块,\n'
                 '  "tools": [ {"name","can_do","suitable_for","worth_trying":"Yes|No","what_it_means_for_you"} ] 0-3条,\n'
+                '  "tools_to_try": [ {"name","what_it_does","best_for","barrier":"低|中|高","recommendation":"现在试用|先观望",'
+                '"related_event_ids":[],"url":""} ] 2-4条（强调怎么试、适合谁；勿复述 Top3 叙事角度）,\n'
+                '  "category_recap": [ {"category":"大模型更新"|"工具与产品"|"行业动态"|"开源项目","trend","representative_events":[],"'
+                ' "what_to_watch"} ] 至少3条（trend 写趋势不写流水账；representative_events 每项为简短中文标题字符串，最多4条）,\n'
                 '  "footer": "",\n'
                 '  "glossary": [ {"term","explain"} ] 可填空数组（空则服务端用 glossary_hint）\n'
                 "}\n\n"
                 "重要规则：\n"
-                "1. 如果事件已在 Top3 中出现：\n"
-                "   - sections 中该事件必须 see_top3=true\n"
-                "   - 不得重复 why_important 和 what_it_means_for_you\n"
-                "   - 只写事实补充\n\n"
-                "2. Top3 必须提供决策建议：\n"
-                "   - 是否现在使用\n"
-                "   - 是否替代现有方案\n\n"
-                "3. 所有 what_it_means_for_you 必须包含行动词：\n"
-                "   - 现在用 / 可以替代 / 建议忽略 / 先观望\n\n"
-                "4. 禁止泛化表达：\n"
-                "   - 不允许 '可尝试','可参考','可能','有望'\n\n"
-                "5. tools 模块必须包含：\n"
-                "   - worth_trying: Yes 或 No\n\n"
-                "6. section 条目 url 须来自 section_candidates；Top3 url 须与 top3_candidates 完全一致。\n\n"
+                "1. Top3 / top3_judgments：每条必须包含明确「现在怎么做」；judgments.action_level 只能是三种枚举之一。\n"
+                "2. 如果事件已在 Top3 中出现：sections 中 see_top3=true，且不重复展开。\n"
+                "3. tools_to_try 选真实可试用工具；纯热度但不可用则不写。\n"
+                "4. section 条目 url 来自 section_candidates；Top3 url 与 top3_candidates 完全一致。\n\n"
                 f"top3_candidates：{_safe_json(top3_prompt_rows)}\n\n"
-                f"section_candidates（用于三大板块；勿与 Top3 重复叙事）：{_safe_json(cards_compact)}\n\n"
-                "capability 正文参考（勿写入 JSON 的 capabilities 键）：\n"
+                f"section_candidates：{_safe_json(cards_compact)}\n\n"
+                "capability 参考（勿写入 capabilities 键）：\n"
                 f"{_safe_json(caps_for_prompt)}\n\n"
                 f"trends：{_safe_json(trends)}\n\n"
                 f"glossary_hint：{_safe_json(glossary_out)}\n\n"
@@ -494,6 +542,13 @@ class MultiAgentOrchestrator:
                 capabilities=caps_for_prompt,
                 glossary_fallback=glossary_out if isinstance(glossary_out, dict) else {},
             )
+
+        composer_out = merge_phase35_into_payload(
+            composer_out,
+            capability_block=cap_block,
+            thesis_block=thesis_out if isinstance(thesis_out, dict) else {},
+            noise_block=noise_out if isinstance(noise_out, dict) else {},
+        )
 
         # Editor（可选）：文体收口
         editor_out: dict[str, Any]
@@ -516,6 +571,10 @@ class MultiAgentOrchestrator:
             editor_out = composer_out if isinstance(composer_out, dict) else {}
 
         apply_locked_top3_merge(editor_out, top3_locked)
+        norm_ed = editor_out.setdefault("normal", {})
+        if isinstance(norm_ed, dict):
+            apply_locked_top3_merge_judgments(norm_ed, top3_locked)
+            sync_legacy_top3_from_judgments(norm_ed)
         if len(top3_locked) < 3:
             editor_out["allow_short_top3"] = True
         if insufficient_high_value_events:
@@ -600,6 +659,8 @@ class MultiAgentOrchestrator:
                 "capability",
                 "trends",
                 "glossary",
+                "thesis",
+                "noise_filter",
                 "composer",
                 "editor" if getattr(settings, "multi_agent_enable_editor", False) else "editor_skipped",
                 "auditor" if getattr(settings, "multi_agent_enable_auditor", False) else "auditor_skipped",
@@ -627,6 +688,7 @@ class MultiAgentOrchestrator:
             },
             "email_notification": email_notification_artifact,
         }
+        audit.update(compute_weekly_quality_v2_audit(f_out))
 
         artifacts: dict[str, Any] = {
             "cleaner": cleaner_report,
@@ -645,6 +707,8 @@ class MultiAgentOrchestrator:
             "capability": capability,
             "trends": trends,
             "glossary": glossary_out,
+            "thesis": thesis_out if isinstance(thesis_out, dict) else {},
+            "noise_filter": noise_out if isinstance(noise_out, dict) else {},
             "composer_slim_raw": composer_raw if isinstance(composer_raw, dict) else {},
             "composer": composer_out,
             "editor": editor_out,

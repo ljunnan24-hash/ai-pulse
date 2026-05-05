@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Final, Iterable
 
+from app.services.phase35_compat import (
+    apply_backward_compat_from_phase35,
+    extract_clean_phase35_normal,
+)
+
 # PRD v3 分类（与 prd.md 4.2.2 一致，无 emoji 键名便于 JSON）
 SECTION_TITLES: Final[frozenset[str]] = frozenset({"大模型更新", "工具/产品", "行业动态"})
 # 渲染与组装顺序（sorted(set) 不可靠）
@@ -203,6 +208,9 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
         },
         "glossary": glossary,
     }
+    p35 = extract_clean_phase35_normal(normal if isinstance(normal, dict) else None)
+    if p35:
+        out["normal"].update(p35)
     if isinstance(raw, dict):
         if raw.get("allow_short_top3"):
             out["allow_short_top3"] = True
@@ -346,6 +354,7 @@ def finalize_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
         gloss.append({"term": "上下文窗口", "explain": "模型一次能读入的最大文本长度，越长越能处理长文档。"})
     p["glossary"] = gloss[:12]
     p["normal"] = norm
+    apply_backward_compat_from_phase35(norm)
     return p
 
 

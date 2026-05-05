@@ -9,6 +9,17 @@ from __future__ import annotations
 
 from typing import Any
 
+_PHASE35_NORMAL_KEYS = frozenset(
+    {
+        "weekly_thesis",
+        "top3_judgments",
+        "capability_boundaries",
+        "tools_to_try",
+        "noise_to_ignore",
+        "category_recap",
+    }
+)
+
 
 def slim_merge_to_prd_v3(
     slim: dict[str, Any] | None,
@@ -54,14 +65,20 @@ def slim_merge_to_prd_v3(
 
     caps = capabilities if isinstance(capabilities, list) else []
 
+    normal_out: dict[str, Any] = {
+        "top3": top3,
+        "sections": sections,
+        "capabilities": caps,
+        "tools": tools,
+    }
+    if isinstance(slim, dict):
+        for k in _PHASE35_NORMAL_KEYS:
+            if k in slim and slim[k] is not None:
+                normal_out[k] = slim[k]
+
     return {
         "simple": {"lines": lines, "footer": footer},
-        "normal": {
-            "top3": top3,
-            "sections": sections,
-            "capabilities": caps,
-            "tools": tools,
-        },
+        "normal": normal_out,
         "glossary": gloss,
     }
 
@@ -71,3 +88,35 @@ def is_full_prd_v3_payload(d: dict[str, Any]) -> bool:
     s = d.get("simple")
     n = d.get("normal")
     return isinstance(s, dict) and isinstance(n, dict) and "lines" in s and "top3" in n
+
+
+def merge_phase35_into_payload(
+    payload: dict[str, Any],
+    *,
+    capability_block: dict[str, Any] | None,
+    thesis_block: dict[str, Any] | None,
+    noise_block: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """将 Thesis / Noise / Capability boundaries 注入 normal（Composer 之后再调用）。"""
+    if not isinstance(payload, dict):
+        return payload
+    norm = payload.setdefault("normal", {})
+    if not isinstance(norm, dict):
+        return payload
+
+    if isinstance(capability_block, dict):
+        cb = capability_block.get("capability_boundaries")
+        if isinstance(cb, list) and cb:
+            norm["capability_boundaries"] = cb
+
+    if isinstance(thesis_block, dict):
+        wt = thesis_block.get("weekly_thesis")
+        if isinstance(wt, dict) and (wt.get("headline") or wt.get("summary")):
+            norm["weekly_thesis"] = wt
+
+    if isinstance(noise_block, dict):
+        nz = noise_block.get("noise_to_ignore")
+        if isinstance(nz, list) and nz:
+            norm["noise_to_ignore"] = nz
+
+    return payload

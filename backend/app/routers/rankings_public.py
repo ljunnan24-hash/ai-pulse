@@ -11,7 +11,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import GlobalEvent, GlobalEventSource
+from app.models import GlobalEvent
+from app.services.global_event_service import build_deduped_sources_for_api
 from app.services.ranking_insight_service import CAPABILITY_KEYS
 from app.services.ranking_score import RangeKey, effective_ranking_score
 
@@ -97,19 +98,7 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
     if not ge or ge.status != "active":
         raise HTTPException(status_code=404, detail="Not found")
 
-    sources_out: list[dict[str, Any]] = []
-    for ges in db.scalars(
-        select(GlobalEventSource).where(GlobalEventSource.global_event_id == ge.id).order_by(GlobalEventSource.id.asc())
-    ).all():
-        sources_out.append(
-            {
-                "source_name": ges.source_name,
-                "source_type": ges.source_type,
-                "url": ges.url,
-                "published_at": ges.published_at.isoformat() if ges.published_at else None,
-                "raw_item_id": ges.raw_item_id,
-            }
-        )
+    sources_out = build_deduped_sources_for_api(db, ge)
 
     breakdown: dict[str, float] = {}
     try:

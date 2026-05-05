@@ -12,7 +12,100 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import GlobalEvent
+from app.services.phase35_compat import parse_metrics_ranking_insight_applied
 from app.services.ranking_score import effective_ranking_score
+
+_STRONG_KW = (
+    "ai",
+    "artificial intelligence",
+    "llm",
+    "agent",
+    "agents",
+    "generative",
+    "model",
+    "multimodal",
+    "inference",
+    "reasoning",
+    "openai",
+    "anthropic",
+    "claude",
+    "gemini",
+    "deepmind",
+    "mistral",
+    "hugging face",
+    "nvidia",
+    "copilot",
+    "bedrock",
+    "langchain",
+    "rag",
+    "vector",
+    "diffusion",
+    "coding assistant",
+    "automation",
+    "workflow",
+)
+_WEAK_KW = (
+    "cloud",
+    "data",
+    "developer",
+    "github",
+    "aws",
+    "azure",
+    "apple",
+    "microsoft",
+    "security",
+)
+_DEMOTE_KW = (
+    "pride collection",
+    "maintainer month",
+    "after hours",
+    "register now",
+    "webinar",
+    "meetup",
+    "event",
+    "conference",
+    "newsletter",
+    "roundup",
+    "hiring stunt",
+    "celebrating",
+    "award",
+    "brand campaign",
+)
+
+
+def _blob_for_phase35(ge: GlobalEvent) -> str:
+    return " ".join(
+        [
+            ge.canonical_title or "",
+            ge.summary or "",
+            ge.what_happened or "",
+            ge.why_important or "",
+        ]
+    ).lower()
+
+
+def _ai_relevance_adjustment(blob: str) -> float:
+    t = blob.lower()
+    has_strong = any(k in t for k in _STRONG_KW)
+    demote_hits = sum(1 for k in _DEMOTE_KW if k in t)
+    weak_hits = sum(1 for k in _WEAK_KW if k in t)
+    adj = 0.0
+    if demote_hits >= 2 and not has_strong:
+        adj -= 28.0
+    elif demote_hits == 1 and not has_strong:
+        adj -= 10.0
+    if weak_hits and not has_strong:
+        adj -= float(min(10, weak_hits * 2))
+    return adj
+
+
+def _insight_applied_adjustment(metrics_json: str | None) -> float:
+    r = parse_metrics_ranking_insight_applied(metrics_json)
+    if r is True:
+        return 6.0
+    if r is False:
+        return -1.5
+    return 0.0
 
 # 候选池最多拉取条数（防止全表扫描）
 _MAX_POOL_FETCH = 1200
@@ -52,7 +145,10 @@ def _sort_score(ge: GlobalEvent, *, now: datetime) -> float:
     eff = effective_ranking_score(float(ge.ranking_score or 0.0), pub, "7d", now=now)
     bonus = _insight_bonus(ge)
     sc = min(int(ge.source_count or 1), 20) * 0.25
-    return float(eff) + bonus + sc
+    blob = _blob_for_phase35(ge)
+    rel = _ai_relevance_adjustment(blob)
+    ri = _insight_applied_adjustment(ge.metrics_json)
+    return float(eff) + bonus + sc + rel + ri
 
 
 def _insight_coverage_counts(events: list[GlobalEvent]) -> dict[str, int]:
