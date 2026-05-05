@@ -3,8 +3,8 @@ USE aipulse;
 
 CREATE TABLE IF NOT EXISTS weekly_click_logs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  subscriber_id INT NULL,
-  weekly_issue_id INT NULL,
+  subscriber_id BIGINT NULL,
+  weekly_issue_id BIGINT NULL,
   report_date DATE NULL,
   event_type VARCHAR(16) NOT NULL,
   click_target VARCHAR(32) NULL,

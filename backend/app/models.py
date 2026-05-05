@@ -172,9 +172,11 @@ class WeeklyClickLog(Base):
     __tablename__ = "weekly_click_logs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    subscriber_id: Mapped[int | None] = mapped_column(ForeignKey("subscribers.id", ondelete="SET NULL"), nullable=True, index=True)
+    subscriber_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("subscribers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     weekly_issue_id: Mapped[int | None] = mapped_column(
-        ForeignKey("weekly_issues.id", ondelete="SET NULL"), nullable=True, index=True
+        BigInteger, ForeignKey("weekly_issues.id", ondelete="SET NULL"), nullable=True, index=True
     )
     report_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
     event_type: Mapped[str] = mapped_column(String(16), index=True)
