@@ -7,17 +7,21 @@ Cron 示例见 deploy/crontab.example
 from __future__ import annotations
 
 import json
-import os
+import logging
 from typing import Any
 
 from sqlalchemy import desc, inspect as sa_inspect, select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import SessionLocal
 from app.models import RawItem
 from app.services.crawler_service import collect_all_feed_items
 from app.services.global_event_service import upsert_global_events_from_raw_items
+from app.services.ranking_insight_service import enrich_ranking_insights
 from app.services.scoring_service import score_item
+
+_log = logging.getLogger("uvicorn.error")
 
 
 def _crawler_item_to_extra_json(it: dict) -> str:
@@ -104,6 +108,14 @@ def run(db: Session) -> None:
     print(f"daily_rankings: inserted {len(ids)} raw_items (issue_id=null).")
     touched = upsert_global_events_from_raw_items(db, ids)
     print(f"daily_rankings: upserted global_events touched={len(touched)} ids sample={touched[:10]}")
+
+    settings = get_settings()
+    if settings.ranking_insight_enabled:
+        try:
+            n = enrich_ranking_insights(db, limit=settings.ranking_insight_limit)
+            print(f"daily_rankings: ranking_insight enriched ~{n} events.")
+        except Exception as exc:
+            _log.exception("daily_rankings: enrich_ranking_insights failed (job continues): %s", exc)
 
 
 def main() -> None:

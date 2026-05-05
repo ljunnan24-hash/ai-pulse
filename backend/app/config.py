@@ -83,6 +83,18 @@ class Settings(BaseSettings):
     github_trending_min_stars_growth: int = 500
     github_trending_language: str = ""  # empty = all
 
+    # Daily rankings — Phase 2.5 Ranking Insight Agent（需 DOUBAO_*；关闭或未配置时跳过）
+    ranking_insight_enabled: bool = False
+    ranking_insight_limit: int = 30
+    ranking_insight_batch_size: int = 8
+
+    # Phase 3：周报选题来源 — legacy=RSS+issue_events；global_events=过去 N 天排行榜事件池
+    weekly_source: str = "legacy"
+    global_events_lookback_days: int = 7
+    global_events_min_candidates: int = 8
+    global_events_fallback_lookback_days: int = 14
+    global_events_pool_limit: int = 40
+
     # Deprecated: merge 在入库后由 issue_events 表持久化完成；保留字段仅为兼容旧 .env。
     enable_event_merge: bool = False
 

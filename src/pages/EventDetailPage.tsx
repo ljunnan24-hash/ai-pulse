@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { fetchEventDetail } from '../api/public';
 import type { EventDetailResponse } from '../api/public';
+import { CAPABILITY_DIMENSIONS, allCapabilityTagsZero } from '../lib/capabilityTags';
+import { displayActionSuggestion, displayEventTitle } from '../lib/insightFallback';
+import { formatSourceDistribution, hasScoreSourceMix } from '../lib/sourceCoverage';
 
 export default function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -27,7 +30,11 @@ export default function EventDetailPage() {
     return <p className="text-on-surface-variant pt-8">加载中…</p>;
   }
 
-  const sb = data.score_breakdown;
+  const sb = data.score_breakdown ?? {};
+  const capabilityTags = data.capability_tags ?? {};
+  const capabilityAllZero = allCapabilityTagsZero(capabilityTags);
+  const sourceMixLine = hasScoreSourceMix(sb as Record<string, number>);
+  const distributionLine = sourceMixLine ? formatSourceDistribution(data.sources) : null;
 
   return (
     <div className="max-w-5xl mx-auto pt-6 pb-20 grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -35,7 +42,9 @@ export default function EventDetailPage() {
         <Link to="/rankings" className="text-sm text-primary font-medium">
           ← 返回排行榜
         </Link>
-        <h1 className="font-headline font-extrabold text-3xl md:text-4xl text-on-surface">{data.title}</h1>
+        <h1 className="font-headline font-extrabold text-3xl md:text-4xl text-on-surface">
+          {displayEventTitle(data.title)}
+        </h1>
         <div className="flex flex-wrap gap-3 text-sm text-on-surface-variant">
           <span className="px-2 py-1 rounded-full bg-surface-container-low">{data.category}</span>
           <span>Pulse {data.ranking_score.toFixed(1)}</span>
@@ -56,7 +65,7 @@ export default function EventDetailPage() {
         </section>
         <section>
           <h2 className="font-headline font-bold text-xl mb-2">建议</h2>
-          <p className="text-on-surface font-bold text-primary">{data.action_suggestion}</p>
+          <p className="text-on-surface font-bold text-primary">{displayActionSuggestion(data.action_suggestion)}</p>
         </section>
 
         <section>
@@ -84,7 +93,46 @@ export default function EventDetailPage() {
             <li>可信度：{sb.trust?.toFixed(1) ?? '—'}</li>
             <li>热度：{sb.heat?.toFixed(1) ?? '—'}</li>
             <li>用户价值：{sb.user_value?.toFixed(1) ?? '—'}</li>
+            {sourceMixLine ? (
+              <li className="pt-1 border-t border-outline-variant/10 mt-2">
+                <div className="text-on-surface">
+                  来源覆盖：<span className="font-medium tabular-nums">{sb.source_mix!.toFixed(1)}</span>
+                </div>
+                {distributionLine ? (
+                  <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">{distributionLine}</p>
+                ) : null}
+              </li>
+            ) : null}
           </ul>
+        </div>
+
+        <div className="rounded-2xl border border-outline-variant/15 p-5 bg-surface-container-low">
+          <h3 className="font-headline font-bold mb-3">AI 能力影响</h3>
+          {capabilityAllZero ? (
+            <p className="text-sm text-on-surface-variant leading-relaxed">该事件暂未识别出明确能力影响</p>
+          ) : (
+            <ul className="space-y-4">
+              {CAPABILITY_DIMENSIONS.map(({ key, label }) => {
+                const raw = Number(capabilityTags[key]);
+                const v = Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
+                const pct = Math.round(v * 100);
+                return (
+                  <li key={key}>
+                    <div className="flex justify-between text-xs text-on-surface-variant mb-1.5">
+                      <span>{label}</span>
+                      <span className="tabular-nums text-on-surface">{pct}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-surface-container-lowest overflow-hidden border border-outline-variant/10">
+                      <div
+                        className="h-full bg-primary/90 rounded-full transition-[width]"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         <div className="rounded-2xl border border-outline-variant/15 p-5 bg-surface-container-low">
@@ -93,7 +141,7 @@ export default function EventDetailPage() {
             {data.related_events.map((r) => (
               <li key={r.id}>
                 <Link to={`/events/${r.id}`} className="text-primary text-sm hover:underline">
-                  {r.title}
+                  {displayEventTitle(r.title)}
                 </Link>
               </li>
             ))}

@@ -33,6 +33,10 @@ from app.services.issue_events_service import (
     fetch_digest_candidates,
     rebuild_issue_events,
 )
+from app.services.weekly_from_rankings_service import (
+    global_events_to_orchestrator_dicts,
+    select_global_events_for_weekly,
+)
 from app.services.weekly_issue_snapshot import append_weekly_issue_snapshot
 from app.services.deliverability_pipeline import apply_email_notification_pipeline
 from app.services.llm_json_client import LlmJsonClient
@@ -206,6 +210,17 @@ def _require_migrations_applied(db: Session) -> None:
         )
 
 
+def _require_global_events_table(db: Session) -> None:
+    bind = db.get_bind()
+    if bind is None:
+        return
+    insp = inspect(bind)
+    if not insp.has_table("global_events"):
+        raise RuntimeError(
+            "WEEKLY_SOURCE=global_events 需要表 global_events，请执行 sql/migrations/2026-05-08_global_events.sql。"
+        )
+
+
 def _crawler_item_to_extra_json(it: dict) -> str:
     out: dict[str, Any] = {}
     for key in ("feed_url", "source_name", "crawl_time", "language", "author"):
@@ -283,11 +298,27 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
         issue.status = IssueStatus.draft.value
         db.commit()
 
+    settings = get_settings()
+    weekly_global = (settings.weekly_source or "legacy").strip().lower() == "global_events"
+    selection_report_global: dict[str, Any] | None = None
+
+    if weekly_global:
+        _require_global_events_table(db)
+
     if reuse_crawl:
         print(
             "generate_weekly: --reuse-crawl，跳过清空表、抓取与 rebuild_issue_events；"
             "直接使用本期已有 raw_items / issue_events。"
         )
+        if weekly_global:
+            print(
+                "generate_weekly: WEEKLY_SOURCE=global_events — 仍从 global_events 选题（不使用本期 issue 内抓取数据）。"
+            )
+    elif weekly_global:
+        db.execute(delete(IssueEvent).where(IssueEvent.issue_id == issue.id))
+        db.execute(delete(RawItem).where(RawItem.issue_id == issue.id))
+        db.commit()
+        print("generate_weekly: WEEKLY_SOURCE=global_events，已清空本期周刊专用 raw/issue_events，跳过 RSS 抓取。")
     else:
         db.execute(delete(IssueEvent).where(IssueEvent.issue_id == issue.id))
         db.execute(delete(RawItem).where(RawItem.issue_id == issue.id))
@@ -354,15 +385,41 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
         except Exception as exc:
             print(f"rebuild_issue_events failed (apply sql/migrations/2026-05-02_issue_events.sql?): {exc}")
 
-    candidates = fetch_digest_candidates(db, issue.id)
-    items = candidates_to_summarize_input(candidates)
-    if not items:
-        print("No digest candidates after merge; abort without marking ready.")
-        return
-
-    settings = get_settings()
+    if weekly_global:
+        selected, selection_report_global = select_global_events_for_weekly(
+            db,
+            period_start=period,
+            limit=max(1, int(getattr(settings, "global_events_pool_limit", 40) or 40)),
+            lookback_days=max(1, int(getattr(settings, "global_events_lookback_days", 7) or 7)),
+            min_candidates=max(0, int(getattr(settings, "global_events_min_candidates", 8) or 8)),
+            fallback_lookback_days=max(
+                1, int(getattr(settings, "global_events_fallback_lookback_days", 14) or 14)
+            ),
+        )
+        candidates = global_events_to_orchestrator_dicts(selected)
+        items = candidates
+        if selection_report_global.get("insufficient_global_events"):
+            print(
+                "generate_weekly: 警告 — global_events 候选少于 min_candidates；仍将生成（薄周报 / orchestrator fallback）。"
+            )
+        print(
+            f"generate_weekly: global_events 选题 {len(candidates)} 条 "
+            f"(fallback_lookback_used={selection_report_global.get('fallback_lookback_used')})."
+        )
+    else:
+        candidates = fetch_digest_candidates(db, issue.id)
+        items = candidates_to_summarize_input(candidates)
+        if not items:
+            print("No digest candidates after merge; abort without marking ready.")
+            return
     use_ma = bool(getattr(settings, "multi_agent_weekly", False))
     top_n = max(5, min(int(getattr(settings, "multi_agent_digest_top_n", 20) or 20), 60))
+
+    if not use_ma and not items:
+        print(
+            "generate_weekly: 选题池为空，无法使用单次 summarize；请开启 MULTI_AGENT_WEEKLY 或补充 global_events / 抓取数据。"
+        )
+        return
 
     audit_report_to_store: dict[str, Any] | None = None
     weekly_quality_summary: dict[str, Any] | None = None
@@ -384,6 +441,8 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
             settings=settings,
         )
         audit_report_to_store["weekly_quality_summary"] = weekly_quality_summary
+        if selection_report_global:
+            audit_report_to_store["weekly_global_selection"] = selection_report_global
 
         audit_path = os.path.join(os.getcwd(), f"audit_report_{period.isoformat()}.json")
         try:
@@ -412,6 +471,8 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
         )
         weekly_quality_summary = _weekly_quality_summary_summarize_path(payload, settings=settings)
         audit_report_to_store = {"weekly_quality_summary": weekly_quality_summary}
+        if selection_report_global:
+            audit_report_to_store["weekly_global_selection"] = selection_report_global
 
     simple_text, normal_text, glossary_json = payload_to_texts(payload)
 
@@ -421,7 +482,12 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
     issue.payload_json = json.dumps(payload, ensure_ascii=False)
     issue.status = IssueStatus.ready.value
     issue.ready_at = datetime.now(timezone.utc)
-    if reuse_crawl:
+    if weekly_global:
+        if reuse_crawl:
+            snap_src = "generate_weekly_global_events_reuse_force" if force else "generate_weekly_global_events_reuse"
+        else:
+            snap_src = "generate_weekly_global_events_force" if force else "generate_weekly_global_events"
+    elif reuse_crawl:
         snap_src = "generate_weekly_reuse_force" if force else "generate_weekly_reuse"
     else:
         snap_src = "generate_weekly_force" if force else "generate_weekly"

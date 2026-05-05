@@ -5,6 +5,7 @@ import { Bolt, Filter, X } from 'lucide-react';
 
 import { apiBase } from '../config';
 import { fetchRankings } from '../api/public';
+import { displayActionSuggestion, displayEventTitle, displayInsightSummary } from '../lib/insightFallback';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -94,13 +95,15 @@ export default function HomePage() {
               <div className="text-primary font-black text-lg w-8">{idx + 1}</div>
               <div className="flex-1">
                 <Link to={`/events/${item.id}`} className="font-headline font-bold text-lg text-on-surface hover:text-primary">
-                  {item.title || 'Untitled'}
+                  {displayEventTitle(item.title)}
                 </Link>
-                <p className="text-sm text-on-surface-variant mt-1 line-clamp-2">{item.what_it_means_for_you || item.what_happened}</p>
+                <p className="text-sm text-on-surface-variant mt-1 line-clamp-2">
+                  {displayInsightSummary(item.what_it_means_for_you, item.what_happened)}
+                </p>
                 <div className="flex flex-wrap gap-2 mt-2 text-xs text-on-surface-variant">
                   <span className="px-2 py-0.5 rounded-full bg-surface-container-lowest">{item.category}</span>
                   <span>Pulse {item.ranking_score.toFixed(1)}</span>
-                  <span>{item.action_suggestion}</span>
+                  <span>{displayActionSuggestion(item.action_suggestion)}</span>
                 </div>
               </div>
             </motion.div>

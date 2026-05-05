@@ -208,10 +208,20 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
         return
 
     prev = 0.0
+    ranking_insight_keep: dict[str, Any] | None = None
+    insight_uv: float | None = None
+    insight_applied = False
     try:
         m0 = json.loads(ge.metrics_json or "{}")
-        if isinstance(m0, dict) and m0.get("ranking_score") is not None:
-            prev = float(m0.get("ranking_score") or 0)
+        if isinstance(m0, dict):
+            if m0.get("ranking_score") is not None:
+                prev = float(m0.get("ranking_score") or 0)
+            ri = m0.get("ranking_insight")
+            if isinstance(ri, dict) and ri.get("applied"):
+                ranking_insight_keep = ri
+                if ri.get("user_value_score") is not None:
+                    insight_applied = True
+                    insight_uv = float(ri["user_value_score"])
     except Exception:
         prev = 0.0
 
@@ -241,7 +251,10 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
     trust = trust_from_source_type(dom_type)
     fresh = freshness_from_published(pub_max)
     heat_n = heat_normalized(ge.heat_score)
-    uv = user_value_from_raw_score(max(scores) if scores else 0)
+    if insight_applied and insight_uv is not None:
+        uv = float(max(0.0, min(100.0, insight_uv)))
+    else:
+        uv = user_value_from_raw_score(max(scores) if scores else 0)
     sc_comp = source_count_component(ge.source_count)
 
     ge.trust_score = trust
@@ -257,9 +270,10 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
         user_value_score=uv,
     )
     ge.ranking_score = rk
-    ge.action_suggestion = _action_suggestion(uv, fresh)
+    if not insight_applied:
+        ge.action_suggestion = _action_suggestion(uv, fresh)
 
-    metrics = {
+    metrics: dict[str, Any] = {
         "ranking_score": rk,
         "prev_ranking_score": prev,
         "score_breakdown": {
@@ -270,6 +284,8 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
             "user_value": round(uv, 2),
         },
     }
+    if ranking_insight_keep is not None:
+        metrics["ranking_insight"] = ranking_insight_keep
     ge.metrics_json = json.dumps(metrics, ensure_ascii=False)
     db.flush()
 

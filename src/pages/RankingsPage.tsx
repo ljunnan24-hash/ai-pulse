@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchRankings } from '../api/public';
+import { displayActionSuggestion, displayEventTitle, displayInsightSummary } from '../lib/insightFallback';
 
 const RANGES = [
   { id: 'today', label: '今日' },
@@ -77,16 +78,18 @@ export default function RankingsPage() {
             <div className="text-primary font-black text-xl w-10">{i + 1}</div>
             <div className="flex-1">
               <Link to={`/events/${row.id}`} className="font-headline font-bold text-lg text-on-surface hover:text-primary">
-                {row.title}
+                {displayEventTitle(row.title)}
               </Link>
-              <p className="text-sm text-on-surface-variant mt-2">{row.what_it_means_for_you}</p>
+              <p className="text-sm text-on-surface-variant mt-2">
+                {displayInsightSummary(row.what_it_means_for_you, row.what_happened)}
+              </p>
               <div className="flex flex-wrap gap-2 mt-3 text-xs text-on-surface-variant">
                 <span>Pulse {row.ranking_score.toFixed(1)}</span>
                 {row.score_delta !== 0 ? <span>Δ {row.score_delta.toFixed(1)}</span> : null}
                 <span>{row.category}</span>
                 <span>{row.source_type}</span>
                 <span>{row.source_count} 来源</span>
-                <span>{row.action_suggestion}</span>
+                <span>{displayActionSuggestion(row.action_suggestion)}</span>
               </div>
             </div>
           </div>

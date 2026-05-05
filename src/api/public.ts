@@ -30,6 +30,7 @@ export type EventDetailResponse = {
   why_important: string;
   what_it_means_for_you: string;
   action_suggestion: string;
+  capability_tags: Record<string, number>;
   sources: Array<{
     source_name: string;
     source_type: string;

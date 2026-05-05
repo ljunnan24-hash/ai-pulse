@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import GlobalEvent, GlobalEventSource
+from app.services.ranking_insight_service import CAPABILITY_KEYS
 from app.services.ranking_score import RangeKey, effective_ranking_score
 
 router = APIRouter(prefix="/api", tags=["rankings"])
@@ -76,9 +77,9 @@ def list_rankings(
                 "published_at": ge.published_at.isoformat() if ge.published_at else None,
                 "ranking_score": round(eff, 2),
                 "score_delta": round(delta_score, 2),
-                "what_happened": ge.what_happened,
-                "what_it_means_for_you": ge.what_it_means_for_you,
-                "action_suggestion": ge.action_suggestion,
+                "what_happened": ge.what_happened or "",
+                "what_it_means_for_you": ge.what_it_means_for_you or "",
+                "action_suggestion": ge.action_suggestion or "",
             }
         )
 
@@ -119,10 +120,25 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
                 "freshness": float(sb.get("freshness") or 0),
                 "trust": float(sb.get("trust") or 0),
                 "heat": float(sb.get("heat") or 0),
+                "source_mix": float(sb.get("source_mix") or 0),
                 "user_value": float(sb.get("user_value") or 0),
             }
     except Exception:
         breakdown = {}
+
+    capability_tags: dict[str, float] = {k: 0.0 for k in CAPABILITY_KEYS}
+    try:
+        ct = json.loads(ge.capability_tags_json or "{}")
+        if isinstance(ct, dict):
+            for k in CAPABILITY_KEYS:
+                if k not in ct:
+                    continue
+                try:
+                    capability_tags[k] = float(max(0.0, min(1.0, float(ct[k]))))
+                except (TypeError, ValueError):
+                    pass
+    except Exception:
+        pass
 
     related_rows = db.scalars(
         select(GlobalEvent)
@@ -146,10 +162,11 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
         "category": ge.category,
         "published_at": ge.published_at.isoformat() if ge.published_at else None,
         "ranking_score": round(float(ge.ranking_score or 0), 2),
-        "what_happened": ge.what_happened,
-        "why_important": ge.why_important,
-        "what_it_means_for_you": ge.what_it_means_for_you,
-        "action_suggestion": ge.action_suggestion,
+        "what_happened": ge.what_happened or "",
+        "why_important": ge.why_important or "",
+        "what_it_means_for_you": ge.what_it_means_for_you or "",
+        "action_suggestion": ge.action_suggestion or "",
+        "capability_tags": capability_tags,
         "sources": sources_out,
         "score_breakdown": breakdown,
         "related_events": related_events,
