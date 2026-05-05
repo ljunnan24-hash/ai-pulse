@@ -35,6 +35,49 @@ from app.services.top3_selector import (
 
 _log = logging.getLogger("uvicorn.error")
 
+# EventCards LLM：控制单次请求体量（规则预筛选 + 分批）
+MAX_LLM_EVENTS = 40
+EVENT_CARD_BATCH_SIZE = 10
+
+
+def _chunk_list(items: list[Any], size: int) -> list[list[Any]]:
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def _deterministic_event_card(event: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "event_id": event.get("event_id"),
+        "title": event.get("title") or "",
+        "url": event.get("url") or "",
+        "published_at": None,
+        "one_liner": (str(event.get("summary") or event.get("title") or ""))[:80],
+        "impact_bullets": [],
+        "evidence": [{"url": event.get("url")}] if event.get("url") else [],
+        "confidence": {"level": "medium", "reasons": ["fallback deterministic card"]},
+        "score": event.get("score_total", 0),
+    }
+
+
+def _preselect_events_for_llm(events: list[dict[str, Any]], max_items: int = MAX_LLM_EVENTS) -> list[dict[str, Any]]:
+    def _score(e: dict[str, Any]) -> int:
+        return int(e.get("score_total") or 0)
+
+    valid = [e for e in events if e.get("title") and e.get("url")]
+    valid.sort(key=_score, reverse=True)
+    return valid[:max_items]
+
+
+def _dedupe_event_cards_by_id(cards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for c in cards:
+        eid = str(c.get("event_id") or "")
+        if not eid or eid in seen:
+            continue
+        seen.add(eid)
+        out.append(c)
+    return out
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -239,21 +282,65 @@ class MultiAgentOrchestrator:
             temperature=0.2,
         )
 
-        # EventCards（组装草稿，对应 PRD EventCard Pool）
-        event_cards = self.llm.complete_json(
-            system="You output JSON only. You are an orchestrator assembling event cards.",
-            user=(
-                "把 fact_sheet + impact_notes 合并成 EventCard 列表。\n"
-                "每条 EventCard 至少包含：event_id,title,url,published_at(null),one_liner,impact_bullets,evidence[],confidence,score。\n"
-                "evidence 至少 1 条 url。\n\n"
-                f"fact_sheet：{_safe_json(verifier)}\n\n"
-                f"impact_notes：{_safe_json(impact)}\n\n"
-                f"score_audit：{_safe_json(scoring)}\n\n"
-                f"事件列表：{_safe_json(events)}\n\n"
-                "输出结构：{ \"event_cards\": [ ... ] }\n"
-            ),
-            temperature=0.2,
-        )
+        # EventCards（分批组装；失败批次降级为确定性卡片，避免单次 80 条超时）
+        selected_events = _preselect_events_for_llm(events, max_items=MAX_LLM_EVENTS)
+        all_event_cards: list[dict[str, Any]] = []
+        event_card_errors: list[dict[str, Any]] = []
+
+        for batch_index, batch in enumerate(_chunk_list(selected_events, EVENT_CARD_BATCH_SIZE), start=1):
+            try:
+                batch_result = self.llm.complete_json(
+                    system=(
+                        "You output JSON only. "
+                        "You are an orchestrator assembling compact EventCards. "
+                        "Keep every field short. Do not output HTML. "
+                        "Do not invent facts. Use only the provided events and fact_sheet."
+                    ),
+                    user=(
+                        "把 fact_sheet + impact_notes 合并成 EventCard 列表。\n"
+                        "每条 EventCard 必须包含：\n"
+                        "- event_id\n"
+                        "- title\n"
+                        "- url\n"
+                        "- published_at: null\n"
+                        "- one_liner: <=40字\n"
+                        "- impact_bullets: 最多2条，每条<=25字\n"
+                        "- evidence: 至少1条url\n"
+                        "- confidence\n"
+                        "- score\n\n"
+                        "注意：\n"
+                        "1. 只处理本批事件\n"
+                        "2. 不要输出长段落\n"
+                        "3. 不要输出 HTML\n"
+                        "4. 不要输出 Markdown\n\n"
+                        f"fact_sheet：{_safe_json(verifier)}\n\n"
+                        f"impact_notes：{_safe_json(impact)}\n\n"
+                        f"score_audit：{_safe_json(scoring)}\n\n"
+                        f"本批事件：{_safe_json(batch)}\n\n"
+                        '输出结构：{ "event_cards": [ ... ] }\n'
+                    ),
+                    temperature=0.2,
+                    timeout_s=120.0,
+                )
+
+                if isinstance(batch_result, dict) and isinstance(batch_result.get("event_cards"), list):
+                    all_event_cards.extend(batch_result["event_cards"])
+                else:
+                    raise ValueError("event_cards batch result invalid")
+
+            except Exception as exc:
+                event_card_errors.append(
+                    {
+                        "batch_index": batch_index,
+                        "error": str(exc),
+                        "event_ids": [e.get("event_id") for e in batch],
+                    }
+                )
+                for event in batch:
+                    all_event_cards.append(_deterministic_event_card(event))
+
+        all_event_cards = _dedupe_event_cards_by_id(all_event_cards)
+        event_cards = {"event_cards": all_event_cards}
 
         ev_pack = event_cards if isinstance(event_cards, dict) else {}
         cards_list = ev_pack.get("event_cards") if isinstance(ev_pack.get("event_cards"), list) else []
@@ -395,7 +482,7 @@ class MultiAgentOrchestrator:
                 "只输出一个 JSON 对象。\n"
             ),
             temperature=0.2,
-            timeout_s=240.0,
+            timeout_s=300.0,
         )
 
         cr = composer_raw if isinstance(composer_raw, dict) else {}
@@ -418,7 +505,6 @@ class MultiAgentOrchestrator:
                     f"{_safe_json(composer_out if isinstance(composer_out, dict) else {})}\n"
                 ),
                 temperature=0.15,
-                timeout_s=240.0,
             )
             if not isinstance(editor_out, dict):
                 editor_out = composer_out if isinstance(composer_out, dict) else {}
@@ -526,7 +612,10 @@ class MultiAgentOrchestrator:
                 "validate_email_payload",
             ],
             "issues": (scoring.get("issues") if isinstance(scoring, dict) else []) or [],
-            "notes": [],
+            "notes": [
+                f"event_cards generated in batches; selected={len(selected_events)}, "
+                f"cards={len(all_event_cards)}, errors={len(event_card_errors)}"
+            ],
             "auditor": auditor_report if isinstance(auditor_report, dict) else {},
             "publish_weekly_page": {
                 "weekly_url": weekly_url,
@@ -546,6 +635,9 @@ class MultiAgentOrchestrator:
             "impact_analyst": impact,
             "scoring": scoring,
             "event_cards": event_cards,
+            "event_card_errors": event_card_errors,
+            "selected_events_count": len(selected_events),
+            "event_card_count": len(all_event_cards),
             "top3_locked": top3_locked,
             "top3_comparison_log": top3_comparison_log,
             "insufficient_high_value_events": insufficient_high_value_events,

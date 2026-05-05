@@ -185,7 +185,6 @@ def run_email_packager(
         ),
         user=user,
         temperature=0.25,
-        timeout_s=120.0,
     )
     return out if isinstance(out, dict) else {}
 
@@ -258,7 +257,6 @@ def run_email_rewriter(
         system="You output JSON only. Revise notification email JSON only.",
         user=user,
         temperature=0.18,
-        timeout_s=120.0,
     )
     if not isinstance(out, dict):
         return {}

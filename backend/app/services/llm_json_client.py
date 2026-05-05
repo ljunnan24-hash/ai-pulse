@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any
 
 import httpx
@@ -80,10 +81,24 @@ class LlmJsonClient:
                 "Authorization": f"Bearer {self.settings.doubao_api_key}",
                 "Content-Type": "application/json",
             }
-            with httpx.Client(timeout=timeout_s) as client:
-                r = client.post(url, headers=headers, json=payload)
-                r.raise_for_status()
-                data = r.json()
+            data: dict[str, Any] | None = None
+            for http_try in range(3):
+                try:
+                    with httpx.Client(timeout=timeout_s) as client:
+                        r = client.post(url, headers=headers, json=payload)
+                    r.raise_for_status()
+                    data = r.json()
+                    break
+                except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.RemoteProtocolError) as exc:
+                    if http_try == 2:
+                        raise
+                    logger.warning(
+                        "LLM HTTP transient error (%s), retry %s/3 after backoff",
+                        type(exc).__name__,
+                        http_try + 1,
+                    )
+                    time.sleep(2 * (http_try + 1))
+            assert data is not None
 
             content = data["choices"][0]["message"]["content"]
             try:
