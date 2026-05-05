@@ -1,11 +1,18 @@
 from functools import lru_cache
 from typing import List, Tuple
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # 环境变量名：大写 + 下划线，与 .env 中 RANKING_INSIGHT_*、WEEKLY_SOURCE、GLOBAL_EVENTS_* 一致
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
 
     database_url: str = "mysql+pymysql://root:password@127.0.0.1:3306/aipulse?charset=utf8mb4"
     # RDS 开启 SSL 时：阿里云下载的 ApsaraDB-CA-Chain.pem 绝对路径（与 mysql --ssl-ca 一致）
@@ -84,16 +91,18 @@ class Settings(BaseSettings):
     github_trending_language: str = ""  # empty = all
 
     # Daily rankings — Phase 2.5 Ranking Insight Agent（需 DOUBAO_*；关闭或未配置时跳过）
-    ranking_insight_enabled: bool = False
-    ranking_insight_limit: int = 30
-    ranking_insight_batch_size: int = 8
+    # .env 键名：RANKING_INSIGHT_ENABLED / RANKING_INSIGHT_LIMIT / RANKING_INSIGHT_BATCH_SIZE
+    ranking_insight_enabled: bool = Field(default=False)
+    ranking_insight_limit: int = Field(default=30)
+    ranking_insight_batch_size: int = Field(default=8)
 
     # Phase 3：周报选题来源 — legacy=RSS+issue_events；global_events=过去 N 天排行榜事件池
-    weekly_source: str = "legacy"
-    global_events_lookback_days: int = 7
-    global_events_min_candidates: int = 8
-    global_events_fallback_lookback_days: int = 14
-    global_events_pool_limit: int = 40
+    # .env 键名：WEEKLY_SOURCE、GLOBAL_EVENTS_*（见 pydantic-settings 默认大写映射）
+    weekly_source: str = Field(default="legacy")
+    global_events_lookback_days: int = Field(default=7)
+    global_events_min_candidates: int = Field(default=8)
+    global_events_fallback_lookback_days: int = Field(default=14)
+    global_events_pool_limit: int = Field(default=40)
 
     # Deprecated: merge 在入库后由 issue_events 表持久化完成；保留字段仅为兼容旧 .env。
     enable_event_merge: bool = False
@@ -177,4 +186,8 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """
+    进程内缓存 Settings 实例。修改 .env 后须重启 uvicorn / 任务进程，
+    或调用 ``get_settings.cache_clear()`` 再取新配置。
+    """
     return Settings()
