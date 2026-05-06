@@ -97,7 +97,7 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
   if (glossaryRows.length > 0) tocItems.push({ id: 'glossary', label: '术语' });
 
   return (
-    <div className="mx-auto max-w-[1120px] px-4 pb-24 pt-6 md:px-6 md:pt-8">
+    <div className="mx-auto max-w-[1180px] px-4 pb-24 pt-6 md:px-6 md:pt-8">
       <WeeklyReportHeader reportDate={reportDate} title={title} />
 
       {showThesis && thesis ? (
@@ -126,7 +126,7 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
       ) : null}
 
       <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-12">
-        <div className="min-w-0 flex-1 lg:max-w-[760px]">
+        <div className="min-w-0 flex-1 text-[15px] leading-relaxed lg:max-w-[860px] lg:text-[1.0625rem] lg:leading-loose">
           <section id="top3-judgments" className="scroll-mt-28">
             <SectionHeader
               title={showJudgments || showLegacyTop3 ? '本周最重要的 3 个判断' : '本周重点'}

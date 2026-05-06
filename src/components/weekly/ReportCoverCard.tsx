@@ -16,27 +16,28 @@ export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount, nois
 
   return (
     <section id="weekly-thesis" className="mb-10 scroll-mt-28 md:mb-12">
-      <div className="relative overflow-hidden rounded-3xl border border-[#005bc1]/20 bg-gradient-to-br from-[#dbeafe]/90 via-white to-[#f0f7ff] p-7 shadow-[0_16px_48px_rgba(0,91,193,0.1)] md:p-9">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex rounded-full bg-white/95 px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.1em] text-[#005bc1] shadow-sm ring-1 ring-[#005bc1]/15">
+      <div className="relative overflow-hidden rounded-3xl border-2 border-[#005bc1]/25 bg-gradient-to-br from-[#dbeafe]/90 via-white to-[#f0f7ff] p-7 shadow-[0_24px_64px_rgba(0,91,193,0.14)] md:p-10">
+        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#005bc1]/[0.06] blur-3xl" aria-hidden />
+        <div className="relative flex flex-wrap items-center gap-2">
+          <span className="inline-flex rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold tracking-wide text-[#005bc1] shadow-md ring-1 ring-[#005bc1]/20">
             本周一句话判断
           </span>
         </div>
 
         {thesis.headline ? (
-          <p className="mt-5 font-headline text-2xl font-bold leading-snug text-slate-900 md:text-[1.85rem] md:leading-snug">
+          <p className="relative mt-6 font-headline text-2xl font-bold leading-snug text-slate-900 md:text-3xl md:leading-tight">
             {thesis.headline}
           </p>
         ) : null}
 
         {thesis.summary ? (
-          <p className="mt-5 text-base leading-[1.75] text-slate-700 md:text-[1.05rem]">{thesis.summary}</p>
+          <p className="relative mt-6 text-base leading-[1.8] text-slate-700 md:text-[1.125rem]">{thesis.summary}</p>
         ) : null}
 
         {lines.length > 0 ? (
-          <div className="mt-8 border-t border-[#005bc1]/12 pt-7">
+          <div className="relative mt-8 border-t border-[#005bc1]/12 pt-7">
             <p className="text-xs font-semibold text-slate-600">趋势线</p>
-            <ul className="mt-4 space-y-2.5 text-sm leading-relaxed text-slate-800">
+            <ul className="mt-4 space-y-3 text-[15px] leading-relaxed text-slate-800 md:text-base">
               {lines.map((line, i) => (
                 <li key={i} className="flex gap-2.5">
                   <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#005bc1]" />

@@ -3,13 +3,14 @@ import { Link, useParams } from 'react-router-dom';
 
 import { fetchEventDetail } from '../api/public';
 import type { EventDetailResponse } from '../api/public';
+import { EVENT_DETAIL_PROSE, EVENT_DETAIL_PROSE_MUTED } from '../components/common/eventDetailProse';
 import { ActionBadge } from '../components/common/ActionBadge';
 import { ScoreBadge } from '../components/common/ScoreBadge';
 import { SectionCard } from '../components/common/SectionCard';
 import { CAPABILITY_DIMENSIONS, allCapabilityTagsZero } from '../lib/capabilityTags';
 import { categoryLabel } from '../lib/categoryLabels';
-import { displayEventTitle } from '../lib/insightFallback';
-import { splitTitleForDisplay } from '../lib/titleDisplay';
+import { displayActionSuggestion, displayEventTitle } from '../lib/insightFallback';
+import { deriveEventPageHeading } from '../lib/titleDisplay';
 import { formatSourceDistribution, hasScoreSourceMix } from '../lib/sourceCoverage';
 
 export default function EventDetailPage() {
@@ -54,26 +55,28 @@ export default function EventDetailPage() {
   const capabilityAllZero = allCapabilityTagsZero(capabilityTags);
   const sourceMixLine = hasScoreSourceMix(sb as Record<string, number>);
   const distributionLine = sourceMixLine ? formatSourceDistribution(sourcesUnique) : null;
-  const titleParts = splitTitleForDisplay(data.title);
+  const heading = deriveEventPageHeading(data.title, data.what_happened);
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-10 pb-20 pt-4 md:gap-12 lg:grid-cols-12 lg:pt-6">
-      <div className="space-y-8 lg:col-span-8">
+    <div className="mx-auto grid max-w-7xl min-w-0 gap-10 pb-20 pt-4 md:gap-12 lg:grid-cols-12 lg:pt-6">
+      <div className="min-w-0 space-y-8 lg:col-span-8">
         <Link to="/rankings" className="inline-flex text-sm font-semibold text-[#005bc1] hover:underline">
           ← 返回排行榜
         </Link>
 
-        <header>
-          <h1 className="font-headline text-3xl font-extrabold leading-tight tracking-tight text-slate-900 md:text-4xl">
-            {titleParts.primary}
+        <header className="min-w-0">
+          <h1 className="font-headline text-3xl font-extrabold leading-snug tracking-tight text-slate-900 whitespace-normal break-words [overflow-wrap:anywhere] md:text-[2.25rem] md:leading-snug">
+            {heading.primary}
           </h1>
-          {titleParts.secondary ? (
-            <p className="mt-2 text-sm text-slate-500">原文标题：{titleParts.secondary}</p>
+          {heading.subtitleLine ? (
+            <p className="mt-3 text-sm leading-relaxed text-slate-500 whitespace-normal break-words [overflow-wrap:anywhere]">
+              {heading.subtitleLine}
+            </p>
           ) : null}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <ScoreBadge score={data.ranking_score} variant="pill" />
-            <ActionBadge suggestion={data.action_suggestion} className="text-sm px-3 py-1.5" />
+            <ActionBadge suggestion={data.action_suggestion} className="max-w-full whitespace-normal text-sm px-3 py-1.5" />
             <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
               {categoryLabel(data.category)}
             </span>
@@ -83,38 +86,47 @@ export default function EventDetailPage() {
           </div>
         </header>
 
-        <SectionCard title="发生了什么" eyebrow="判断依据">
-          <p className="leading-relaxed text-slate-700">{data.what_happened || '—'}</p>
+        <SectionCard title="发生了什么" eyebrow="判断" detail>
+          <p className={EVENT_DETAIL_PROSE_MUTED}>{data.what_happened?.trim() || '—'}</p>
         </SectionCard>
 
-        <SectionCard title="为什么重要" eyebrow="判断依据">
-          <p className="leading-relaxed text-slate-700">{data.why_important || '—'}</p>
+        <SectionCard title="为什么重要" eyebrow="判断" detail>
+          <p className={EVENT_DETAIL_PROSE_MUTED}>{data.why_important?.trim() || '—'}</p>
         </SectionCard>
 
-        <SectionCard title="对你意味着什么" eyebrow="判断依据">
-          <p className="leading-relaxed text-slate-800">{data.what_it_means_for_you || '—'}</p>
+        <SectionCard title="对你意味着什么" eyebrow="判断" detail>
+          <p className={EVENT_DETAIL_PROSE}>{data.what_it_means_for_you?.trim() || '—'}</p>
         </SectionCard>
 
-        <SectionCard title="建议" eyebrow="行动">
-          <div className="rounded-xl border-2 border-[#005bc1]/25 bg-gradient-to-br from-[#005bc1]/[0.07] to-white px-5 py-5">
+        <SectionCard title="建议" eyebrow="行动" detail>
+          <div className="rounded-xl border-2 border-[#005bc1]/25 bg-gradient-to-br from-[#005bc1]/[0.07] to-white px-5 py-6">
             <p className="text-xs font-semibold tracking-wide text-[#004291]">AI Pulse 行动建议</p>
-            <div className="mt-3">
-              <ActionBadge suggestion={data.action_suggestion} className="text-sm px-4 py-2 font-bold" />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <ActionBadge
+                suggestion={data.action_suggestion}
+                className="max-w-full whitespace-normal text-sm px-4 py-2 font-bold"
+              />
             </div>
+            <p className={`mt-5 ${EVENT_DETAIL_PROSE}`}>{displayActionSuggestion(data.action_suggestion)}</p>
           </div>
         </SectionCard>
 
-        <SectionCard title="来源" eyebrow="可追溯">
-          <p className="mb-4 text-sm text-slate-600">
-            下列链接已按 URL 去重，便于核对事实与出处。
+        <SectionCard title="来源" eyebrow="可追溯" detail>
+          <p className="mb-5 text-sm leading-relaxed text-slate-600">
+            下列链接已按 URL 去重，便于核对事实与出处。链接完整展示，可换行阅读。
           </p>
-          <ul className="space-y-3">
+          <ul className="space-y-4">
             {sourcesUnique.map((s) => (
-              <li key={s.url} className="rounded-xl border border-slate-200 bg-[#f7f9fc] px-4 py-3">
-                <p className="text-xs font-semibold text-slate-500">
-                  {s.source_name} · {labelSourceTypeCn(s.source_type)}
+              <li key={s.url} className="rounded-xl border border-slate-200 bg-[#f7f9fc] px-4 py-4">
+                <p className="text-sm font-semibold text-slate-800">
+                  {s.source_name} · {labelSourceDisplay(s.source_type)}
                 </p>
-                <a href={s.url} target="_blank" rel="noreferrer" className="mt-1 break-all text-sm font-medium text-[#005bc1] hover:underline">
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`mt-2 block text-sm font-medium text-[#005bc1] underline decoration-[#005bc1]/30 underline-offset-2 hover:decoration-[#005bc1] ${EVENT_DETAIL_PROSE}`}
+                >
                   {s.url}
                 </a>
               </li>
@@ -123,7 +135,7 @@ export default function EventDetailPage() {
         </SectionCard>
       </div>
 
-      <aside className="space-y-6 lg:col-span-4">
+      <aside className="min-w-0 space-y-6 lg:col-span-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="font-headline font-bold text-slate-900">评分依据</h3>
           <p className="mt-3 text-xs leading-relaxed text-slate-500">
@@ -190,7 +202,10 @@ export default function EventDetailPage() {
           <ul className="mt-3 space-y-2">
             {data.related_events.map((r) => (
               <li key={r.id}>
-                <Link to={`/events/${r.id}`} className="text-sm font-medium text-[#005bc1] hover:underline">
+                <Link
+                  to={`/events/${r.id}`}
+                  className="block text-sm font-medium leading-relaxed text-[#005bc1] hover:underline [overflow-wrap:anywhere] break-words"
+                >
                   {displayEventTitle(r.title)}
                 </Link>
               </li>
@@ -210,16 +225,9 @@ export default function EventDetailPage() {
   );
 }
 
-function labelSourceTypeCn(raw: string): string {
+/** 来源类型：与后端 slug 对齐，展示为小写英文标签（与示例 OpenAI · official 一致） */
+function labelSourceDisplay(raw: string): string {
   const k = (raw || '').trim().toLowerCase();
-  const map: Record<string, string> = {
-    official: '官方',
-    media: '媒体',
-    github: 'GitHub',
-    rss: 'RSS',
-    community: '社区',
-    social: '社交',
-    product: '产品',
-  };
-  return map[k] ?? raw;
+  if (!k) return 'unknown';
+  return k;
 }

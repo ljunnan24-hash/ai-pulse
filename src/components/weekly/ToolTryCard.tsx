@@ -54,7 +54,7 @@ export function ToolTryCard({ row }: Props) {
           href={row.url}
           target="_blank"
           rel="noreferrer"
-          className="mt-4 inline-block truncate text-sm font-medium text-[#005bc1] hover:underline"
+          className="mt-4 inline-block max-w-full break-all text-sm font-medium text-[#005bc1] hover:underline"
         >
           访问官网 →
         </a>
