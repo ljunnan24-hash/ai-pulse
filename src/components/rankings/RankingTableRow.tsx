@@ -120,7 +120,7 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
       className={`ranking-table-grid border-b border-slate-100 bg-white px-2 transition-colors last:border-b-0 hover:bg-slate-50/60 md:px-3 ${rowPad} ${rowMin}`}
       role="row"
     >
-      <div className="flex h-full items-center justify-center" role="cell">
+      <div className="ranking-cell-rank flex shrink-0 items-start justify-center pt-1" role="cell">
         {useMedals ? (
           <RankMedal rank={rank} />
         ) : (
@@ -128,11 +128,11 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
         )}
       </div>
 
-      <div className="flex h-full items-center justify-start" role="cell">
+      <div className="ranking-cell-pulse flex shrink-0 items-start justify-start pt-1" role="cell">
         <PulseScoreCell score={item.ranking_score} variant={variant} rankTier={rankTier} />
       </div>
 
-      <div className="flex min-h-0 flex-col justify-center gap-1 py-1" role="cell">
+      <div className="flex min-h-0 min-w-0 flex-col gap-1 overflow-hidden py-1" role="cell">
         {variant === 'home' ? (
           <span className="text-[0.55rem] font-medium uppercase tracking-wide text-slate-400">{eyebrow}</span>
         ) : jd.fromOneLiner ? (
@@ -150,21 +150,21 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
         ) : null}
       </div>
 
-      <div className="flex h-full items-center" role="cell">
+      <div className="flex min-w-0 items-start pt-1" role="cell">
         <p className="text-[0.8125rem] leading-snug text-slate-600 [overflow-wrap:anywhere] line-clamp-2">{means}</p>
       </div>
 
-      <div className="flex h-full items-center justify-center" role="cell">
+      <div className="flex items-start justify-center pt-1" role="cell">
         <span className="inline-flex max-w-full rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-center text-[0.65rem] font-medium leading-tight text-slate-700">
           {categoryLabel(item.category)}
         </span>
       </div>
 
-      <div className="flex h-full items-center text-[0.7rem] tabular-nums text-slate-400" role="cell">
+      <div className="flex items-start pt-1.5 text-[0.7rem] tabular-nums text-slate-400" role="cell">
         {formatRelativeTime(item.published_at)}
       </div>
 
-      <div className="flex h-full items-center justify-end" role="cell">
+      <div className="flex items-start justify-end pt-1" role="cell">
         <RowActionLink item={item} />
       </div>
     </div>

@@ -1,5 +1,5 @@
 type Props = {
-  /** 首页 Top5 与排行榜页标题可区分 */
+  /** 首页 Top3 与排行榜页标题可区分 */
   judgmentColumnLabel?: string;
 };
 
@@ -14,10 +14,10 @@ export function RankingTableHeader({
       className="ranking-table-grid border-b border-slate-200 bg-slate-50 px-2 py-3 text-[0.6875rem] font-semibold tracking-wide text-slate-500 md:px-3"
       role="row"
     >
-      <div className="text-center" role="columnheader">
+      <div className="w-[64px] min-w-[64px] max-w-[64px] shrink-0 text-center" role="columnheader">
         排名
       </div>
-      <div className="text-left" role="columnheader">
+      <div className="w-[96px] min-w-[96px] max-w-[96px] shrink-0 text-left" role="columnheader">
         Pulse Score
       </div>
       <div className="min-w-0 text-left" role="columnheader">

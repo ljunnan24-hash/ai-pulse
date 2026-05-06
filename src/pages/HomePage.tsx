@@ -86,7 +86,7 @@ export default function HomePage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [top5, setTop5] = useState<Awaited<ReturnType<typeof fetchRankings>>['items']>([]);
+  const [top3, setTop3] = useState<Awaited<ReturnType<typeof fetchRankings>>['items']>([]);
   const [rankUpdatedAt, setRankUpdatedAt] = useState<string | null>(null);
   const [topErr, setTopErr] = useState<string | null>(null);
   const [topLoaded, setTopLoaded] = useState(false);
@@ -104,9 +104,9 @@ export default function HomePage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchRankings({ range: 'today', category: 'all', limit: 5 })
+    fetchRankings({ range: 'today', category: 'all', limit: 3 })
       .then((r) => {
-        setTop5(r.items);
+        setTop3(r.items);
         setRankUpdatedAt(r.updated_at);
         setTopLoaded(true);
       })
@@ -117,7 +117,7 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    const id = top5[0]?.id;
+    const id = top3[0]?.id;
     if (!id) {
       setLeadDetail(null);
       setLeadDetailLoading(false);
@@ -128,7 +128,7 @@ export default function HomePage() {
       .then(setLeadDetail)
       .catch(() => setLeadDetail(null))
       .finally(() => setLeadDetailLoading(false));
-  }, [top5]);
+  }, [top3]);
 
   useEffect(() => {
     fetchWeeklyLatest()
@@ -180,7 +180,7 @@ export default function HomePage() {
     inputRef.current?.focus();
   };
 
-  const lead = top5[0];
+  const lead = top3[0];
   const br = leadDetail?.score_breakdown;
   const leadJudgment = lead ? buildDisplayJudgment(lead) : null;
   const judgmentLine =
@@ -287,11 +287,11 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Top 5 */}
+      {/* Top 3 */}
       <section className="section-y">
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="heading-section">今日 AI Pulse Top 5</h2>
+            <h2 className="heading-section">今日 AI Pulse Top 3</h2>
             <p className="mt-1 text-[0.8125rem] text-[#666666]">统一榜单容器：桌面为表格式扫读；移动端为紧凑纵向行。</p>
           </div>
           <Link to="/rankings" className="text-sm font-medium text-primary hover:underline">
@@ -299,10 +299,10 @@ export default function HomePage() {
           </Link>
         </div>
         {topErr ? <p className="mb-4 text-sm text-amber-800">{topErr}</p> : null}
-        {!topErr && top5.length > 0 ? (
+        {!topErr && top3.length > 0 ? (
           <RankingTable
             variant="home"
-            items={top5}
+            items={top3}
             footer={
               <div className="py-3 text-center">
                 <Link to="/rankings" className="text-sm font-semibold text-primary hover:underline">
@@ -312,7 +312,7 @@ export default function HomePage() {
             }
           />
         ) : null}
-        {!topErr && topLoaded && top5.length === 0 ? (
+        {!topErr && topLoaded && top3.length === 0 ? (
           <p className="text-sm text-slate-600">暂无榜单数据。请在服务器运行：`python -m app.jobs.daily_rankings`</p>
         ) : null}
       </section>
