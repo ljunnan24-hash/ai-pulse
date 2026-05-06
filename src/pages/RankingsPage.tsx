@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 
 import { fetchRankings } from '../api/public';
 import type { RankingItem } from '../components/rankings/RankingCard';
-import { buildDisplayJudgment, RankingCard } from '../components/rankings/RankingCard';
-import { RankingTableRow } from '../components/rankings/RankingTableRow';
+import { buildDisplayJudgment } from '../components/rankings/RankingCard';
+import { RankingTable } from '../components/rankings/RankingTable';
 import { ScoreBadge } from '../components/common/ScoreBadge';
 import { EmptyState } from '../components/common/EmptyState';
 import { categoryLabel } from '../lib/categoryLabels';
@@ -168,38 +168,15 @@ export default function RankingsPage() {
       <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
         <div className="lg:col-span-8">
           {!err && items.length > 0 ? (
-            <>
-            <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--shadow-card)] md:block">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] border-collapse text-left text-sm xl:min-w-[900px]">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                      <th className="whitespace-nowrap px-3 py-3 lg:px-4">排名</th>
-                      <th className="whitespace-nowrap px-3 py-3 lg:px-4">Pulse Score</th>
-                      <th className="min-w-[11rem] px-3 py-3 lg:px-4">判断（今日一句话）</th>
-                      <th className="hidden min-w-[9rem] px-3 py-3 md:table-cell lg:px-4">对你意味着什么</th>
-                      <th className="hidden px-3 py-3 lg:table-cell lg:px-4">分类</th>
-                      <th className="hidden px-3 py-3 xl:table-cell xl:px-4">时间</th>
-                      <th className="whitespace-nowrap px-3 py-3 text-right lg:px-4">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((row, i) => (
-                      <RankingTableRow key={row.id} rank={i + 1} item={row} variant="rankings" />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="border-t border-slate-100 py-3 text-center text-xs text-slate-500">
-                当前展示 {items.length} 条 · 调整上方时间范围与分类可切换窗口
-              </div>
-            </div>
-            <div className="space-y-3 md:hidden">
-              {items.map((row, i) => (
-                <RankingCard key={row.id} rank={i + 1} item={row} variant="full" />
-              ))}
-            </div>
-            </>
+            <RankingTable
+              variant="rankings"
+              items={items}
+              footer={
+                <div className="py-3 text-center text-xs text-slate-500">
+                  当前展示 {items.length} 条 · 调整上方时间范围与分类可切换窗口
+                </div>
+              }
+            />
           ) : null}
           {!err && items.length === 0 ? (
             <EmptyState

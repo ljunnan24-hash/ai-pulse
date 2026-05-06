@@ -17,8 +17,8 @@ import { apiBase } from '../config';
 import type { EventDetailResponse } from '../api/public';
 import { fetchEventDetail, fetchRankings, fetchWeeklyLatest } from '../api/public';
 import { ScoreBadge } from '../components/common/ScoreBadge';
-import { buildDisplayJudgment, RankingCard } from '../components/rankings/RankingCard';
-import { RankingTableRow } from '../components/rankings/RankingTableRow';
+import { buildDisplayJudgment } from '../components/rankings/RankingCard';
+import { RankingTable } from '../components/rankings/RankingTable';
 import { EmptyState } from '../components/common/EmptyState';
 import { estimateReadingMinutes } from '../components/weekly/weeklyPayloadUtils';
 import { formatSlashDate } from '../lib/formatDisplayDate';
@@ -292,7 +292,7 @@ export default function HomePage() {
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="heading-section">今日 AI Pulse Top 5</h2>
-            <p className="mt-1 text-[0.8125rem] text-[#666666]">桌面端为表格视图；移动端为紧凑卡片列表。</p>
+            <p className="mt-1 text-[0.8125rem] text-[#666666]">统一榜单容器：桌面为表格式扫读；移动端为紧凑纵向行。</p>
           </div>
           <Link to="/rankings" className="text-sm font-medium text-primary hover:underline">
             查看完整榜单 →
@@ -300,38 +300,17 @@ export default function HomePage() {
         </div>
         {topErr ? <p className="mb-4 text-sm text-amber-800">{topErr}</p> : null}
         {!topErr && top5.length > 0 ? (
-          <>
-            <div className="table-design-wrap hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--shadow-card)] md:block">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                      <th className="whitespace-nowrap px-4 py-3.5">排名</th>
-                      <th className="whitespace-nowrap px-4 py-3.5">Pulse Score</th>
-                      <th className="min-w-[12rem] px-4 py-3.5">事件与判断</th>
-                      <th className="hidden min-w-[8rem] px-4 py-3.5 md:table-cell">对你意味着什么</th>
-                      <th className="whitespace-nowrap px-4 py-3.5 text-right">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {top5.map((item, idx) => (
-                      <RankingTableRow key={item.id} rank={idx + 1} item={item} variant="home" />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="border-t border-slate-100 py-3 text-center">
+          <RankingTable
+            variant="home"
+            items={top5}
+            footer={
+              <div className="py-3 text-center">
                 <Link to="/rankings" className="text-sm font-semibold text-primary hover:underline">
                   查看完整 Top 20 榜单 →
                 </Link>
               </div>
-            </div>
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)] md:hidden">
-              {top5.map((item, idx) => (
-                <RankingCard key={item.id} rank={idx + 1} item={item} variant="homeRow" />
-              ))}
-            </div>
-          </>
+            }
+          />
         ) : null}
         {!topErr && topLoaded && top5.length === 0 ? (
           <p className="text-sm text-slate-600">暂无榜单数据。请在服务器运行：`python -m app.jobs.daily_rankings`</p>

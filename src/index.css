@@ -55,6 +55,24 @@
     @apply border-b-0;
   }
 
+  /**
+   * 企业级榜单桌面栅格：排名独立列，判断仅在内容轨内
+   * 64 | 96 | 判断+标题 | 含义 | 分类 | 时间 | 操作
+   */
+  .ranking-table-grid {
+    display: grid;
+    grid-template-columns:
+      64px 96px minmax(280px, 1.4fr) minmax(220px, 0.9fr) 88px 88px 96px;
+    column-gap: 0.75rem;
+    row-gap: 0;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .ranking-table-grid > * {
+    min-width: 0;
+  }
+
   .section-y {
     @apply mb-10 md:mb-12;
   }
