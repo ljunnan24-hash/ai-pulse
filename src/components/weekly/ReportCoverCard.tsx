@@ -6,7 +6,7 @@ import type { ThesisShape } from './WeeklyThesisCard';
 type Props = {
   thesis: ThesisShape;
   readingMinutes: number;
-  /** Top3 判断条数 */
+  /** 本期要点条目数（展示用） */
   topJudgmentCount: number;
   /** 噪音过滤条数 */
   noiseFilteredCount: number;
@@ -31,7 +31,7 @@ export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount, nois
           <div className="min-w-0">
             <div className="inline-flex items-center gap-2">
               <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={2} aria-hidden />
-              <span className="text-[0.7rem] font-semibold tracking-wide text-primary">本周核心判断</span>
+              <span className="text-[0.7rem] font-semibold tracking-wide text-primary">本周最重要的变化</span>
             </div>
 
             {thesis.headline ? (
@@ -63,7 +63,7 @@ export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount, nois
             ) : null}
 
             <p className="mt-5 text-xs text-slate-500">
-              阅读约 {readingMinutes} 分钟 · Top 判断 {topJudgmentCount} 条 · 噪音过滤 {noiseFilteredCount} 条
+              阅读约 {readingMinutes} 分钟 · 精选信息 {topJudgmentCount} 条 · 噪音过滤 {noiseFilteredCount} 条
             </p>
 
             <div className="mt-5">

@@ -12,7 +12,7 @@ import { CapabilityBoundaryCard } from './CapabilityBoundaryCard';
 import { CategoryRecapCard } from './CategoryRecapCard';
 import { GlossaryGrid } from './GlossaryGrid';
 import { NoiseCard } from './NoiseCard';
-import { TopJudgmentRow } from './TopJudgmentRow';
+import { WeeklyInfoDigestRow } from './WeeklyInfoDigestRow';
 import { WeeklyReportDirectory } from './WeeklyReportDirectory';
 import { ToolTryCard } from './ToolTryCard';
 import type { ThesisShape } from './WeeklyThesisCard';
@@ -20,7 +20,11 @@ import { ReportCoverCard } from './ReportCoverCard';
 import { ReportCoverFallback } from './ReportCoverFallback';
 import { WeeklyReportHeader } from './WeeklyReportHeader';
 import type { TocItem } from './WeeklyToc';
-import { estimateReadingMinutes, normalizeGlossary } from './weeklyPayloadUtils';
+import {
+  collectWeeklyTopInformation,
+  estimateReadingMinutes,
+  normalizeGlossary,
+} from './weeklyPayloadUtils';
 
 export type WeeklyReportViewProps = {
   title: string;
@@ -30,44 +34,44 @@ export type WeeklyReportViewProps = {
 
 const TOC_META: Record<string, { label: string; hint: string; minutes: string }> = {
   'weekly-thesis': {
-    label: '本周核心判断与趋势总览',
-    hint: '主线结论与一周信号',
+    label: '本周最重要的变化（总览）',
+    hint: '三条主线变化',
     minutes: '约 5 分钟',
   },
-  'top3-judgments': {
-    label: '本周最重要的 3 个判断',
-    hint: '优先行动与 Pulse 排序',
+  'top-information': {
+    label: '本周最重要的信息精选',
+    hint: '事实与价值分层呈现',
     minutes: '约 8 分钟',
   },
+  'category-recap': {
+    label: '分类信息回顾',
+    hint: '模型 / 工具 / 行业等',
+    minutes: '约 7 分钟',
+  },
+  'tools-to-try': {
+    label: '值得关注的工具 / 产品',
+    hint: '可继续跟进的动手方向',
+    minutes: '约 5 分钟',
+  },
+  'noise-ignore': {
+    label: '本周可以忽略的噪音',
+    hint: '暂时不必投入时间的热点',
+    minutes: '约 3 分钟',
+  },
+  glossary: {
+    label: '本周术语',
+    hint: '关键词速查',
+    minutes: '约 4 分钟',
+  },
   'capability-boundaries': {
-    label: 'AI 能力边界与上限',
-    hint: '能力上限与边界案例',
+    label: 'AI 能力边界',
+    hint: '能力上限与反面案例',
     minutes: '约 6 分钟',
   },
   'capability-radar': {
     label: 'AI 能力雷达',
     hint: '维度对照一览',
     minutes: '约 3 分钟',
-  },
-  'tools-to-try': {
-    label: '本周值得试的工具',
-    hint: '可动手试用清单',
-    minutes: '约 5 分钟',
-  },
-  'noise-ignore': {
-    label: '本周可忽略的噪音',
-    hint: '暂时不必关注的热点',
-    minutes: '约 3 分钟',
-  },
-  'category-recap': {
-    label: '分领域要点回顾',
-    hint: '模型 / 工具 / 行业等',
-    minutes: '约 7 分钟',
-  },
-  glossary: {
-    label: '本周术语速查',
-    hint: '关键词一句话弄懂',
-    minutes: '约 4 分钟',
   },
 };
 
@@ -93,6 +97,14 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
   const legacyTop3 = (normal.top3 as Array<Record<string, string>> | undefined) || [];
   const showJudgments = top3Judgments.length > 0;
   const showLegacyTop3 = !showJudgments && legacyTop3.length > 0;
+
+  const topInfoRows = collectWeeklyTopInformation(normal);
+  const coverHighlightCount =
+    topInfoRows.length > 0
+      ? topInfoRows.length
+      : showJudgments
+        ? top3Judgments.length
+        : legacyTop3.length;
 
   const capsBoundaries =
     (normal.capability_boundaries as Array<Record<string, unknown>> | undefined) || [];
@@ -130,18 +142,17 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
     })) || [];
 
   const readingMinutes = estimateReadingMinutes(payload);
-  const top3Count = showJudgments ? top3Judgments.length : legacyTop3.length;
   const noiseCount = noiseIgnore.length;
 
   const tocItems: TocItem[] = [];
   tocItems.push(tocEntry('weekly-thesis'));
-  if (showJudgments || showLegacyTop3) tocItems.push(tocEntry('top3-judgments'));
-  if (showCapsV2 || showCapsLegacy) tocItems.push(tocEntry('capability-boundaries'));
-  if (radarData.length > 0) tocItems.push(tocEntry('capability-radar'));
+  if (topInfoRows.length > 0) tocItems.push(tocEntry('top-information'));
+  if (showRecapV2 || showRecapLegacy) tocItems.push(tocEntry('category-recap'));
   if (showToolsV2 || showToolsLegacy) tocItems.push(tocEntry('tools-to-try'));
   if (noiseIgnore.length > 0) tocItems.push(tocEntry('noise-ignore'));
-  if (showRecapV2 || showRecapLegacy) tocItems.push(tocEntry('category-recap'));
   if (glossaryRows.length > 0) tocItems.push(tocEntry('glossary'));
+  if (showCapsV2 || showCapsLegacy) tocItems.push(tocEntry('capability-boundaries'));
+  if (radarData.length > 0) tocItems.push(tocEntry('capability-radar'));
 
   const sectionHeaderProps = { className: 'mb-5 md:mb-6' };
 
@@ -154,11 +165,15 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
         <ReportCoverCard
           thesis={thesis}
           readingMinutes={readingMinutes}
-          topJudgmentCount={top3Count}
+          topJudgmentCount={coverHighlightCount}
           noiseFilteredCount={noiseCount}
         />
       ) : (
-        <ReportCoverFallback readingMinutes={readingMinutes} topJudgmentCount={top3Count} noiseFilteredCount={noiseCount} />
+        <ReportCoverFallback
+          readingMinutes={readingMinutes}
+          topJudgmentCount={coverHighlightCount}
+          noiseFilteredCount={noiseCount}
+        />
       )}
 
       {tocItems.length > 0 ? (
@@ -175,94 +190,63 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
         </div>
       ) : null}
 
-          <section id="top3-judgments" className="scroll-mt-28">
+          <section id="top-information" className="scroll-mt-28">
             <SectionHeader
               {...sectionHeaderProps}
-              title={showJudgments || showLegacyTop3 ? '本周最重要的 3 个判断' : '本周重点'}
-              subtitle={
-                showJudgments || showLegacyTop3
-                  ? '不是最热的三条新闻，而是本周最值得采取行动的判断。'
-                  : undefined
-              }
+              title="本周最重要的信息（最多 5 条）"
+              subtitle="每条均尽量给出：发生了什么、为什么值得看、对你意味着什么与来源线索；结论请自行核实。"
             />
 
-            {showJudgments || showLegacyTop3 ? (
+            {topInfoRows.length > 0 ? (
               <div className="card-surface overflow-hidden shadow-[var(--shadow-card)]">
-                {showJudgments
-                  ? top3Judgments.map((t, i) => (
-                      <TopJudgmentRow key={`${t.title}-${i}`} rank={i + 1} row={t} />
-                    ))
-                  : null}
-                {showLegacyTop3
-                  ? legacyTop3.map((t, i) => (
-                      <TopJudgmentRow
-                        key={`legacy-${String(t.url ?? i)}-${i}`}
-                        rank={i + 1}
-                        row={{
-                          title: String(t.title ?? ''),
-                          what_happened: String(t.what_happened ?? ''),
-                          pulse_score: String(t.pulse_score ?? ''),
-                          theme: String(t.theme ?? t.category ?? ''),
-                          event_id: String(t.event_id ?? ''),
-                        }}
-                      />
-                    ))
-                  : null}
+                {topInfoRows.map((row, i) => (
+                  <WeeklyInfoDigestRow key={`${row.title}-${i}`} rank={i + 1} row={row} />
+                ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-600">本期暂无 Top3 数据。</p>
+              <p className="text-sm text-slate-600">本期暂无结构化信息条目，可从上方总览与分类回顾读起。</p>
             )}
           </section>
 
           {tocItems.length > 0 ? <WeeklyReportDirectory items={tocItems} /> : null}
 
-          <section id="capability-boundaries" className="mt-10 scroll-mt-28 md:mt-12">
+          <section id="category-recap" className="mt-10 scroll-mt-28 md:mt-12">
             <SectionHeader
               {...sectionHeaderProps}
-              title="AI 能力边界"
-              subtitle="这些事件说明：AI 现在能做到什么，还不能做到什么。"
+              title="分类信息回顾"
+              subtitle="按领域对照本周有哪些值得记住的变化。"
             />
             <div className="space-y-4 md:space-y-5">
-              {showCapsV2
-                ? capsBoundaries.map((c, i) => <CapabilityBoundaryCard key={i} row={c} />)
+              {showRecapV2
+                ? categoryRecap.map((row, i) => <CategoryRecapCard key={i} row={row} />)
                 : null}
-              {showCapsLegacy
-                ? caps.map((c, i) => (
+              {showRecapLegacy
+                ? sections.map((sec, i) => (
                     <article key={i} className="card-surface p-5 md:p-6">
-                      <h3 className="font-headline text-base font-semibold text-slate-900">{c.theme}</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-slate-700">{c.conclusion}</p>
+                      <h3 className="font-headline text-base font-semibold text-slate-900">{sec.title}</h3>
+                      <ul className="mt-3 space-y-2">
+                        {(sec.items as Array<Record<string, string>>).map((it, j) => (
+                          <li key={j} className="text-sm text-slate-600">
+                            {it.title}
+                          </li>
+                        ))}
+                      </ul>
                     </article>
                   ))
                 : null}
-              {!showCapsV2 && !showCapsLegacy ? (
-                <p className="text-sm text-slate-600">本期暂无能力边界卡片。</p>
+              {!showRecapV2 && !showRecapLegacy ? (
+                <p className="text-sm text-slate-600">本期暂无分类回顾。</p>
               ) : null}
             </div>
           </section>
 
-          {radarData.length > 0 ? (
-            <section id="capability-radar" className="mt-10 scroll-mt-28 md:mt-12">
-              <SectionHeader {...sectionHeaderProps} title={radar?.title || 'AI 能力雷达'} />
-              <div className="card-surface h-72 w-full p-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="80%">
-                    <PolarGrid stroke="#e2e8f0" />
-                    <PolarAngleAxis dataKey="dim" tick={{ fill: '#64748b', fontSize: 11 }} />
-                    <Radar name="本期" dataKey="score" stroke="#005bc1" fill="#005bc1" fillOpacity={0.28} />
-                    <Radar name="基线" dataKey="baseline" stroke="#94a3b8" fill="#94a3b8" fillOpacity={0.1} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-          ) : null}
-
           <section id="tools-to-try" className="mt-10 scroll-mt-28 md:mt-12">
             <SectionHeader
               {...sectionHeaderProps}
-              title={showToolsV2 || showToolsLegacy ? '本周值得试的工具' : '工具参考'}
+              title={showToolsV2 || showToolsLegacy ? '本周值得继续关注的工具 / 产品' : '工具参考'}
               subtitle={
                 showToolsV2 || showToolsLegacy
-                  ? '这些不是单纯新闻，而是本周可以实际动手试的 AI 工具。'
+                  ? '适合放入观察清单，之后再决定是否深度试用或引入团队。'
                   : undefined
               }
             />
@@ -302,36 +286,6 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
             </section>
           ) : null}
 
-          <section id="category-recap" className="mt-10 scroll-mt-28 md:mt-12">
-            <SectionHeader
-              {...sectionHeaderProps}
-              title="分类回顾"
-              subtitle="按领域整理本周变化，帮助你理解不同方向的趋势。"
-            />
-            <div className="space-y-4 md:space-y-5">
-              {showRecapV2
-                ? categoryRecap.map((row, i) => <CategoryRecapCard key={i} row={row} />)
-                : null}
-              {showRecapLegacy
-                ? sections.map((sec, i) => (
-                    <article key={i} className="card-surface p-5 md:p-6">
-                      <h3 className="font-headline text-base font-semibold text-slate-900">{sec.title}</h3>
-                      <ul className="mt-3 space-y-2">
-                        {(sec.items as Array<Record<string, string>>).map((it, j) => (
-                          <li key={j} className="text-sm text-slate-600">
-                            {it.title}
-                          </li>
-                        ))}
-                      </ul>
-                    </article>
-                  ))
-                : null}
-              {!showRecapV2 && !showRecapLegacy ? (
-                <p className="text-sm text-slate-600">本期暂无分类回顾。</p>
-              ) : null}
-            </div>
-          </section>
-
           {glossaryRows.length > 0 ? (
             <section id="glossary" className="mt-10 scroll-mt-28 md:mt-12">
               <SectionHeader
@@ -340,6 +294,46 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
                 subtitle="理解这些概念，可以更快读懂本周 AI 动态。"
               />
               <GlossaryGrid rows={glossaryRows} />
+            </section>
+          ) : null}
+
+          <section id="capability-boundaries" className="mt-10 scroll-mt-28 md:mt-12">
+            <SectionHeader
+              {...sectionHeaderProps}
+              title="AI 能力边界（补充阅读）"
+              subtitle="这些案例说明：模型现在擅长什么、哪里还不稳定。"
+            />
+            <div className="space-y-4 md:space-y-5">
+              {showCapsV2
+                ? capsBoundaries.map((c, i) => <CapabilityBoundaryCard key={i} row={c} />)
+                : null}
+              {showCapsLegacy
+                ? caps.map((c, i) => (
+                    <article key={i} className="card-surface p-5 md:p-6">
+                      <h3 className="font-headline text-base font-semibold text-slate-900">{c.theme}</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-700">{c.conclusion}</p>
+                    </article>
+                  ))
+                : null}
+              {!showCapsV2 && !showCapsLegacy ? (
+                <p className="text-sm text-slate-600">本期暂无能力边界卡片。</p>
+              ) : null}
+            </div>
+          </section>
+
+          {radarData.length > 0 ? (
+            <section id="capability-radar" className="mt-10 scroll-mt-28 md:mt-12">
+              <SectionHeader {...sectionHeaderProps} title={radar?.title || 'AI 能力雷达'} />
+              <div className="card-surface h-72 w-full p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="80%">
+                    <PolarGrid stroke="#e2e8f0" />
+                    <PolarAngleAxis dataKey="dim" tick={{ fill: '#64748b', fontSize: 11 }} />
+                    <Radar name="本期" dataKey="score" stroke="#005bc1" fill="#005bc1" fillOpacity={0.28} />
+                    <Radar name="基线" dataKey="baseline" stroke="#94a3b8" fill="#94a3b8" fillOpacity={0.1} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
             </section>
           ) : null}
 

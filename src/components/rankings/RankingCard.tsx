@@ -1,5 +1,5 @@
 /**
- * 榜单「主列表」请使用 `RankingTable` + `RankingTableRow`。
+ * 榜单条目类型与辅助函数；页面列表请以信息卡片 / `RankingsInformationList` 等组件为准。
  * 本模块保留 `RankingItem` 类型与 `buildDisplayJudgment`，供表格与详情等复用。
  */
 import type { RankingsResponse } from '../../api/public';

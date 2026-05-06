@@ -88,6 +88,37 @@
     min-width: 0;
   }
 
+  /**
+   * 排行榜页第 4 名及以后：无「操作」列，流体列宽，不配横向 min-width，避免出现底部滑条。
+   */
+  .ranking-table-grid--rankings-rest {
+    display: grid;
+    grid-template-columns:
+      56px 80px minmax(0, 1.25fr) minmax(0, 1.15fr) minmax(72px, auto) 76px;
+    column-gap: 0.65rem;
+    row-gap: 0;
+    align-items: start;
+    box-sizing: border-box;
+  }
+
+  .ranking-table-grid--rankings-rest > *:nth-child(1) {
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
+    justify-self: center;
+  }
+
+  .ranking-table-grid--rankings-rest > *:nth-child(2) {
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+    justify-self: start;
+  }
+
+  .ranking-table-grid--rankings-rest > *:nth-child(n + 3) {
+    min-width: 0;
+  }
+
   .section-y {
     @apply mb-10 md:mb-12;
   }

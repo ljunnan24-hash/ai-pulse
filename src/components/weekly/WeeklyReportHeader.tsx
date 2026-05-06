@@ -19,7 +19,7 @@ export function WeeklyReportHeader({ reportDate, title, readingMinutes }: Props)
         </span>
       </div>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600 md:text-[0.95rem]">
-        基于过去 7 天 AI Pulse 排行榜事件的综合研判与趋势洞察
+        基于过去 7 天收录与整理的关键信息，先呈现事实与线索，再附轻量价值提示
       </p>
     </header>
   );

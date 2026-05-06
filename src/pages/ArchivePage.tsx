@@ -25,7 +25,7 @@ export default function ArchivePage() {
       <header className="section-y">
         <h1 className="heading-page">历史归档</h1>
         <p className="mt-2 max-w-2xl text-body">
-          按日期浏览已发布周报，用于复盘与检索。每期对应站内报告页，保留当时的判断与来源线索。
+          按日期浏览已发布周报，用于复盘与检索。每期对应站内报告页，保留当时的信息整理与来源线索。
         </p>
       </header>
 
@@ -66,7 +66,7 @@ export default function ArchivePage() {
                       >
                         {it.title || '（无标题）'}
                       </Link>
-                      <p className="mt-1 text-xs text-slate-500">站内报告 · 含主线判断与来源</p>
+                      <p className="mt-1 text-xs text-slate-500">站内报告 · 含主线整理与来源</p>
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-2 md:justify-end">
                       <Link

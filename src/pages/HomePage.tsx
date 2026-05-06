@@ -1,82 +1,11 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  Activity,
-  BookOpen,
-  ChevronRight,
-  Flame,
-  LineChart,
-  Sparkles,
-  UserRound,
-  X,
-  Zap,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-
+import { Activity, BookOpen, ChevronRight, LineChart, Sparkles, X } from 'lucide-react';
 import { apiBase } from '../config';
-import type { EventDetailResponse } from '../api/public';
-import { fetchEventDetail, fetchRankings, fetchWeeklyLatest } from '../api/public';
-import { ScoreBadge } from '../components/common/ScoreBadge';
-import { buildDisplayJudgment } from '../components/rankings/RankingCard';
-import { RankingTable } from '../components/rankings/RankingTable';
+import { fetchRankings, fetchWeeklyLatest } from '../api/public';
+import { HomeTopInfoCards } from '../components/home/HomeTopInfoCards';
 import { EmptyState } from '../components/common/EmptyState';
 import { estimateReadingMinutes } from '../components/weekly/weeklyPayloadUtils';
-import { formatSlashDate } from '../lib/formatDisplayDate';
-import { displayInsightSummary } from '../lib/insightFallback';
-
-/** 由分项分数推导「编辑视角」标签，避免仪表盘式大数字 */
-function judgmentChips(
-  br: EventDetailResponse['score_breakdown'] | undefined,
-  category: string,
-): string[] {
-  const out: string[] = [];
-  if (br) {
-    if ((br.trust ?? 0) >= 72) out.push('可信来源');
-    if ((br.freshness ?? 0) >= 68) out.push('新鲜度高');
-    if ((br.user_value ?? 0) >= 62) out.push('用户相关');
-    if ((br.heat ?? 0) >= 58) out.push('关注度高');
-  }
-  const catMap: Record<string, string> = {
-    model: '模型能力',
-    tool: '企业落地',
-    industry: '行业动态',
-    open_source: '开源生态',
-    application: '应用落地',
-  };
-  const fill = catMap[category] ?? '综合信号';
-  if (out.length === 0) out.push(fill);
-  else if (out.length < 3 && !out.includes(fill)) out.push(fill);
-  return out.slice(0, 3);
-}
-
-function tierLabel(v: number): string {
-  if (v >= 70) return '极高';
-  if (v >= 55) return '高';
-  if (v >= 40) return '中';
-  return '观察';
-}
-
-function HeroMetric({
-  label,
-  value,
-  icon: Icon,
-  iconClassName = 'text-primary',
-}: {
-  label: string;
-  value: number;
-  icon: LucideIcon;
-  iconClassName?: string;
-}) {
-  const n = Number.isFinite(value) ? value : 0;
-  return (
-    <div className="flex min-w-0 flex-1 flex-col items-center rounded-xl border border-slate-100 bg-white px-2 py-2.5 text-center shadow-[0_1px_2px_rgb(15_23_42/0.04)] md:px-3">
-      <Icon className={`h-4 w-4 ${iconClassName}`} aria-hidden />
-      <span className="mt-1.5 text-[0.65rem] font-semibold text-slate-600">{label}</span>
-      <span className="mt-0.5 font-headline text-lg font-bold tabular-nums text-[#111827]">{n.toFixed(0)}</span>
-      <span className="text-[0.65rem] font-medium text-slate-500">{tierLabel(n)}</span>
-    </div>
-  );
-}
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -90,8 +19,6 @@ export default function HomePage() {
   const [rankUpdatedAt, setRankUpdatedAt] = useState<string | null>(null);
   const [topErr, setTopErr] = useState<string | null>(null);
   const [topLoaded, setTopLoaded] = useState(false);
-  const [leadDetail, setLeadDetail] = useState<EventDetailResponse | null>(null);
-  const [leadDetailLoading, setLeadDetailLoading] = useState(false);
   const [weeklyPreview, setWeeklyPreview] = useState<{
     headline: string;
     summary: string;
@@ -115,20 +42,6 @@ export default function HomePage() {
         setTopLoaded(true);
       });
   }, []);
-
-  useEffect(() => {
-    const id = top3[0]?.id;
-    if (!id) {
-      setLeadDetail(null);
-      setLeadDetailLoading(false);
-      return;
-    }
-    setLeadDetailLoading(true);
-    fetchEventDetail(id)
-      .then(setLeadDetail)
-      .catch(() => setLeadDetail(null))
-      .finally(() => setLeadDetailLoading(false));
-  }, [top3]);
 
   useEffect(() => {
     fetchWeeklyLatest()
@@ -181,155 +94,94 @@ export default function HomePage() {
   };
 
   const lead = top3[0];
-  const br = leadDetail?.score_breakdown;
-  const leadJudgment = lead ? buildDisplayJudgment(lead) : null;
-  const judgmentLine =
-    leadJudgment?.text ??
-    (!lead && topLoaded ? '暂无榜单数据。运行每日任务后将自动展示。' : !lead ? '正在加载…' : '');
-  const chips = lead ? judgmentChips(br, lead.category) : [];
-  const heroSummary = lead ? displayInsightSummary(lead.what_it_means_for_you, lead.what_happened) : '';
-  const heroDateIso = lead?.published_at ?? rankUpdatedAt ?? '';
+  const pulseNote =
+    lead && typeof lead.ranking_score === 'number' && Number.isFinite(lead.ranking_score)
+      ? lead.ranking_score.toFixed(1)
+      : null;
 
   return (
     <div className="page-container">
-      {/* Hero：移动端顺序为 标题 → 今日判断卡 → 副文案 → CTA；桌面端左文案右卡片 */}
-      <header className="section-y grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-14 lg:items-start">
-        <h1 className="font-headline text-[1.85rem] font-extrabold leading-[1.12] tracking-tight text-[#111827] md:text-[2.35rem] lg:col-start-1 lg:row-start-1">
+      <header className="section-y">
+        <h1 className="font-headline text-[1.85rem] font-extrabold leading-[1.12] tracking-tight text-[#111827] md:text-[2.35rem]">
           每天看 AI 信号，
           <br className="hidden sm:block" />
-          每周读 AI 判断
+          每周读 AI 信息摘要
         </h1>
-
-        <div className="card-surface p-5 md:p-6 lg:col-start-2 lg:row-start-1 lg:row-span-2">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-            <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">今日判断</span>
-            <time className="text-[0.8rem] tabular-nums text-slate-500" dateTime={heroDateIso || undefined}>
-              {heroDateIso ? formatSlashDate(heroDateIso) : '—'}
-            </time>
-          </div>
-
-          {lead ? (
-            <>
-              <div className="mt-4">
-                <ScoreBadge score={lead.ranking_score} variant="pillHero" />
-              </div>
-              <p
-                className={`mt-4 font-headline leading-snug text-[#111827] [overflow-wrap:anywhere] ${
-                  leadJudgment?.isTitleFallback
-                    ? 'line-clamp-4 text-[0.95rem] font-medium md:line-clamp-5 md:text-[1rem]'
-                    : 'line-clamp-5 text-[1.05rem] font-semibold md:line-clamp-6 md:text-[1.1rem]'
-                }`}
-              >
-                {judgmentLine}
-              </p>
-              {heroSummary ? (
-                <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-[#666666]">{heroSummary}</p>
-              ) : null}
-              {leadDetailLoading ? (
-                <div className="mt-4 grid grid-cols-3 gap-2" aria-hidden>
-                  {[1, 2, 3].map((k) => (
-                    <div key={k} className="h-24 animate-pulse rounded-xl bg-slate-100" />
-                  ))}
-                </div>
-              ) : br ? (
-                <div className="mt-5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-5">
-                  <HeroMetric label="新鲜度" value={Number(br.freshness) || 0} icon={Zap} />
-                  <HeroMetric label="热度" value={Number(br.heat) || 0} icon={Flame} iconClassName="text-orange-500" />
-                  <HeroMetric label="用户价值" value={Number(br.user_value) || 0} icon={UserRound} />
-                </div>
-              ) : (
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {chips.map((c) => (
-                    <span
-                      key={c}
-                      className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[0.65rem] font-medium text-slate-600"
-                    >
-                      {c}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="mt-5 border-t border-slate-100 pt-4">
-                <Link to={`/events/${lead.id}`} className="text-sm font-semibold text-primary hover:underline">
-                  查看事件详情 →
-                </Link>
-              </div>
-            </>
-          ) : (
-            <p className="mt-4 text-sm text-slate-600">
-              {!topLoaded ? '正在加载榜单…' : '暂无榜单数据。运行每日任务后将自动展示。'}
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-5 lg:col-start-1 lg:row-start-2">
-          <div className="max-w-xl space-y-3 text-[0.9375rem] leading-relaxed text-[#666666]">
-            <p>
-              汇聚全球 AI 产品与模型的关键进展，通过结构化排序与可解释的 Pulse Score，优先呈现
-              <strong className="font-semibold text-[#111827]">当下最值得跟进</strong>的信号。
-            </p>
-            <p>
-              更快分辨<strong className="font-semibold text-[#111827]">什么值得投入</strong>，
-              <strong className="font-semibold text-[#111827]">什么可以忽略</strong>。
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Link to="/rankings" className="btn-primary-lg no-underline">
-              查看今日榜单
-            </Link>
-            <Link
-              to="/#subscribe"
-              className="inline-flex h-11 items-center justify-center rounded-[var(--radius-btn)] border border-primary bg-white px-6 text-sm font-semibold text-primary shadow-sm transition-colors hover:bg-primary/5 no-underline"
-            >
-              订阅周报
-            </Link>
-          </div>
-        </div>
+        <p className="mt-5 max-w-2xl text-[0.9375rem] leading-relaxed text-[#666666]">
+          我们持续从多个渠道<strong className="font-semibold text-[#111827]">收集、去重与整理</strong>
+          AI 领域的关键进展；再用 Pulse Score 做轻量排序参考，并附上简短价值提示，帮助你判断要不要投入时间深入了解。
+        </p>
       </header>
 
-      {/* Top 3 */}
+      {/* 主模块：今日最值得看的信息 */}
       <section className="section-y">
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="heading-section">今日 AI Pulse Top 3</h2>
-            <p className="mt-1 text-[0.8125rem] text-[#666666]">
-              表格式榜单（排名列为浅灰竖区）。窄屏请<strong className="font-medium text-slate-700">左右滑动</strong>
-              查看全部列。
+            <h2 className="heading-section">今日最值得看的信息</h2>
+            <p className="mt-1 max-w-2xl text-[0.8125rem] text-[#666666]">
+              每条均含事实摘要与价值提示；标题说明「发生了什么」，不会被一句抽象判断替代。
             </p>
           </div>
           <Link to="/rankings" className="text-sm font-medium text-primary hover:underline">
-            查看完整榜单 →
+            打开完整信息榜单 →
           </Link>
         </div>
         {topErr ? <p className="mb-4 text-sm text-amber-800">{topErr}</p> : null}
-        {!topErr && top3.length > 0 ? (
-          <RankingTable
-            variant="home"
-            items={top3}
-            footer={
-              <div className="py-3 text-center">
-                <Link to="/rankings" className="text-sm font-semibold text-primary hover:underline">
-                  查看完整 Top 20 榜单 →
-                </Link>
-              </div>
-            }
-          />
-        ) : null}
+        {!topErr && top3.length > 0 ? <HomeTopInfoCards items={top3} /> : null}
         {!topErr && topLoaded && top3.length === 0 ? (
           <p className="text-sm text-slate-600">暂无榜单数据。请在服务器运行：`python -m app.jobs.daily_rankings`</p>
         ) : null}
+
+        <div className="mt-8 grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-10">
+          <div className="space-y-4">
+            <p className="text-[0.9375rem] leading-relaxed text-[#666666]">
+              需要更全的窗口与筛选？在榜单页可按时间范围与分类浏览，所有条目同样以
+              <strong className="font-semibold text-[#111827]">信息事实优先</strong>展示。
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link to="/rankings" className="btn-primary-lg no-underline">
+                查看信息榜单
+              </Link>
+              <Link
+                to="/#subscribe"
+                className="inline-flex h-11 items-center justify-center rounded-[var(--radius-btn)] border border-primary bg-white px-6 text-sm font-semibold text-primary shadow-sm transition-colors hover:bg-primary/5 no-underline"
+              >
+                订阅周报
+              </Link>
+            </div>
+          </div>
+
+          <aside className="rounded-[var(--radius-card)] border border-dashed border-slate-200 bg-slate-50/90 p-5">
+            <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">辅助 · Pulse 排序参考</p>
+            {lead && pulseNote ? (
+              <>
+                <p className="mt-3 text-sm leading-relaxed text-slate-700">
+                  当前列表首条 Pulse 为 <span className="font-headline font-semibold tabular-nums text-slate-900">{pulseNote}</span>
+                  ，仅用于同类信息之间的相对排序，不代表投资建议或结论。
+                </p>
+                <Link to={`/events/${lead.id}`} className="mt-4 inline-flex text-sm font-semibold text-primary hover:underline">
+                  打开首条详情 →
+                </Link>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-slate-600">
+                {!topLoaded ? '正在加载…' : '暂无榜单时此处不显示 Pulse。数据就绪后将展示轻量排序参考。'}
+              </p>
+            )}
+          </aside>
+        </div>
       </section>
 
       {/* How it works */}
       <section className="section-y">
         <h2 className="heading-section mb-2">AI Pulse 如何工作</h2>
-        <p className="mb-6 max-w-2xl text-muted">从信号收录到周报沉淀，形成闭环。</p>
+        <p className="mb-6 max-w-2xl text-muted">先交付可追溯的信息，再叠加轻量辅助判断。</p>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
           {[
-            { n: '01', icon: LineChart, t: '每日排行榜', d: '多源抓取、去重与排序。' },
-            { n: '02', icon: Activity, t: 'AI Pulse Score', d: '可信度、时效、热度与价值加权。' },
-            { n: '03', icon: Sparkles, t: 'AI 判断', d: '一句话判断与行动建议。' },
-            { n: '04', icon: BookOpen, t: '每周报告', d: '主线、边界与可忽略噪音。' },
+            { n: '01', icon: LineChart, t: '每日信息榜单', d: '多源收录、去重与结构化摘要。' },
+            { n: '02', icon: Activity, t: 'Pulse Score（参考）', d: '新鲜度、可信度、热度与价值的加权示意，用于排序而非结论。' },
+            { n: '03', icon: Sparkles, t: '轻量价值提示', d: '在事实之后补充「为什么值得看」「对你意味着什么」。' },
+            { n: '04', icon: BookOpen, t: '每周信息摘要', d: '按主题整理一周关键变化与值得继续跟踪的线索。' },
           ].map((step, i, arr) => {
             const Icon = step.icon;
             return (
@@ -355,8 +207,8 @@ export default function HomePage() {
 
       {/* Weekly preview */}
       <section className="section-y">
-        <h2 className="heading-section mb-1">本周判断报告预览</h2>
-        <p className="mb-5 text-muted">最新一期周报摘要（若有）。</p>
+        <h2 className="heading-section mb-1">本周信息摘要预览</h2>
+        <p className="mb-5 text-muted">最新一期周报的结构化整理（若有）。</p>
         {weeklyErr || !weeklyPreview?.headline ? (
           <EmptyState
             title="暂无已发布周报"
@@ -370,7 +222,7 @@ export default function HomePage() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-[#666666]">
                   <span className="rounded-md border border-primary/35 bg-white px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
-                    本周判断报告预览
+                    本周信息摘要预览
                   </span>
                   {weeklyPreview.reportDate ? (
                     <time dateTime={weeklyPreview.reportDate}>{weeklyPreview.reportDate}</time>
@@ -421,7 +273,8 @@ export default function HomePage() {
       <section id="subscribe" className="scroll-mt-28 card-surface section-y p-5 md:p-8">
         <h2 className="heading-section">订阅周报</h2>
         <p className="mt-2 text-muted">
-          日报看今日信号；周报看这一周<strong className="font-medium text-slate-800">值得投入什么</strong>。
+          日报浏览<strong className="font-medium text-slate-800">当日整理后的关键信息</strong>；
+          周报阅读<strong className="font-medium text-slate-800">一周主题摘要与线索清单</strong>。
         </p>
 
         <div className="mt-5 flex gap-2">

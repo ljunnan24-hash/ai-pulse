@@ -4,12 +4,10 @@ import { TrendingUp } from 'lucide-react';
 
 import { fetchRankings } from '../api/public';
 import type { RankingItem } from '../components/rankings/RankingCard';
-import { buildDisplayJudgment } from '../components/rankings/RankingCard';
-import { RankingTable } from '../components/rankings/RankingTable';
-import { ScoreBadge } from '../components/common/ScoreBadge';
+import { RankingsTopThree } from '../components/rankings/RankingsTopThree';
+import { RankingsInformationList } from '../components/rankings/RankingsInformationList';
 import { EmptyState } from '../components/common/EmptyState';
 import { categoryLabel } from '../lib/categoryLabels';
-import { displayInsightSummary } from '../lib/insightFallback';
 
 const RANGES = [
   { id: 'today', label: '今日' },
@@ -71,20 +69,17 @@ export default function RankingsPage() {
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
-  const topJudgmentPreview = items[0] ? buildDisplayJudgment(items[0]) : null;
-  const topLeadMeans = items[0]
-    ? displayInsightSummary(items[0].what_it_means_for_you, items[0].what_happened)
-    : '';
+  const restAfterTop = items.length > 3 ? items.slice(3) : [];
 
   return (
     <div className="page-container bg-slate-50">
       <header className="mb-6 flex flex-col gap-3 border-b border-slate-200/90 pb-6 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <h1 className="heading-page">
-            {range === 'today' ? '今日 AI Pulse 排行榜' : `AI Pulse 排行榜 · ${rangeLabel}`}
+            {range === 'today' ? '今日 AI Pulse 信息榜单' : `AI Pulse 信息榜单 · ${rangeLabel}`}
           </h1>
           <p className="mt-2 max-w-2xl text-muted">
-            Pulse Score 综合来源可信度、时效、热度与价值；以下为当前筛选下的实时排序。
+            先看清发生了什么，再对照「为什么值得看」与「对你意味着什么」。Pulse Score 仅辅助排序，不代表结论。
           </p>
         </div>
         {meta ? (
@@ -120,52 +115,7 @@ export default function RankingsPage() {
         ))}
       </div>
 
-      {items.length > 0 ? (
-        <section
-          className="mb-8 overflow-hidden rounded-[var(--radius-card)] border border-[#B8D4FF]/70 bg-[#F0F7FF] p-5 shadow-none md:mb-10 md:flex md:flex-row md:items-stretch md:gap-8 md:p-6"
-          aria-label={range === 'today' ? '今日判断' : '榜单判断'}
-        >
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                {range === 'today' ? '今日判断' : '榜单判断'}
-              </span>
-              {items[0] ? <ScoreBadge score={items[0].ranking_score} variant="pill" /> : null}
-            </div>
-            <p
-              className={`mt-3 font-headline leading-snug text-slate-900 md:text-xl ${
-                topJudgmentPreview?.isTitleFallback
-                  ? 'line-clamp-4 text-base font-medium'
-                  : 'line-clamp-5 text-lg font-semibold'
-              }`}
-            >
-              {topJudgmentPreview?.text || '浏览下方条目查看具体判断与依据。'}
-            </p>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 line-clamp-3 md:line-clamp-none">
-              {topLeadMeans ||
-                (range === 'today'
-                  ? '基于当前榜单首条的摘要判断；下方表格可逐项核对来源与行动建议。'
-                  : '基于当前筛选列表首条；切换条件可对照不同窗口下的主线信号。')}
-            </p>
-            <Link
-              to={items[0] ? `/events/${items[0].id}` : '/rankings'}
-              className="mt-5 inline-flex text-sm font-semibold text-primary hover:underline"
-            >
-              查看详情 →
-            </Link>
-          </div>
-          <div
-            className="relative mt-5 hidden h-32 shrink-0 overflow-hidden rounded-xl bg-white/60 ring-1 ring-primary/10 md:mt-0 md:flex md:h-auto md:min-h-[8.5rem] md:w-40 lg:w-48"
-            aria-hidden
-          >
-            <div className="absolute inset-x-5 top-7 h-1.5 rounded-full bg-primary/15" />
-            <div className="absolute inset-x-6 top-12 space-y-2">
-              <div className="h-1.5 rounded-full bg-primary/20" />
-              <div className="h-1.5 w-[82%] rounded-full bg-primary/10" />
-            </div>
-          </div>
-        </section>
-      ) : null}
+      {!err && items.length > 0 ? <RankingsTopThree items={items} /> : null}
 
       {err ? (
         <div className="card-surface-muted mb-6 px-5 py-4 text-sm">
@@ -179,16 +129,17 @@ export default function RankingsPage() {
 
       <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
         <div className="lg:col-span-8">
-          {!err && items.length > 0 ? (
-            <RankingTable
-              variant="rankings"
-              items={items}
-              footer={
-                <div className="py-3 text-center text-xs text-slate-500">
-                  当前展示 {items.length} 条 · 调整上方时间范围与分类可切换窗口
-                </div>
-              }
-            />
+          {!err && restAfterTop.length > 0 ? (
+            <div className="space-y-4">
+              <h2 className="font-headline text-sm font-semibold text-slate-800">更多上榜信息</h2>
+              <RankingsInformationList items={restAfterTop} rankOffset={3} />
+              <p className="py-2 text-center text-xs text-slate-500">
+                共 {items.length} 条：前 3 名见上方 · 可调整时间范围与分类
+              </p>
+            </div>
+          ) : null}
+          {!err && items.length > 0 && items.length <= 3 ? (
+            <p className="mt-2 text-center text-sm text-slate-500">以上为当前筛选下的全部上榜条目。</p>
           ) : null}
           {!err && items.length === 0 ? (
             <EmptyState
@@ -218,7 +169,7 @@ export default function RankingsPage() {
           <div className="card-surface p-5">
             <h3 className="font-headline text-sm font-semibold text-slate-900">订阅周报</h3>
             <p className="mt-2 text-xs leading-relaxed text-slate-600">
-              日报看信号，周报看<span className="text-slate-800">一周值得投入的方向</span>。
+              周报按主题整理信息，并附轻量价值提示，方便你决定要不要深入。
             </p>
             <Link
               to="/#subscribe"

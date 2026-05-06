@@ -31,7 +31,7 @@ export function SiteLayout() {
               AI Pulse
             </Link>
             <div className="flex flex-wrap items-center gap-1 sm:gap-1">
-              <NavLink to="/">今日判断</NavLink>
+              <NavLink to="/">首页</NavLink>
               <NavLink to="/rankings">排行榜</NavLink>
               <NavLink to="/weekly/latest">周报</NavLink>
               <NavLink to="/archive">归档</NavLink>

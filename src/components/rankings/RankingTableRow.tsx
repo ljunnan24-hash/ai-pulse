@@ -9,29 +9,6 @@ import { splitTitleForDisplay } from '../../lib/titleDisplay';
 
 type Variant = 'home' | 'rankings';
 
-/** 排行榜页 Top3：金 / 银 / 铜（圆章，与目标图一致） */
-function RankMedal({ rank }: { rank: number }) {
-  const medal = [
-    'bg-gradient-to-b from-amber-200 to-amber-300 text-amber-950 ring-2 ring-amber-400/90 shadow-sm',
-    'bg-gradient-to-b from-slate-100 to-slate-200 text-slate-800 ring-2 ring-slate-400/80 shadow-sm',
-    'bg-gradient-to-b from-orange-200 to-orange-300 text-orange-950 ring-2 ring-orange-400/80 shadow-sm',
-  ];
-  if (rank <= 3) {
-    return (
-      <span
-        className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums ${medal[rank - 1]}`}
-      >
-        {rank}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center font-headline text-sm font-semibold tabular-nums text-slate-500">
-      {rank}
-    </span>
-  );
-}
-
 /** 首页：大号蓝色排名数字，独立列居中 */
 function RankHomeNumeric({ rank, emphasis }: { rank: number; emphasis: boolean }) {
   return (
@@ -95,19 +72,31 @@ function auxiliaryTitle(item: RankingItem, jd: ReturnType<typeof buildDisplayJud
   return sub || null;
 }
 
+function judgmentSupplement(
+  item: RankingItem,
+  split: ReturnType<typeof splitTitleForDisplay>,
+  jd: ReturnType<typeof buildDisplayJudgment>,
+): string | null {
+  if (!jd.text.trim()) return null;
+  if (jd.text.trim() === split.primary.trim()) return null;
+  if (split.secondary && jd.text.trim() === split.secondary.trim()) return null;
+  return jd.text;
+}
+
 type DesktopProps = {
   rank: number;
   item: RankingItem;
   variant: Variant;
 };
 
-/** 桌面端：CSS Grid 一行，无 absolute，判断仅在内容轨 */
+/** 桌面端：CSS Grid 一行；排行榜其余名次整行可点进详情；首页保留操作列 */
 export function RankingTableRow({ rank, item, variant }: DesktopProps) {
   const jd = buildDisplayJudgment(item);
   const means = displayInsightSummary(item.what_it_means_for_you, item.what_happened);
+  const split = splitTitleForDisplay(item.title);
+  const jdExtra = judgmentSupplement(item, split, jd);
   const aux = auxiliaryTitle(item, jd);
   const isTop = rank <= 3;
-  const useMedals = variant === 'rankings';
   const eyebrow = jd.fromOneLiner ? 'AI Pulse 判断' : '摘要';
 
   const rowMin = isTop ? 'min-h-[96px]' : 'min-h-[72px]';
@@ -115,21 +104,65 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
 
   const rowPad = isTop ? 'py-2.5' : 'py-1.5';
 
+  if (variant === 'rankings') {
+    return (
+      <Link
+        to={`/events/${item.id}`}
+        className={`ranking-table-grid--rankings-rest border-b border-slate-100 bg-white px-2 py-1.5 transition-colors last:border-b-0 hover:bg-slate-50/80 md:px-3 min-h-[68px] no-underline`}
+        role="row"
+      >
+        <div
+          className="ranking-cell-rank -mx-2 flex shrink-0 items-start justify-center border-r border-slate-200 bg-slate-100 px-2 pt-1 md:-mx-3 md:px-3"
+          role="cell"
+        >
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center font-headline text-sm font-semibold tabular-nums text-slate-500">
+            {rank}
+          </span>
+        </div>
+
+        <div className="ranking-cell-pulse flex shrink-0 items-start justify-start pt-1" role="cell">
+          <PulseScoreCell score={item.ranking_score} variant={variant} rankTier="rest" />
+        </div>
+
+        <div className="flex min-h-0 min-w-0 flex-col gap-1 py-1" role="cell">
+          <p className="font-headline text-sm font-semibold leading-snug text-[#111827] [overflow-wrap:anywhere]">
+            {split.primary}
+          </p>
+          {split.secondary ? (
+            <p className="text-xs leading-snug text-slate-500 [overflow-wrap:anywhere]">{split.secondary}</p>
+          ) : null}
+          {jdExtra ? (
+            <p className="text-[0.7rem] leading-snug text-slate-500 [overflow-wrap:anywhere]">{jdExtra}</p>
+          ) : null}
+        </div>
+
+        <div className="flex min-w-0 items-start pt-1" role="cell">
+          <p className="text-[0.8125rem] leading-snug text-slate-600 [overflow-wrap:anywhere]">{means}</p>
+        </div>
+
+        <div className="flex items-start justify-center pt-1" role="cell">
+          <span className="inline-flex max-w-full rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-center text-[0.65rem] font-medium leading-tight text-slate-700">
+            {categoryLabel(item.category)}
+          </span>
+        </div>
+
+        <div className="flex items-start pt-1.5 text-[0.7rem] tabular-nums text-slate-400" role="cell">
+          {formatRelativeTime(item.published_at)}
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <div
       className={`ranking-table-grid border-b border-slate-100 bg-white px-2 transition-colors last:border-b-0 hover:bg-slate-50/60 md:px-3 ${rowPad} ${rowMin}`}
       role="row"
     >
-      {/* 排名列：固定浅灰竖区 + 右边线，与判断列彻底分割，避免误以为压住序号 */}
       <div
         className="ranking-cell-rank -mx-2 flex shrink-0 items-start justify-center border-r border-slate-200 bg-slate-100 px-2 pt-1 md:-mx-3 md:px-3"
         role="cell"
       >
-        {useMedals ? (
-          <RankMedal rank={rank} />
-        ) : (
-          <RankHomeNumeric rank={rank} emphasis={isTop} />
-        )}
+        <RankHomeNumeric rank={rank} emphasis={isTop} />
       </div>
 
       <div className="ranking-cell-pulse flex shrink-0 items-start justify-start pt-1" role="cell">
@@ -137,14 +170,10 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-col gap-1 overflow-hidden py-1" role="cell">
-        {variant === 'home' ? (
-          <span className="text-[0.55rem] font-medium uppercase tracking-wide text-slate-400">{eyebrow}</span>
-        ) : jd.fromOneLiner ? (
-          <span className="text-[0.6rem] font-medium text-slate-400">AI Pulse 判断</span>
-        ) : null}
+        <span className="text-[0.55rem] font-medium uppercase tracking-wide text-slate-400">{eyebrow}</span>
         <p
           className={`font-headline font-semibold leading-snug text-[#111827] [overflow-wrap:anywhere] line-clamp-2 ${
-            isTop && variant === 'rankings' ? 'text-base' : isTop ? 'text-[0.95rem]' : 'text-sm'
+            isTop ? 'text-[0.95rem]' : 'text-sm'
           } ${jd.isTitleFallback ? 'font-medium text-slate-800' : ''}`}
         >
           {jd.text}

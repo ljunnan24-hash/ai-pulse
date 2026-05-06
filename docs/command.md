@@ -22,9 +22,18 @@ $env:WEEKLY_SOURCE="global_events"
 sudo systemctl restart aipulse-api
 sudo systemctl status aipulse-api --no-pager
 
-改前端重启
+改前端（**build 后必须把 dist 拷到 Nginx 站点根目录**，仅 reload 不会更新线上 HTML）：
+
+cd /opt/ai-pulse
 npm ci && npm run build
-sudo systemctl reload nginx
+sudo rm -rf /var/www/aipulse/*
+sudo cp -r dist/* /var/www/aipulse/
+sudo nginx -t && sudo systemctl reload nginx
+
+验收（两处 JS 哈希应一致）：
+
+grep -o 'assets/index-[^"]*\.js' /var/www/aipulse/index.html
+curl -sS https://aipulse.asia/ | grep -o 'assets/index-[^"]*\.js'
 
 ## Crontab：每日榜单（建议每天早 8 点一条）
 

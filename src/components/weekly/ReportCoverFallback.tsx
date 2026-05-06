@@ -13,18 +13,17 @@ export function ReportCoverFallback({ readingMinutes, topJudgmentCount, noiseFil
     <section id="weekly-thesis" className="mb-8 scroll-mt-28 md:mb-10">
       <div className="card-surface p-5 md:p-6">
         <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">
-          本周核心判断
+          本周信息整理
         </span>
         <p className="mt-4 text-sm leading-relaxed text-slate-700">
-          本期主线判断与结构化章节见下方：
-          <span className="font-medium text-slate-900">Top 3 判断、能力边界与噪音过滤</span>。
+          下方按「事实 → 价值提示 → 分类与噪音」展开；先看信息，再对照辅助判断。
         </p>
         <div className="mt-4 flex flex-wrap gap-1.5">
           <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] font-medium text-slate-600">
             过去 7 天事件池
           </span>
           <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] text-slate-600">
-            Top 判断 {topJudgmentCount} 条
+            精选条目 {topJudgmentCount} 条
           </span>
           <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] text-slate-600">
             噪音过滤 {noiseFilteredCount} 条
