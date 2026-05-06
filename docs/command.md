@@ -11,14 +11,26 @@ cd backend
 .venv/bin/python -m app.jobs.send_weekly --test
 
 重新生成本周刊物：
-.venv/bin/python -m app.jobs.generate_weekly --force
+WEEKLY_SOURCE=global_events .venv/bin/python -m app.jobs.generate_weekly --force
 
 若不想重新爬 RSS，可：
-.venv/bin/python -m app.jobs.generate_weekly --reuse-crawl 
+cd C:\Users\Lenovo\Desktop\ai-pulse\backend
+$env:WEEKLY_SOURCE="global_events"
+.\.venv\Scripts\python.exe -m app.jobs.generate_weekly --reuse-crawl --force
 
 重启服务：
 sudo systemctl restart aipulse-api
 sudo systemctl status aipulse-api --no-pager
+
+改前端重启
+npm ci && npm run build
+sudo systemctl reload nginx
+
+## Crontab：每日榜单（建议每天早 8 点一条）
+
+示例见仓库 **`deploy/crontab.example`**（北京时间 **`0 8 * * *`** 跑 **`daily_rankings`**）。
+
+服务器若仍为每日三趟（8/14/21），可 **`sudo crontab -e`** 删掉 14 点、21 点两行，只保留 **8:00** 那一行，保存后 **`sudo crontab -l`** 核对。
 
 ---
 

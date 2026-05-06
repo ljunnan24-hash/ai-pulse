@@ -30,8 +30,8 @@ function trendHints(items: RankingItem[]): string[] {
   const rows = Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
-    .map(([cat, n]) => `${categoryLabel(cat)}方向 · ${n} 条信号`);
-  if (rows.length === 0) return ['当前榜单样本较少，趋势摘要将在数据增多后展示。'];
+    .map(([cat, n]) => `${categoryLabel(cat)} · ${n} 条`);
+  if (rows.length === 0) return ['当前样本较少，趋势将在数据增多后展示。'];
   return rows;
 }
 
@@ -54,50 +54,33 @@ export default function RankingsPage() {
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
-  const catLabel = CATS.find((c) => c.id === category)?.label ?? category;
 
   return (
-    <div className="mx-auto max-w-7xl pb-20 pt-4 md:pt-6">
-      <header className="mb-8 md:mb-10">
-        <h1 className="font-headline text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
-          {range === 'today' ? '今日 AI Pulse 排行榜' : `AI Pulse 排行榜 · ${rangeLabel}`}
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600 md:text-base">
-          基于来源可信度、新鲜度、热度、用户价值与 AI 相关性综合评分（Pulse Score）。每日打开一次，掌握当日最值得关注的 AI 信号。
-        </p>
-
+    <div className="page-container">
+      <header className="mb-6 flex flex-col gap-3 border-b border-slate-200/90 pb-6 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
+          <h1 className="heading-page">
+            {range === 'today' ? '今日 AI Pulse 排行榜' : `AI Pulse 排行榜 · ${rangeLabel}`}
+          </h1>
+          <p className="mt-2 max-w-2xl text-muted">
+            Pulse Score 综合来源可信度、时效、热度与价值；以下为当前筛选下的实时排序。
+          </p>
+        </div>
         {meta ? (
-          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-l-4 border-[#005bc1]/40 pl-4 text-sm text-slate-600">
-            <span>
-              <span className="font-semibold text-slate-800">更新时间</span>
-              <span className="mx-1.5 text-slate-300">·</span>
-              {new Date(meta.updated_at).toLocaleString('zh-CN')}
-            </span>
-            <span className="text-slate-300">|</span>
-            <span>
-              <span className="font-semibold text-slate-800">当前事件</span> {items.length} 条
-            </span>
-            <span className="text-slate-300">|</span>
-            <span>
-              范围：<span className="font-medium text-slate-800">{rangeLabel}</span>
-            </span>
-            <span className="text-slate-300">|</span>
-            <span>
-              分类：<span className="font-medium text-slate-800">{catLabel}</span>
-            </span>
-          </div>
+          <p className="shrink-0 text-xs tabular-nums text-slate-500 md:text-right">
+            更新{' '}
+            <time dateTime={meta.updated_at}>{new Date(meta.updated_at).toLocaleString('zh-CN')}</time>
+          </p>
         ) : null}
       </header>
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-2">
         {RANGES.map((r) => (
           <button
             key={r.id}
             type="button"
             onClick={() => setRange(r.id)}
-            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
-              range === r.id ? 'bg-[#005bc1] text-white shadow-sm' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
-            }`}
+            className={`filter-chip ${range === r.id ? 'filter-chip-active' : 'filter-chip-inactive'}`}
           >
             {r.label}
           </button>
@@ -110,9 +93,7 @@ export default function RankingsPage() {
             key={c.id}
             type="button"
             onClick={() => setCategory(c.id)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              category === c.id ? 'bg-[#005bc1]/10 text-[#004291] ring-2 ring-[#005bc1]/30' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-            }`}
+            className={`filter-chip ${category === c.id ? 'filter-chip-active' : 'filter-chip-inactive'}`}
           >
             {c.label}
           </button>
@@ -121,33 +102,31 @@ export default function RankingsPage() {
 
       {items.length > 0 ? (
         <section
-          className="relative mb-10 overflow-hidden rounded-2xl border-2 border-[#005bc1]/40 bg-gradient-to-br from-[#005bc1]/[0.14] via-white to-slate-50/80 px-6 py-6 shadow-[0_14px_44px_rgba(0,91,193,0.14)] md:px-8 md:py-7"
+          className="card-surface-muted section-y px-5 py-5 md:px-6 md:py-6"
           aria-label={range === 'today' ? '今日判断' : '榜单判断'}
         >
-          <div
-            className="pointer-events-none absolute -right-8 -top-12 h-40 w-40 rounded-full bg-[#005bc1]/15 blur-3xl"
-            aria-hidden
-          />
-          <p className="relative text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[#005bc1]">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
             {range === 'today' ? '今日判断' : '榜单判断'}
           </p>
-          <p className="relative mt-4 font-headline text-xl font-extrabold leading-snug text-slate-950 md:text-2xl">
-            <span className="text-[#004291]">{range === 'today' ? '今日判断：' : '榜单判断：'}</span>
-            <span className="text-slate-950">
-              {(items[0]?.one_liner ?? '').trim() ||
-                '上榜信号正在聚合，请浏览下方条目获取具体判断。'}
-            </span>
+          <p className="mt-3 font-headline text-lg font-semibold leading-snug text-slate-900 md:text-xl">
+            {(items[0]?.one_liner ?? '').trim() || '浏览下方条目查看具体判断与依据。'}
           </p>
-          <p className="relative mt-3 text-sm font-medium text-slate-600">
-            {range === 'today' ? '基于今日 Top 20 AI 信号生成。' : '基于当前榜单 Top 20 AI 信号生成。'}
+          <p className="mt-2 text-xs text-slate-500">
+            {range === 'today' ? '基于当前榜单 Top 综合摘要。' : '基于当前筛选列表 Top 综合摘要。'}
           </p>
+          <Link
+            to={items[0] ? `/events/${items[0].id}` : '/rankings'}
+            className="mt-4 inline-flex text-xs font-semibold text-primary hover:underline md:text-sm"
+          >
+            查看首条详情 →
+          </Link>
         </section>
       ) : null}
 
       {err ? <p className="mb-6 text-sm text-red-600">{err}</p> : null}
 
-      <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
-        <div className="space-y-4 lg:col-span-8">
+      <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
+        <div className="space-y-3 lg:col-span-8">
           {items.map((row, i) => (
             <RankingCard key={row.id} rank={i + 1} item={row} variant="full" />
           ))}
@@ -156,29 +135,27 @@ export default function RankingsPage() {
           ) : null}
         </div>
 
-        <aside className="space-y-8 lg:col-span-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-headline text-lg font-bold text-slate-900">今日趋势</h3>
-            <p className="mt-1 text-xs text-slate-500">基于当前榜单的分类粗略聚合</p>
-            <ul className="mt-4 space-y-3 text-sm text-slate-700">
+        <aside className="space-y-6 lg:col-span-4">
+          <div className="card-surface p-5">
+            <h3 className="font-headline text-sm font-semibold text-slate-900">今日趋势</h3>
+            <p className="mt-1 text-[0.7rem] text-slate-500">当前列表分类分布</p>
+            <ul className="mt-3 space-y-2 text-xs leading-relaxed text-slate-600">
               {sidebarTrends.map((line, idx) => (
-                <li key={idx} className="flex gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#005bc1]" />
+                <li key={idx} className="flex gap-2 border-l-2 border-slate-200 pl-2">
                   <span>{line}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="rounded-2xl border border-[#005bc1]/20 bg-gradient-to-br from-[#005bc1]/5 to-white p-6 shadow-sm">
-            <h3 className="font-headline text-lg font-bold text-slate-900">订阅周报</h3>
-            <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              排行榜告诉你<strong className="text-slate-800">今天发生了什么</strong>；
-              周报告诉你这一周<strong className="text-slate-800">真正值得投入什么</strong>。
+          <div className="card-surface p-5">
+            <h3 className="font-headline text-sm font-semibold text-slate-900">订阅周报</h3>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">
+              日报看信号，周报看<span className="text-slate-800">一周值得投入的方向</span>。
             </p>
             <Link
               to="/#subscribe"
-              className="mt-5 inline-flex w-full justify-center rounded-full bg-[#005bc1] py-3 text-center font-headline text-sm font-bold text-white shadow-sm hover:bg-[#004a9e]"
+              className="btn-secondary mt-4 inline-flex w-full justify-center font-headline no-underline"
             >
               订阅周报
             </Link>
