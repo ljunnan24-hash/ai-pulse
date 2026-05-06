@@ -355,6 +355,7 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
 
     prev = 0.0
     ranking_insight_keep: dict[str, Any] | None = None
+    one_liner_keep: str | None = None
     insight_uv: float | None = None
     insight_applied = False
     try:
@@ -368,6 +369,9 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
                 if ri.get("user_value_score") is not None:
                     insight_applied = True
                     insight_uv = float(ri["user_value_score"])
+            ol = m0.get("one_liner")
+            if isinstance(ol, str) and ol.strip():
+                one_liner_keep = ol.strip()
     except Exception:
         prev = 0.0
 
@@ -436,6 +440,8 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
     }
     if ranking_insight_keep is not None:
         metrics["ranking_insight"] = ranking_insight_keep
+    if one_liner_keep:
+        metrics["one_liner"] = one_liner_keep
     ge.metrics_json = json.dumps(metrics, ensure_ascii=False)
     db.flush()
 

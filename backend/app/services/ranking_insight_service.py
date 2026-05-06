@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
@@ -221,6 +222,313 @@ def _strip_banned(text: str) -> str:
     return t.strip()
 
 
+_ONE_LINER_FILLERS = (
+    "这表明",
+    "这意味着",
+    "这说明",
+    "可以说",
+    "总而言之",
+    "需要注意的是",
+    "可以看到",
+    "总体来说",
+    "事实上",
+    "实际上",
+    "不难发现",
+    "不难看出",
+    "换句话说",
+    "简单来说",
+    "总的来说",
+)
+
+# 句首弱化主体（循环剥离）
+_WEAK_SUBJECT_PREFIXES: tuple[str, ...] = (
+    "该事件",
+    "这一事件",
+    "该举措",
+    "这一举措",
+    "此举",
+    "该产品",
+    "这一产品",
+    "该公司",
+    "该企业",
+    "此次",
+    "本次",
+    "这一动态",
+    "这一消息",
+    "这一方面",
+)
+
+# 判断感语义锚点（用于从长文中挑选更像判断的句子）
+_JUDGMENT_HINTS: frozenset[str] = frozenset(
+    {
+        "趋势",
+        "影响",
+        "变化",
+        "机会",
+        "风险",
+        "挑战",
+        "格局",
+        "重塑",
+        "加速",
+        "倒逼",
+        "渗透",
+        "走向",
+        "落地",
+        "商用",
+        "规模化",
+        "窗口",
+        "赛道",
+        "分化",
+        "收紧",
+        "红利",
+        "拐点",
+        "浪潮",
+        "正在",
+        "或将",
+        "难免",
+    }
+)
+
+# 典型「纯资讯」动词短语（短句命中则倾向改用 why 中的判断句）
+_NEWS_FACT_MARKERS: tuple[str, ...] = (
+    "发布了",
+    "宣布了",
+    "推出了",
+    "上线了",
+    "公布了",
+    "正式启动",
+    "正式发布",
+    "发布新",
+    "宣布推出",
+    "首度公开",
+    "刊发",
+)
+
+
+def _is_han(ch: str) -> bool:
+    return len(ch) == 1 and "\u4e00" <= ch <= "\u9fff"
+
+
+def _truncate_max_han(s: str, max_han: int = 35) -> str:
+    """保留至多 max_han 个汉字；标点仅允许紧跟已输出汉字之后。"""
+    out: list[str] = []
+    n = 0
+    for ch in s:
+        if _is_han(ch):
+            if n >= max_han:
+                break
+            n += 1
+            out.append(ch)
+        else:
+            if 0 < n <= max_han and ch in "，、；：,.!?！？… \u3000":
+                out.append(ch)
+            elif n >= max_han:
+                break
+    return "".join(out).strip(" ，、；：,.!?！？")
+
+
+def _smooth_truncate_tail(s: str) -> str:
+    """避免在「的、和、与」等连接成分处生硬截断。"""
+    t = (s or "").rstrip()
+    if not t:
+        return ""
+    bad_endings = ("的", "和", "与", "及", "或", "对", "在", "将", "被", "把", "从", "以")
+    if len(t) >= 2 and t[-1] in bad_endings:
+        cut = max(t.rfind("，"), t.rfind("、"))
+        if cut > 0:
+            return t[:cut].strip(" ，、；")
+    return t
+
+
+def _strip_one_liner_fillers(text: str) -> str:
+    t = (text or "").strip()
+    for ph in _ONE_LINER_FILLERS:
+        t = t.replace(ph, "")
+    return t.strip()
+
+
+def _strip_weak_subject_prefix(text: str) -> str:
+    """去掉「该事件」「此次」等弱化主体开头。"""
+    t = (text or "").strip()
+    changed = True
+    while changed and t:
+        changed = False
+        for p in sorted(_WEAK_SUBJECT_PREFIXES, key=len, reverse=True):
+            if t.startswith(p):
+                t = t[len(p) :].lstrip("，：:；、 ").strip()
+                changed = True
+                break
+    return t
+
+
+def _sentence_split_candidates(text: str) -> list[str]:
+    """拆成候选短句（保留语义单元）。"""
+    t = (text or "").strip()
+    if not t:
+        return []
+    parts = re.split(r"[。！？\n；]+", t)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _sentence_judgment_score(sentence: str) -> float:
+    """越高越像判断句，越低越像资讯事实句。"""
+    s = sentence.strip()
+    if not s:
+        return -100.0
+    score = 0.0
+    for h in _JUDGMENT_HINTS:
+        if h in s:
+            score += 3.0
+    for m in _NEWS_FACT_MARKERS:
+        if m in s:
+            score -= 4.5
+    # 英语品牌 + 发布类短句倾向资讯
+    if len([c for c in s if _is_han(c)]) <= 18:
+        if any(x in s for x in ("发布", "宣布", "推出", "上线")):
+            score -= 2.0
+    return score
+
+
+def pick_best_judgment_sentence(long_text: str) -> str:
+    """从较长正文选判断感最强的一句；单句则返回去空话后整句。"""
+    t = _strip_one_liner_fillers(long_text)
+    if not t:
+        return ""
+    candidates = _sentence_split_candidates(t)
+    if not candidates:
+        return _strip_weak_subject_prefix(t)
+    if len(candidates) == 1:
+        return _strip_weak_subject_prefix(_strip_one_liner_fillers(candidates[0]))
+    best = max(candidates, key=lambda x: _sentence_judgment_score(x))
+    return _strip_weak_subject_prefix(_strip_one_liner_fillers(best))
+
+
+def _looks_like_news_fact_clip(s: str) -> bool:
+    """偏「短资讯」而非立场判断（用于触发从 why 升级）。"""
+    raw = (s or "").strip()
+    if not raw:
+        return True
+    t = _strip_weak_subject_prefix(_strip_one_liner_fillers(raw))
+    if not t:
+        return True
+    han_n = sum(1 for c in t if _is_han(c))
+    # 含判断锚点则不算纯资讯短句
+    if any(h in t for h in _JUDGMENT_HINTS):
+        return False
+    for m in _NEWS_FACT_MARKERS:
+        if m in t:
+            return True
+    if han_n <= 22 and any(x in t for x in ("发布", "宣布", "推出", "上线", "公布")):
+        return True
+    return False
+
+
+def derive_one_liner_fallback(long_text: str) -> str:
+    """从较长正文提炼一句话判断（优先判断感较强的一句）。"""
+    best = pick_best_judgment_sentence(long_text)
+    if best:
+        return best
+    t = _strip_one_liner_fillers(long_text)
+    if not t:
+        return ""
+    for sep in ("。", "！", "？", "\n", "；"):
+        if sep in t:
+            t = t.split(sep)[0].strip()
+            break
+    return _strip_weak_subject_prefix(_strip_one_liner_fillers(t))
+
+
+def _normalize_one_liner_core(text: str, *, max_han: int = 35) -> str:
+    """内部：填空话、弱主体、截断与尾部修整；返回纯 str，永不为 None。"""
+    if text is None:
+        return ""
+    t = str(text).strip()
+    if not t:
+        return ""
+    t = _strip_one_liner_fillers(t)
+    t = _strip_weak_subject_prefix(t)
+    t = _truncate_max_han(t, max_han)
+    t = _smooth_truncate_tail(t)
+    return (t or "").strip()
+
+
+def normalize_one_liner(text: str | None, *, max_han: int = 35) -> str:
+    """对外：去空话与弱主体，限制汉字数量；保证返回 str（永不为 None）。"""
+    return _normalize_one_liner_core(text, max_han=max_han)
+
+
+def finalize_one_liner_for_event(
+    *,
+    llm_one_liner: str | None,
+    why_important: str,
+    what_happened: str,
+    title: str,
+) -> str:
+    """
+    Insight 入库与 API 共用：合并 LLM one_liner 与兜底，弱化「纯新闻短句」。
+    """
+    wi = (why_important or "").strip()
+    wh = (what_happened or "").strip()
+    tit = (title or "").strip()
+
+    cand = ""
+    if isinstance(llm_one_liner, str) and llm_one_liner.strip():
+        cand = _normalize_one_liner_core(llm_one_liner.strip())
+    if not cand:
+        cand = _normalize_one_liner_core(derive_one_liner_fallback(wi))
+    if not cand:
+        cand = _normalize_one_liner_core(derive_one_liner_fallback(wh))
+
+    if _looks_like_news_fact_clip(cand):
+        alt = _normalize_one_liner_core(derive_one_liner_fallback(wi))
+        if alt and not _looks_like_news_fact_clip(alt):
+            cand = alt
+        elif wi:
+            alt2 = _normalize_one_liner_core(pick_best_judgment_sentence(wi))
+            if alt2 and not _looks_like_news_fact_clip(alt2):
+                cand = alt2
+
+    if _looks_like_news_fact_clip(cand) and tit and cand.strip() == tit.strip():
+        cand = _normalize_one_liner_core(derive_one_liner_fallback(wi)) or cand
+
+    out = _normalize_one_liner_core(cand)
+    if _looks_like_news_fact_clip(out) and wi:
+        bumped = _normalize_one_liner_core(pick_best_judgment_sentence(wi))
+        if bumped and not _looks_like_news_fact_clip(bumped):
+            out = bumped
+    return _normalize_one_liner_core(out)
+
+
+def resolve_one_liner_for_api(ge: GlobalEvent) -> str:
+    """
+    榜单 API 用：优先 metrics_json.one_liner；否则从 why_important / what_happened 提炼。
+    无可用内容时返回空字符串（前端自行兜底）。
+    """
+    wi = (ge.why_important or "").strip()
+    wh = (ge.what_happened or "").strip()
+    tit = (ge.canonical_title or "").strip()
+    try:
+        m = json.loads(ge.metrics_json or "{}")
+        if isinstance(m, dict):
+            ol = m.get("one_liner")
+            llm_part: str | None = ol.strip() if isinstance(ol, str) and ol.strip() else None
+            if llm_part is not None:
+                return finalize_one_liner_for_event(
+                    llm_one_liner=llm_part,
+                    why_important=wi,
+                    what_happened=wh,
+                    title=tit,
+                )
+    except Exception:
+        pass
+    return finalize_one_liner_for_event(
+        llm_one_liner=None,
+        why_important=wi,
+        what_happened=wh,
+        title=tit,
+    )
+
+
 def _normalize_action(v: Any) -> str:
     s = str(v or "").strip()
     if s in ACTION_CHOICES:
@@ -280,6 +588,7 @@ _INSIGHT_SYSTEM = """你是 AI 行业情报编辑，面向非技术职场人与�
 输出必须是单一 JSON 对象，顶层键为 "insights"，值为数组；数组元素格式：
 {
   "event_id": <整数>,
+  "one_liner": "一句话判断（必须是中文；不超过35个汉字；判断句，不是摘要句；禁止「这表明」「这意味着」等空话套话）",
   "what_happened": "陈述已发生的事实，建议约 80～220 字，信息完整、不要用省略号收尾",
   "why_important": "行业层面意义，建议约 80～320 字，不要用省略号收尾",
   "what_it_means_for_you": "对读者工作/创业的影响与行动提示，建议约 80～320 字，不要用省略号收尾",
@@ -294,6 +603,19 @@ _INSIGHT_SYSTEM = """你是 AI 行业情报编辑，面向非技术职场人与�
     "safety": 0.0
   }
 }
+one_liner 要求（务必遵守）：
+- 每条事件必须输出 one_liner；
+- 必须是中文（勿夹杂英文品牌当整句主体；可用「头部厂商」「主流模型」等泛指）；
+- 不超过 35 个汉字；
+- 必须是判断句：写趋势、影响、格局变化、机会窗口或风险，不要写资讯报道；
+- 禁止复述标题原句；禁止把 one_liner 写成「发生了什么」；
+- 禁止使用「发布了」「宣布了」「推出了」「正式上线了」等纯新闻句式；
+- 禁止以「这表明」「这意味着」「该事件」「这一举措」等空话或弱化主体开头；
+- 尽量包含「趋势 / 影响 / 变化 / 机会 / 风险」之一（可用不同措辞表达）；
+- 格式示例（不可照抄，需按本条事件独立写）：
+  「AI 办公正在进入真正可用阶段」
+  「企业 AI Agent 开始从演示走向落地」
+  「普通白领的重复办公任务正在被压缩」
 capability_tags 各值为 0~1。
 禁用词（禁止出现在任意字符串字段）：可能、或许、可尝试、值得一看。
 action_suggestion 必须是三者之一：现在试用、先观望、可以忽略。
@@ -408,6 +730,15 @@ def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: boo
                 if not wm:
                     wm = "结合标题与来源核对是否与你业务相关。"
 
+                ol_raw = row.get("one_liner")
+                llm_ol = ol_raw.strip() if isinstance(ol_raw, str) and ol_raw.strip() else None
+                one_liner = finalize_one_liner_for_event(
+                    llm_one_liner=llm_ol,
+                    why_important=wi,
+                    what_happened=wh,
+                    title=(ge.canonical_title or ""),
+                )
+
                 if _text_has_placeholder(wh) or _text_has_placeholder(wi) or _text_has_placeholder(wm):
                     _log.warning(
                         "ranking_insight: LLM output still contains placeholder-like copy event_id=%s",
@@ -435,6 +766,7 @@ def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: boo
                 if force:
                     ri_meta["forced"] = True
                 m_prev["ranking_insight"] = ri_meta
+                m_prev["one_liner"] = one_liner
                 ge.metrics_json = json.dumps(m_prev, ensure_ascii=False)
                 batch_updated.append(ge.id)
             except Exception as exc:

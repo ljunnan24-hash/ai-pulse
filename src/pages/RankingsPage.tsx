@@ -119,6 +119,27 @@ export default function RankingsPage() {
         ))}
       </div>
 
+      {items.length > 0 ? (
+        <section
+          className="mb-8 rounded-2xl border border-[#005bc1]/20 bg-gradient-to-br from-[#005bc1]/[0.07] via-white to-white px-5 py-5 md:px-7 md:py-6"
+          aria-label={range === 'today' ? '今日一句判断' : '榜单一句话判断'}
+        >
+          <p className="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-[#005bc1]/90">
+            {range === 'today' ? '今日一句判断' : '榜单一句话判断'}
+          </p>
+          <p className="mt-3 text-base font-medium leading-relaxed text-slate-800 md:text-lg">
+            <span className="font-semibold text-slate-600">
+              {range === 'today' ? '今日判断：' : '榜单判断：'}
+            </span>
+            {(items[0]?.one_liner ?? '').trim() ||
+              '上榜信号正在聚合，请浏览下方条目获取具体判断。'}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            {range === 'today' ? '基于今日 Top 20 AI 信号生成。' : '基于当前榜单 Top 20 AI 信号生成。'}
+          </p>
+        </section>
+      ) : null}
+
       {err ? <p className="mb-6 text-sm text-red-600">{err}</p> : null}
 
       <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">

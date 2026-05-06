@@ -17,6 +17,8 @@ export type RankingsResponse = {
     what_happened: string;
     what_it_means_for_you: string;
     action_suggestion: string;
+    /** 一句话判断（榜单卡片展示；缺失时前端兜底） */
+    one_liner?: string;
   }>;
 };
 

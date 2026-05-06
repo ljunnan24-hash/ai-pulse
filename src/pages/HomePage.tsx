@@ -188,7 +188,7 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.05 }}
             >
-              <RankingCard rank={idx + 1} item={item} variant="compact" />
+              <RankingCard rank={idx + 1} item={item} variant="full" />
             </motion.div>
           ))}
           {!topErr && top5.length === 0 ? (

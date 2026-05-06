@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import GlobalEvent
 from app.services.global_event_service import build_deduped_sources_for_api
-from app.services.ranking_insight_service import CAPABILITY_KEYS
+from app.services.ranking_insight_service import CAPABILITY_KEYS, resolve_one_liner_for_api
 from app.services.ranking_score import RangeKey, effective_ranking_score
 
 router = APIRouter(prefix="/api", tags=["rankings"])
@@ -81,6 +81,7 @@ def list_rankings(
                 "what_happened": ge.what_happened or "",
                 "what_it_means_for_you": ge.what_it_means_for_you or "",
                 "action_suggestion": ge.action_suggestion or "",
+                "one_liner": resolve_one_liner_for_api(ge),
             }
         )
 
