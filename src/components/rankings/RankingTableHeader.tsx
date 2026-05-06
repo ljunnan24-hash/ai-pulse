@@ -11,28 +11,31 @@ export function RankingTableHeader({
 }: Props) {
   return (
     <div
-      className="ranking-table-grid border-b border-slate-200 bg-slate-50 px-2 py-3 text-[0.6875rem] font-semibold tracking-wide text-slate-500 md:px-3"
+      className="ranking-table-grid border-b border-slate-200 bg-white px-2 py-3 text-[0.6875rem] font-semibold tracking-wide text-slate-500 md:px-3"
       role="row"
     >
-      <div className="w-[64px] min-w-[64px] max-w-[64px] shrink-0 text-center" role="columnheader">
+      <div
+        className="-mx-2 w-[64px] min-w-[64px] max-w-[64px] shrink-0 border-r border-slate-200 bg-slate-100 px-2 text-center md:-mx-3 md:px-3"
+        role="columnheader"
+      >
         排名
       </div>
-      <div className="w-[96px] min-w-[96px] max-w-[96px] shrink-0 text-left" role="columnheader">
+      <div className="w-[96px] min-w-[96px] max-w-[96px] shrink-0 bg-slate-50 text-left" role="columnheader">
         Pulse Score
       </div>
-      <div className="min-w-0 text-left" role="columnheader">
+      <div className="min-w-0 bg-slate-50 text-left" role="columnheader">
         {judgmentColumnLabel}
       </div>
-      <div className="min-w-0 text-left" role="columnheader">
+      <div className="min-w-0 bg-slate-50 text-left" role="columnheader">
         对你意味着什么
       </div>
-      <div className="text-center" role="columnheader">
+      <div className="bg-slate-50 text-center" role="columnheader">
         分类
       </div>
-      <div className="text-left" role="columnheader">
+      <div className="bg-slate-50 text-left" role="columnheader">
         时间
       </div>
-      <div className="text-right" role="columnheader">
+      <div className="bg-slate-50 text-right" role="columnheader">
         操作
       </div>
     </div>

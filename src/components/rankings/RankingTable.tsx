@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { RankingItem } from './RankingCard';
 import { RankingTableHeader } from './RankingTableHeader';
-import { RankingTableMobileRow, RankingTableRow } from './RankingTableRow';
+import { RankingTableRow } from './RankingTableRow';
 
 type Props = {
   variant: 'home' | 'rankings';
@@ -12,55 +12,30 @@ type Props = {
 };
 
 /**
- * 企业级榜单：
- * - 排行榜页（rankings）：任意宽度都用 Grid 表（窄屏横向滑动），避免误以为是「没改的卡片栈」
- * - 首页 Top5（home）：窄屏仍用紧凑纵向栈，桌面用 Grid
+ * 首页与排行榜共用同一套：横向滚动 + Grid（不再按 md 切换成另一套「纵向栈」，避免手机上看起来像「没改」）。
  */
 export function RankingTable({ variant, items, footer }: Props) {
-  const tableInner = (
-    <>
-      <RankingTableHeader
-        judgmentColumnLabel={
-          variant === 'home' ? '判断与原文标题' : '判断（今日一句话）'
-        }
-      />
-      {items.map((item, idx) => (
-        <RankingTableRow key={item.id} rank={idx + 1} item={item} variant={variant} />
-      ))}
-    </>
-  );
-
-  if (variant === 'rankings') {
-    return (
-      <div className="card-surface overflow-hidden ring-1 ring-slate-200/80">
-        <p className="border-b border-slate-100 bg-slate-50/80 px-3 py-2 text-center text-[0.7rem] text-slate-500 md:hidden">
-          左右滑动查看完整榜单表格
-        </p>
-        <div className="overflow-x-auto overscroll-x-contain">
-          <div className="min-w-[62rem]">
-            {tableInner}
-          </div>
-        </div>
-        {footer ? <div className="border-t border-slate-100 bg-white">{footer}</div> : null}
-      </div>
-    );
-  }
+  const isRankings = variant === 'rankings';
 
   return (
-    <div className="card-surface overflow-hidden">
-      <div className="hidden md:block">
-        <div className="overflow-x-auto">
-          <div className="min-w-[62rem]">{tableInner}</div>
+    <div className={`card-surface overflow-hidden ${isRankings ? 'ring-1 ring-slate-200/80' : ''}`}>
+      {/* 窄屏一眼可见：必须滑动才能看全表 */}
+      <p className="border-b border-sky-100 bg-sky-50 px-3 py-2 text-center text-[0.75rem] font-medium text-sky-950 md:hidden">
+        ← 左右滑动查看完整表格 →
+      </p>
+      <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+        <div className="min-w-[62rem]">
+          <RankingTableHeader
+            judgmentColumnLabel={
+              variant === 'home' ? '判断与原文标题' : '判断（今日一句话）'
+            }
+          />
+          {items.map((item, idx) => (
+            <RankingTableRow key={item.id} rank={idx + 1} item={item} variant={variant} />
+          ))}
         </div>
       </div>
-
-      <div className="md:hidden">
-        {items.map((item, idx) => (
-          <RankingTableMobileRow key={item.id} rank={idx + 1} item={item} variant={variant} />
-        ))}
-      </div>
-
-      {footer ? <div className="border-t border-slate-100">{footer}</div> : null}
+      {footer ? <div className="border-t border-slate-100 bg-white">{footer}</div> : null}
     </div>
   );
 }

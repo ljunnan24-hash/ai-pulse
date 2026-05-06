@@ -120,7 +120,11 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
       className={`ranking-table-grid border-b border-slate-100 bg-white px-2 transition-colors last:border-b-0 hover:bg-slate-50/60 md:px-3 ${rowPad} ${rowMin}`}
       role="row"
     >
-      <div className="ranking-cell-rank flex shrink-0 items-start justify-center pt-1" role="cell">
+      {/* 排名列：固定浅灰竖区 + 右边线，与判断列彻底分割，避免误以为压住序号 */}
+      <div
+        className="ranking-cell-rank -mx-2 flex shrink-0 items-start justify-center border-r border-slate-200 bg-slate-100 px-2 pt-1 md:-mx-3 md:px-3"
+        role="cell"
+      >
         {useMedals ? (
           <RankMedal rank={rank} />
         ) : (
@@ -166,72 +170,6 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
 
       <div className="flex items-start justify-end pt-1" role="cell">
         <RowActionLink item={item} />
-      </div>
-    </div>
-  );
-}
-
-type MobileProps = {
-  rank: number;
-  item: RankingItem;
-  variant: Variant;
-};
-
-/**
- * 移动端：四行栈 —— 排名+Pulse+分类 | 判断 | 原文 | 含义+操作
- * 紧凑，非大卡片流
- */
-export function RankingTableMobileRow({ rank, item, variant }: MobileProps) {
-  const jd = buildDisplayJudgment(item);
-  const means = displayInsightSummary(item.what_it_means_for_you, item.what_happened);
-  const aux = auxiliaryTitle(item, jd);
-  const isTop = rank <= 3;
-  const useMedals = variant === 'rankings';
-
-  const rawTitleLine =
-    item.title.trim() && item.title.trim() !== jd.text.trim() ? item.title.trim() : aux || '';
-
-  return (
-    <div
-      className={`border-b border-slate-100 px-3 py-2 last:border-b-0 ${isTop ? 'bg-slate-50/40 py-2.5' : ''}`}
-    >
-      {/* 第一行：排名 + Pulse + 分类 */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <div className="flex items-center gap-2.5">
-          <div className="flex min-h-[2.5rem] min-w-[2.75rem] items-center justify-center">
-            {useMedals ? <RankMedal rank={rank} /> : <RankHomeNumeric rank={rank} emphasis={isTop} />}
-          </div>
-          <PulseScoreCell score={item.ranking_score} variant={variant} rankTier={isTop ? 'top3' : 'rest'} />
-        </div>
-        <span className="max-w-[10rem] truncate rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[0.65rem] font-medium text-slate-600">
-          {categoryLabel(item.category)}
-        </span>
-      </div>
-
-      {/* 第二行：判断 */}
-      <p
-        className={`mt-1.5 font-headline font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere] line-clamp-2 ${
-          isTop ? 'text-[0.9rem]' : 'text-sm'
-        }`}
-      >
-        {jd.text}
-      </p>
-
-      {/* 第三行：原始标题 */}
-      {rawTitleLine ? (
-        <p className="mt-0.5 text-xs leading-snug text-slate-500 [overflow-wrap:anywhere] line-clamp-1">
-          {rawTitleLine}
-        </p>
-      ) : null}
-
-      {/* 第四行：对你意味着什么 + 操作 */}
-      <div className="mt-1.5 flex items-start justify-between gap-2">
-        <p className="min-w-0 flex-1 text-[0.7rem] leading-snug text-slate-600 [overflow-wrap:anywhere] line-clamp-2">
-          {means}
-        </p>
-        <div className="shrink-0 pt-0.5">
-          <RowActionLink item={item} />
-        </div>
       </div>
     </div>
   );

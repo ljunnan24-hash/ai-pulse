@@ -292,7 +292,10 @@ export default function HomePage() {
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="heading-section">今日 AI Pulse Top 3</h2>
-            <p className="mt-1 text-[0.8125rem] text-[#666666]">统一榜单容器：桌面为表格式扫读；移动端为紧凑纵向行。</p>
+            <p className="mt-1 text-[0.8125rem] text-[#666666]">
+              表格式榜单（排名列为浅灰竖区）。窄屏请<strong className="font-medium text-slate-700">左右滑动</strong>
+              查看全部列。
+            </p>
           </div>
           <Link to="/rankings" className="text-sm font-medium text-primary hover:underline">
             查看完整榜单 →
