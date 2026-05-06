@@ -14,7 +14,7 @@ export function WeeklyReportHeader({ reportDate, title, readingMinutes }: Props)
         <h1 className="font-headline text-2xl font-bold tracking-tight text-[#111827] md:text-[1.85rem] md:leading-snug">
           {displayTitle}
         </h1>
-        <span className="inline-flex w-fit shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium tabular-nums text-slate-600">
+        <span className="inline-flex w-fit shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium tabular-nums text-slate-600">
           阅读约 {readingMinutes} 分钟
         </span>
       </div>

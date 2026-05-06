@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { TrendingUp } from 'lucide-react';
 
 import { fetchRankings } from '../api/public';
 import type { RankingItem } from '../components/rankings/RankingCard';
@@ -39,6 +40,18 @@ function trendHints(items: RankingItem[]): string[] {
   return rows;
 }
 
+function formatUpdatedAtLabel(iso: string | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `更新于 ${y} / ${m} / ${day} ${h}:${min}`;
+}
+
 export default function RankingsPage() {
   const [range, setRange] = useState<(typeof RANGES)[number]['id']>('today');
   const [category, setCategory] = useState<(typeof CATS)[number]['id']>('all');
@@ -64,7 +77,7 @@ export default function RankingsPage() {
     : '';
 
   return (
-    <div className="page-container">
+    <div className="page-container bg-slate-50">
       <header className="mb-6 flex flex-col gap-3 border-b border-slate-200/90 pb-6 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <h1 className="heading-page">
@@ -76,8 +89,7 @@ export default function RankingsPage() {
         </div>
         {meta ? (
           <p className="shrink-0 text-xs tabular-nums text-slate-500 md:text-right">
-            更新{' '}
-            <time dateTime={meta.updated_at}>{new Date(meta.updated_at).toLocaleString('zh-CN')}</time>
+            <time dateTime={meta.updated_at}>{formatUpdatedAtLabel(meta.updated_at)}</time>
           </p>
         ) : null}
       </header>
@@ -110,7 +122,7 @@ export default function RankingsPage() {
 
       {items.length > 0 ? (
         <section
-          className="card-surface mb-8 flex flex-col gap-5 overflow-hidden p-5 md:mb-10 md:flex-row md:items-stretch md:gap-8 md:p-6"
+          className="mb-8 overflow-hidden rounded-[var(--radius-card)] border border-[#B8D4FF]/70 bg-[#F0F7FF] p-5 shadow-none md:mb-10 md:flex md:flex-row md:items-stretch md:gap-8 md:p-6"
           aria-label={range === 'today' ? '今日判断' : '榜单判断'}
         >
           <div className="min-w-0 flex-1">
@@ -121,15 +133,15 @@ export default function RankingsPage() {
               {items[0] ? <ScoreBadge score={items[0].ranking_score} variant="pill" /> : null}
             </div>
             <p
-              className={`mt-3 font-headline leading-snug md:text-xl ${
+              className={`mt-3 font-headline leading-snug text-slate-900 md:text-xl ${
                 topJudgmentPreview?.isTitleFallback
-                  ? 'line-clamp-4 text-base font-medium text-slate-700'
-                  : 'line-clamp-5 text-lg font-semibold text-slate-900'
+                  ? 'line-clamp-4 text-base font-medium'
+                  : 'line-clamp-5 text-lg font-semibold'
               }`}
             >
               {topJudgmentPreview?.text || '浏览下方条目查看具体判断与依据。'}
             </p>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#666666] line-clamp-3 md:line-clamp-none">
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 line-clamp-3 md:line-clamp-none">
               {topLeadMeans ||
                 (range === 'today'
                   ? '基于当前榜单首条的摘要判断；下方表格可逐项核对来源与行动建议。'
@@ -143,13 +155,13 @@ export default function RankingsPage() {
             </Link>
           </div>
           <div
-            className="relative hidden h-36 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-primary/15 via-primary/5 to-transparent ring-1 ring-primary/15 md:flex md:h-auto md:min-h-[9rem] md:w-44 lg:w-52"
+            className="relative mt-5 hidden h-32 shrink-0 overflow-hidden rounded-xl bg-white/60 ring-1 ring-primary/10 md:mt-0 md:flex md:h-auto md:min-h-[8.5rem] md:w-40 lg:w-48"
             aria-hidden
           >
-            <div className="absolute inset-x-5 top-8 h-2 rounded-full bg-white/80 shadow-sm" />
-            <div className="absolute inset-x-7 top-14 space-y-2">
-              <div className="h-2 rounded-full bg-white/70" />
-              <div className="h-2 w-[85%] rounded-full bg-white/60" />
+            <div className="absolute inset-x-5 top-7 h-1.5 rounded-full bg-primary/15" />
+            <div className="absolute inset-x-6 top-12 space-y-2">
+              <div className="h-1.5 rounded-full bg-primary/20" />
+              <div className="h-1.5 w-[82%] rounded-full bg-primary/10" />
             </div>
           </div>
         </section>
@@ -193,9 +205,10 @@ export default function RankingsPage() {
           <div className="card-surface p-5">
             <h3 className="font-headline text-sm font-semibold text-slate-900">今日趋势</h3>
             <p className="mt-1 text-[0.7rem] text-slate-500">当前列表分类分布</p>
-            <ul className="mt-3 space-y-2 text-xs leading-relaxed text-slate-600">
+            <ul className="mt-3 space-y-2.5 text-xs leading-relaxed text-slate-600">
               {sidebarTrends.map((line, idx) => (
-                <li key={idx} className="flex gap-2 border-l-2 border-slate-200 pl-2">
+                <li key={idx} className="flex items-start gap-2">
+                  <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
                   <span>{line}</span>
                 </li>
               ))}

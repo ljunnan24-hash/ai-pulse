@@ -7,20 +7,19 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import { ActionBadge } from '../common/ActionBadge';
 import { SectionHeader } from '../common/SectionHeader';
 import { CapabilityBoundaryCard } from './CapabilityBoundaryCard';
 import { CategoryRecapCard } from './CategoryRecapCard';
 import { GlossaryGrid } from './GlossaryGrid';
 import { NoiseCard } from './NoiseCard';
-import { TopJudgmentCard } from './TopJudgmentCard';
+import { TopJudgmentRow } from './TopJudgmentRow';
+import { WeeklyReportDirectory } from './WeeklyReportDirectory';
 import { ToolTryCard } from './ToolTryCard';
 import type { ThesisShape } from './WeeklyThesisCard';
 import { ReportCoverCard } from './ReportCoverCard';
 import { ReportCoverFallback } from './ReportCoverFallback';
 import { WeeklyReportHeader } from './WeeklyReportHeader';
 import type { TocItem } from './WeeklyToc';
-import { WeeklyToc } from './WeeklyToc';
 import { estimateReadingMinutes, normalizeGlossary } from './weeklyPayloadUtils';
 
 export type WeeklyReportViewProps = {
@@ -29,20 +28,52 @@ export type WeeklyReportViewProps = {
   payload: Record<string, unknown>;
 };
 
-const TOC_META: Record<string, { hint: string; minutes: string }> = {
-  'weekly-thesis': { hint: '核心结论与主线', minutes: '~5 分钟' },
-  'top3-judgments': { hint: '本周优先行动', minutes: '~8 分钟' },
-  'capability-boundaries': { hint: '能力上限与边界', minutes: '~6 分钟' },
-  'capability-radar': { hint: '维度对照', minutes: '~3 分钟' },
-  'tools-to-try': { hint: '可动手试用', minutes: '~5 分钟' },
-  'noise-ignore': { hint: '可暂不关注', minutes: '~3 分钟' },
-  'category-recap': { hint: '分领域要点', minutes: '~7 分钟' },
-  glossary: { hint: '术语速查', minutes: '~4 分钟' },
+const TOC_META: Record<string, { label: string; hint: string; minutes: string }> = {
+  'weekly-thesis': {
+    label: '本周核心判断与趋势总览',
+    hint: '主线结论与一周信号',
+    minutes: '约 5 分钟',
+  },
+  'top3-judgments': {
+    label: '本周最重要的 3 个判断',
+    hint: '优先行动与 Pulse 排序',
+    minutes: '约 8 分钟',
+  },
+  'capability-boundaries': {
+    label: 'AI 能力边界与上限',
+    hint: '能力上限与边界案例',
+    minutes: '约 6 分钟',
+  },
+  'capability-radar': {
+    label: 'AI 能力雷达',
+    hint: '维度对照一览',
+    minutes: '约 3 分钟',
+  },
+  'tools-to-try': {
+    label: '本周值得试的工具',
+    hint: '可动手试用清单',
+    minutes: '约 5 分钟',
+  },
+  'noise-ignore': {
+    label: '本周可忽略的噪音',
+    hint: '暂时不必关注的热点',
+    minutes: '约 3 分钟',
+  },
+  'category-recap': {
+    label: '分领域要点回顾',
+    hint: '模型 / 工具 / 行业等',
+    minutes: '约 7 分钟',
+  },
+  glossary: {
+    label: '本周术语速查',
+    hint: '关键词一句话弄懂',
+    minutes: '约 4 分钟',
+  },
 };
 
-function tocEntry(id: string, label: string): TocItem {
+function tocEntry(id: string): TocItem {
   const m = TOC_META[id];
-  return { id, label, hint: m?.hint, minutes: m?.minutes };
+  return { id, label: m?.label ?? id, hint: m?.hint, minutes: m?.minutes };
 }
 
 function hasThesisContent(t: ThesisShape | undefined): boolean {
@@ -103,19 +134,20 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
   const noiseCount = noiseIgnore.length;
 
   const tocItems: TocItem[] = [];
-  tocItems.push(tocEntry('weekly-thesis', '本周判断'));
-  if (showJudgments || showLegacyTop3) tocItems.push(tocEntry('top3-judgments', 'Top 3 判断'));
-  if (showCapsV2 || showCapsLegacy) tocItems.push(tocEntry('capability-boundaries', '能力边界'));
-  if (radarData.length > 0) tocItems.push(tocEntry('capability-radar', '能力雷达'));
-  if (showToolsV2 || showToolsLegacy) tocItems.push(tocEntry('tools-to-try', '工具'));
-  if (noiseIgnore.length > 0) tocItems.push(tocEntry('noise-ignore', '噪音'));
-  if (showRecapV2 || showRecapLegacy) tocItems.push(tocEntry('category-recap', '分类回顾'));
-  if (glossaryRows.length > 0) tocItems.push(tocEntry('glossary', '术语'));
+  tocItems.push(tocEntry('weekly-thesis'));
+  if (showJudgments || showLegacyTop3) tocItems.push(tocEntry('top3-judgments'));
+  if (showCapsV2 || showCapsLegacy) tocItems.push(tocEntry('capability-boundaries'));
+  if (radarData.length > 0) tocItems.push(tocEntry('capability-radar'));
+  if (showToolsV2 || showToolsLegacy) tocItems.push(tocEntry('tools-to-try'));
+  if (noiseIgnore.length > 0) tocItems.push(tocEntry('noise-ignore'));
+  if (showRecapV2 || showRecapLegacy) tocItems.push(tocEntry('category-recap'));
+  if (glossaryRows.length > 0) tocItems.push(tocEntry('glossary'));
 
   const sectionHeaderProps = { className: 'mb-5 md:mb-6' };
 
   return (
-    <div className="page-container pb-20 pt-6 md:pt-8">
+    <div className="page-container bg-slate-50 pb-20 pt-6 md:pt-8">
+      <div className="mx-auto max-w-4xl text-sm leading-relaxed text-slate-800 lg:text-[0.95rem] lg:leading-[1.75]">
       <WeeklyReportHeader reportDate={reportDate} title={title} readingMinutes={readingMinutes} />
 
       {showThesis && thesis ? (
@@ -143,8 +175,6 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-x-10">
-        <div className="min-w-0 flex-1 text-sm leading-relaxed text-slate-800 lg:max-w-[42rem] lg:text-[0.95rem] lg:leading-[1.75]">
           <section id="top3-judgments" className="scroll-mt-28">
             <SectionHeader
               {...sectionHeaderProps}
@@ -156,46 +186,35 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
               }
             />
 
-            <div className="space-y-4 md:space-y-5">
-              {showJudgments
-                ? top3Judgments.map((t, i) => <TopJudgmentCard key={`${t.title}-${i}`} rank={i + 1} row={t} />)
-                : null}
-
-              {showLegacyTop3
-                ? legacyTop3.map((t, i) => (
-                    <article key={`legacy-${String(t.url ?? i)}-${i}`} className="card-surface p-4 md:p-5">
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                        <span className="font-headline text-[0.7rem] font-semibold tabular-nums text-primary/90">
-                          {String(i + 1).padStart(2, '0')}
-                        </span>
-                        <ActionBadge suggestion="先观望" />
-                      </div>
-                      <h3 className="mt-3 line-clamp-4 font-headline text-lg font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
-                        {String(t.title ?? '').trim() || '本周条目'}
-                      </h3>
-                      <div className="mt-3 space-y-3 text-sm leading-relaxed">
-                        {t.what_happened ? (
-                          <div>
-                            <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">发生了什么</p>
-                            <p className="mt-1.5 text-slate-700">{t.what_happened}</p>
-                          </div>
-                        ) : null}
-                        {t.what_it_means_for_you ? (
-                          <div>
-                            <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">对你意味着什么</p>
-                            <p className="mt-1.5 text-slate-800">{t.what_it_means_for_you}</p>
-                          </div>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))
-                : null}
-
-              {!showJudgments && !showLegacyTop3 ? (
-                <p className="text-sm text-slate-600">本期暂无 Top3 数据。</p>
-              ) : null}
-            </div>
+            {showJudgments || showLegacyTop3 ? (
+              <div className="card-surface overflow-hidden shadow-[var(--shadow-card)]">
+                {showJudgments
+                  ? top3Judgments.map((t, i) => (
+                      <TopJudgmentRow key={`${t.title}-${i}`} rank={i + 1} row={t} />
+                    ))
+                  : null}
+                {showLegacyTop3
+                  ? legacyTop3.map((t, i) => (
+                      <TopJudgmentRow
+                        key={`legacy-${String(t.url ?? i)}-${i}`}
+                        rank={i + 1}
+                        row={{
+                          title: String(t.title ?? ''),
+                          what_happened: String(t.what_happened ?? ''),
+                          pulse_score: String(t.pulse_score ?? ''),
+                          theme: String(t.theme ?? t.category ?? ''),
+                          event_id: String(t.event_id ?? ''),
+                        }}
+                      />
+                    ))
+                  : null}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-600">本期暂无 Top3 数据。</p>
+            )}
           </section>
+
+          {tocItems.length > 0 ? <WeeklyReportDirectory items={tocItems} /> : null}
 
           <section id="capability-boundaries" className="mt-10 scroll-mt-28 md:mt-12">
             <SectionHeader
@@ -341,13 +360,6 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
           <Link to="/archive" className="mt-8 inline-block text-sm font-medium text-primary hover:underline">
             ← 历史归档
           </Link>
-        </div>
-
-        <aside className="hidden w-[252px] shrink-0 lg:block">
-          <div className="sticky top-20">
-            <WeeklyToc items={tocItems} />
-          </div>
-        </aside>
       </div>
     </div>
   );

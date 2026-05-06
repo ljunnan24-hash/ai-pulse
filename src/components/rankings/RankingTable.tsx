@@ -20,7 +20,11 @@ export function RankingTable({ variant, items, footer }: Props) {
       <div className="hidden md:block">
         <div className="overflow-x-auto">
           <div className="min-w-[62rem]">
-            <RankingTableHeader />
+            <RankingTableHeader
+              judgmentColumnLabel={
+                variant === 'home' ? '判断与原文标题' : '判断（今日一句话）'
+              }
+            />
             {items.map((item, idx) => (
               <RankingTableRow key={item.id} rank={idx + 1} item={item} variant={variant} />
             ))}

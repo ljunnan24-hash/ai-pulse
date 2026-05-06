@@ -7,12 +7,14 @@ import { displayActionSuggestion, displayInsightSummary } from '../../lib/insigh
 import { formatRelativeTime } from '../../lib/formatRelativeTime';
 import { splitTitleForDisplay } from '../../lib/titleDisplay';
 
-/** 排行榜页 Top3：金银铜圆章 */
+type Variant = 'home' | 'rankings';
+
+/** 排行榜页 Top3：金 / 银 / 铜（圆章，与目标图一致） */
 function RankMedal({ rank }: { rank: number }) {
   const medal = [
-    'bg-amber-100 text-amber-900 ring-2 ring-amber-300/80',
-    'bg-slate-200 text-slate-800 ring-2 ring-slate-400/70',
-    'bg-orange-100 text-orange-950 ring-2 ring-orange-300/80',
+    'bg-gradient-to-b from-amber-200 to-amber-300 text-amber-950 ring-2 ring-amber-400/90 shadow-sm',
+    'bg-gradient-to-b from-slate-100 to-slate-200 text-slate-800 ring-2 ring-slate-400/80 shadow-sm',
+    'bg-gradient-to-b from-orange-200 to-orange-300 text-orange-950 ring-2 ring-orange-400/80 shadow-sm',
   ];
   if (rank <= 3) {
     return (
@@ -24,7 +26,7 @@ function RankMedal({ rank }: { rank: number }) {
     );
   }
   return (
-    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center font-headline text-sm font-semibold tabular-nums text-slate-600">
+    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center font-headline text-sm font-semibold tabular-nums text-slate-500">
       {rank}
     </span>
   );
@@ -43,21 +45,28 @@ function RankHomeNumeric({ rank, emphasis }: { rank: number; emphasis: boolean }
   );
 }
 
-/** Pulse：辅助列，不抢主视觉 */
-function PulseScoreCell({ score, compact }: { score: number; compact: boolean }) {
+/**
+ * Pulse：排行榜页为目标图中的大号蓝色粗体；首页保持克制灰字。
+ */
+function PulseScoreCell({
+  score,
+  variant,
+  rankTier,
+}: {
+  score: number;
+  variant: Variant;
+  rankTier: 'top3' | 'rest';
+}) {
   const n = Number.isFinite(score) ? score.toFixed(1) : '—';
+  const rankings = variant === 'rankings';
+  const labelCls = 'text-[0.55rem] font-medium uppercase tracking-wide text-slate-400';
+  const numCls = rankings
+    ? `font-headline font-bold tabular-nums leading-none text-primary ${rankTier === 'top3' ? 'text-lg' : 'text-sm'}`
+    : `font-headline tabular-nums text-slate-600 ${rankTier === 'top3' ? 'text-sm font-semibold' : 'text-xs font-medium'}`;
   return (
-    <span className="inline-flex flex-col gap-0 leading-tight">
-      <span
-        className={`font-medium uppercase tracking-wide text-slate-400 ${compact ? 'text-[0.5rem]' : 'text-[0.55rem]'}`}
-      >
-        Pulse
-      </span>
-      <span
-        className={`font-headline tabular-nums text-slate-600 ${compact ? 'text-xs font-medium' : 'text-sm font-semibold'}`}
-      >
-        {n}
-      </span>
+    <span className="inline-flex flex-col gap-0.5 leading-tight">
+      <span className={labelCls}>Pulse</span>
+      <span className={numCls}>{n}</span>
     </span>
   );
 }
@@ -86,8 +95,6 @@ function auxiliaryTitle(item: RankingItem, jd: ReturnType<typeof buildDisplayJud
   return sub || null;
 }
 
-type Variant = 'home' | 'rankings';
-
 type DesktopProps = {
   rank: number;
   item: RankingItem;
@@ -104,13 +111,13 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
   const eyebrow = jd.fromOneLiner ? 'AI Pulse 判断' : '摘要';
 
   const rowMin = isTop ? 'min-h-[96px]' : 'min-h-[72px]';
-  const tierBg = isTop ? 'bg-slate-50/50' : '';
+  const rankTier = isTop ? 'top3' : 'rest';
 
   const rowPad = isTop ? 'py-2.5' : 'py-1.5';
 
   return (
     <div
-      className={`ranking-table-grid border-b border-slate-100 px-2 transition-colors last:border-b-0 hover:bg-slate-50/80 md:px-3 ${rowPad} ${rowMin} ${tierBg}`}
+      className={`ranking-table-grid border-b border-slate-100 bg-white px-2 transition-colors last:border-b-0 hover:bg-slate-50/60 md:px-3 ${rowPad} ${rowMin}`}
       role="row"
     >
       <div className="flex h-full items-center justify-center" role="cell">
@@ -122,14 +129,18 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
       </div>
 
       <div className="flex h-full items-center justify-start" role="cell">
-        <PulseScoreCell score={item.ranking_score} compact />
+        <PulseScoreCell score={item.ranking_score} variant={variant} rankTier={rankTier} />
       </div>
 
       <div className="flex min-h-0 flex-col justify-center gap-1 py-1" role="cell">
-        <span className="text-[0.55rem] font-medium uppercase tracking-wide text-slate-400">{eyebrow}</span>
+        {variant === 'home' ? (
+          <span className="text-[0.55rem] font-medium uppercase tracking-wide text-slate-400">{eyebrow}</span>
+        ) : jd.fromOneLiner ? (
+          <span className="text-[0.6rem] font-medium text-slate-400">AI Pulse 判断</span>
+        ) : null}
         <p
           className={`font-headline font-semibold leading-snug text-[#111827] [overflow-wrap:anywhere] line-clamp-2 ${
-            isTop ? 'text-[0.95rem]' : 'text-sm'
+            isTop && variant === 'rankings' ? 'text-base' : isTop ? 'text-[0.95rem]' : 'text-sm'
           } ${jd.isTitleFallback ? 'font-medium text-slate-800' : ''}`}
         >
           {jd.text}
@@ -144,12 +155,12 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
       </div>
 
       <div className="flex h-full items-center justify-center" role="cell">
-        <span className="inline-flex max-w-full rounded-md border border-primary/15 bg-primary/[0.06] px-1.5 py-0.5 text-center text-[0.65rem] font-medium leading-tight text-primary">
+        <span className="inline-flex max-w-full rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-center text-[0.65rem] font-medium leading-tight text-slate-700">
           {categoryLabel(item.category)}
         </span>
       </div>
 
-      <div className="flex h-full items-center text-[0.7rem] tabular-nums text-slate-500" role="cell">
+      <div className="flex h-full items-center text-[0.7rem] tabular-nums text-slate-400" role="cell">
         {formatRelativeTime(item.published_at)}
       </div>
 
@@ -190,7 +201,7 @@ export function RankingTableMobileRow({ rank, item, variant }: MobileProps) {
           <div className="flex min-h-[2.5rem] min-w-[2.75rem] items-center justify-center">
             {useMedals ? <RankMedal rank={rank} /> : <RankHomeNumeric rank={rank} emphasis={isTop} />}
           </div>
-          <PulseScoreCell score={item.ranking_score} compact={!isTop} />
+          <PulseScoreCell score={item.ranking_score} variant={variant} rankTier={isTop ? 'top3' : 'rest'} />
         </div>
         <span className="max-w-[10rem] truncate rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[0.65rem] font-medium text-slate-600">
           {categoryLabel(item.category)}

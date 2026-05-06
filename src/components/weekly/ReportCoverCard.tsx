@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Layers, Sparkles, TrendingUp, Zap } from 'lucide-react';
 
 import type { ThesisShape } from './WeeklyThesisCard';
 
@@ -11,64 +12,78 @@ type Props = {
   noiseFilteredCount: number;
 };
 
+const PILLAR_ICONS = [Zap, TrendingUp, Layers];
+
 export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount, noiseFilteredCount }: Props) {
   const lines = Array.isArray(thesis.trend_lines) ? thesis.trend_lines.filter(Boolean) : [];
+  const pillars = lines.slice(0, 3);
 
   return (
     <section id="weekly-thesis" className="mb-8 scroll-mt-28 md:mb-10">
-      <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-[#D6E8FF] bg-[#F0F7FF] p-5 shadow-[var(--shadow-card)] md:p-8">
+      <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-slate-200/90 bg-white shadow-[var(--shadow-card)]">
+        {/* 左侧浅蓝强调条（目标稿） */}
         <div
-          className="pointer-events-none absolute -right-12 top-0 h-48 w-48 rounded-full bg-primary/[0.06]"
+          className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary/35 via-primary/20 to-primary/5"
           aria-hidden
         />
 
-        <div className="relative">
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/25 bg-white/90 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
-            本周核心判断
-          </span>
-
-          {thesis.headline ? (
-            <p className="mt-4 font-headline text-xl font-bold leading-snug text-slate-900 md:text-2xl md:leading-tight">
-              {thesis.headline}
-            </p>
-          ) : null}
-
-          {thesis.summary ? (
-            <p className="relative mt-4 text-sm leading-[1.75] text-slate-700 md:text-[0.95rem] md:leading-[1.8]">{thesis.summary}</p>
-          ) : null}
-
-          {lines.length > 0 ? (
-            <div className="relative mt-6 border-t border-slate-200/90 pt-5">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">本期信号要点</p>
-              <ul className="mt-3 space-y-2.5 border-l-2 border-primary/25 pl-3 text-sm leading-relaxed text-slate-800">
-                {lines.map((line, i) => (
-                  <li key={i} className="[overflow-wrap:anywhere] break-words">
-                    {line}
-                  </li>
-                ))}
-              </ul>
+        <div className="relative grid gap-6 p-5 pl-6 md:grid-cols-[minmax(0,1fr)_min(180px,28%)] md:gap-8 md:p-8 md:pl-8">
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={2} aria-hidden />
+              <span className="text-[0.7rem] font-semibold tracking-wide text-primary">本周核心判断</span>
             </div>
-          ) : null}
 
-          <div className="relative mt-6 flex flex-wrap gap-1.5 border-t border-slate-200/90 pt-5">
-            <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] font-medium text-slate-600">
-              过去 7 天事件池
-            </span>
-            <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] text-slate-600">
-              Top 判断 {topJudgmentCount} 条
-            </span>
-            <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] text-slate-600">
-              噪音过滤 {noiseFilteredCount} 条
-            </span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[0.65rem] text-slate-600">
-              阅读约 {readingMinutes} 分钟
-            </span>
+            {thesis.headline ? (
+              <p className="mt-4 font-headline text-xl font-bold leading-snug tracking-tight text-slate-900 md:text-2xl md:leading-tight">
+                {thesis.headline}
+              </p>
+            ) : null}
+
+            {thesis.summary ? (
+              <p className="mt-4 text-sm leading-[1.75] text-slate-600 md:text-[0.95rem] md:leading-[1.8]">{thesis.summary}</p>
+            ) : null}
+
+            {pillars.length > 0 ? (
+              <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-3">
+                {pillars.map((line, i) => {
+                  const Icon = PILLAR_ICONS[i % PILLAR_ICONS.length];
+                  return (
+                    <div key={i} className="flex gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Icon className="h-[1.125rem] w-[1.125rem]" strokeWidth={1.75} aria-hidden />
+                      </div>
+                      <p className="text-[0.8125rem] leading-snug text-slate-700 [overflow-wrap:anywhere] line-clamp-4">
+                        {line}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            <p className="mt-5 text-xs text-slate-500">
+              阅读约 {readingMinutes} 分钟 · Top 判断 {topJudgmentCount} 条 · 噪音过滤 {noiseFilteredCount} 条
+            </p>
+
+            <div className="mt-5">
+              <Link to="/#subscribe" className="btn-primary inline-flex px-5 py-2 text-sm font-semibold no-underline">
+                订阅周报
+              </Link>
+            </div>
           </div>
 
-          <div className="relative mt-5">
-            <Link to="/#subscribe" className="btn-secondary inline-flex px-4 py-2 text-xs font-semibold no-underline md:text-sm">
-              订阅周报
-            </Link>
+          {/* 右侧轻示意（目标稿插图区） */}
+          <div
+            className="relative hidden min-h-[10rem] overflow-hidden rounded-xl bg-gradient-to-br from-primary/[0.08] via-primary/[0.03] to-transparent ring-1 ring-primary/10 md:block"
+            aria-hidden
+          >
+            <div className="absolute inset-x-6 top-8 h-2 rounded-full bg-primary/15" />
+            <div className="absolute inset-x-8 top-14 space-y-2">
+              <div className="h-1.5 rounded-full bg-primary/20" />
+              <div className="h-1.5 w-[88%] rounded-full bg-primary/12" />
+              <div className="h-1.5 w-[72%] rounded-full bg-primary/10" />
+            </div>
           </div>
         </div>
       </div>
