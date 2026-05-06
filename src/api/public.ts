@@ -15,6 +15,8 @@ export type RankingsResponse = {
     ranking_score: number;
     score_delta: number;
     what_happened: string;
+    /** 列表接口若将来返回，可与下方字段区分展示标签 */
+    why_important?: string;
     what_it_means_for_you: string;
     action_suggestion: string;
     /** 一句话判断（榜单卡片展示；缺失时前端兜底） */

@@ -121,20 +121,24 @@ export default function RankingsPage() {
 
       {items.length > 0 ? (
         <section
-          className="mb-8 rounded-2xl border border-[#005bc1]/20 bg-gradient-to-br from-[#005bc1]/[0.07] via-white to-white px-5 py-5 md:px-7 md:py-6"
-          aria-label={range === 'today' ? '今日一句判断' : '榜单一句话判断'}
+          className="relative mb-10 overflow-hidden rounded-2xl border-2 border-[#005bc1]/40 bg-gradient-to-br from-[#005bc1]/[0.14] via-white to-slate-50/80 px-6 py-6 shadow-[0_14px_44px_rgba(0,91,193,0.14)] md:px-8 md:py-7"
+          aria-label={range === 'today' ? '今日判断' : '榜单判断'}
         >
-          <p className="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-[#005bc1]/90">
-            {range === 'today' ? '今日一句判断' : '榜单一句话判断'}
+          <div
+            className="pointer-events-none absolute -right-8 -top-12 h-40 w-40 rounded-full bg-[#005bc1]/15 blur-3xl"
+            aria-hidden
+          />
+          <p className="relative text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[#005bc1]">
+            {range === 'today' ? '今日判断' : '榜单判断'}
           </p>
-          <p className="mt-3 text-base font-medium leading-relaxed text-slate-800 md:text-lg">
-            <span className="font-semibold text-slate-600">
-              {range === 'today' ? '今日判断：' : '榜单判断：'}
+          <p className="relative mt-4 font-headline text-xl font-extrabold leading-snug text-slate-950 md:text-2xl">
+            <span className="text-[#004291]">{range === 'today' ? '今日判断：' : '榜单判断：'}</span>
+            <span className="text-slate-950">
+              {(items[0]?.one_liner ?? '').trim() ||
+                '上榜信号正在聚合，请浏览下方条目获取具体判断。'}
             </span>
-            {(items[0]?.one_liner ?? '').trim() ||
-              '上榜信号正在聚合，请浏览下方条目获取具体判断。'}
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="relative mt-3 text-sm font-medium text-slate-600">
             {range === 'today' ? '基于今日 Top 20 AI 信号生成。' : '基于当前榜单 Top 20 AI 信号生成。'}
           </p>
         </section>

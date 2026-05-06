@@ -64,6 +64,7 @@ export default function HomePage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [top5, setTop5] = useState<Awaited<ReturnType<typeof fetchRankings>>['items']>([]);
   const [topErr, setTopErr] = useState<string | null>(null);
+  const [topLoaded, setTopLoaded] = useState(false);
   const [weeklyPreview, setWeeklyPreview] = useState<{
     headline: string;
     titles: string[];
@@ -74,8 +75,14 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchRankings({ range: 'today', category: 'all', limit: 5 })
-      .then((r) => setTop5(r.items))
-      .catch(() => setTopErr('暂时无法加载榜单（请确认后端已运行并已执行 daily_rankings）。'));
+      .then((r) => {
+        setTop5(r.items);
+        setTopLoaded(true);
+      })
+      .catch(() => {
+        setTopErr('暂时无法加载榜单（请确认后端已运行并已执行 daily_rankings）。');
+        setTopLoaded(true);
+      });
   }, []);
 
   useEffect(() => {
@@ -170,6 +177,20 @@ export default function HomePage() {
 
       {/* Top 5 */}
       <section className="mb-20">
+        {!topErr ? (
+          <div className="mb-8 rounded-2xl border-2 border-[#005bc1]/35 bg-gradient-to-br from-[#005bc1]/[0.12] via-white to-slate-50 px-5 py-5 shadow-[0_12px_36px_rgba(0,91,193,0.12)] md:px-7 md:py-6">
+            <p className="text-[0.7rem] font-bold uppercase tracking-[0.14em] text-[#005bc1]">今日判断</p>
+            <p className="mt-3 font-headline text-lg font-extrabold leading-snug text-slate-950 md:text-xl">
+              <span className="text-[#004291]">今日判断：</span>
+              {!topLoaded
+                ? '正在加载今日榜单…'
+                : top5.length === 0
+                  ? '暂无榜单数据，请先运行每日任务后再查看。'
+                  : (top5[0]?.one_liner ?? '').trim() || '本条暂未生成一句话判断，请查看下方卡片。'}
+            </p>
+            <p className="mt-2 text-sm text-slate-600">基于今日 Top 5 AI 信号生成。</p>
+          </div>
+        ) : null}
         <div className="mb-8 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="font-headline text-2xl font-bold text-slate-900 md:text-3xl">今日 AI Pulse Top 5</h2>
