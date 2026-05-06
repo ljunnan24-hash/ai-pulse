@@ -3,7 +3,7 @@ type Props = {
   label?: string;
   className?: string;
   /** micro：首页紧凑行；default / pill / subtle 见各场景 */
-  variant?: 'default' | 'pill' | 'subtle' | 'micro';
+  variant?: 'default' | 'pill' | 'pillHero' | 'subtle' | 'micro';
 };
 
 export function ScoreBadge({ score, label = 'Pulse', className = '', variant = 'default' }: Props) {
@@ -39,6 +39,18 @@ export function ScoreBadge({ score, label = 'Pulse', className = '', variant = '
       >
         <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-primary">{label}</span>
         <span className="text-base font-bold tabular-nums leading-none text-primary">{num}</span>
+      </span>
+    );
+  }
+
+  /** 首页 Hero：浅蓝底、更大字号（对齐高保真） */
+  if (variant === 'pillHero') {
+    return (
+      <span
+        className={`inline-flex h-8 items-center gap-2 rounded-lg border border-[#B3D4FF] bg-[#E8F4FF] px-3 font-headline shadow-sm ${className}`}
+      >
+        <span className="text-[0.7rem] font-bold uppercase tracking-wide text-primary">{label}</span>
+        <span className="text-lg font-bold tabular-nums leading-none text-primary">{num}</span>
       </span>
     );
   }

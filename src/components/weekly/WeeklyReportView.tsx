@@ -326,14 +326,16 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
 
           <section
             id="weekly-bottom-cta"
-            className="card-surface-muted mt-10 scroll-mt-28 px-5 py-6 md:mt-12 md:px-6 md:py-7"
+            className="mt-10 scroll-mt-28 rounded-[var(--radius-card)] border border-[#D6E8FF] bg-[#F0F7FF] px-5 py-7 shadow-[var(--shadow-card)] md:mt-12 md:px-8 md:py-8"
           >
-            <p className="text-sm leading-relaxed text-slate-700">
+            <p className="font-headline text-base font-semibold text-slate-900 md:text-lg">订阅 AI Pulse 周报，每周洞见不缺席。</p>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
               每周一封，30 分钟把握 AI 世界的关键信号。
             </p>
-            <Link to="/#subscribe" className="btn-primary mt-4 inline-flex no-underline">
+            <Link to="/#subscribe" className="btn-primary mt-5 inline-flex no-underline">
               订阅周报
             </Link>
+            <p className="mt-3 text-xs text-slate-500">已订阅用户将自动收到最新报告（若后端已启用投递）。</p>
           </section>
 
           <Link to="/archive" className="mt-8 inline-block text-sm font-medium text-primary hover:underline">

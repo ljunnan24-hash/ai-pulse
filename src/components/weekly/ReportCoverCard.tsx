@@ -16,14 +16,14 @@ export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount, nois
 
   return (
     <section id="weekly-thesis" className="mb-8 scroll-mt-28 md:mb-10">
-      <div className="card-surface-muted relative overflow-hidden p-5 md:p-7">
+      <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-[#D6E8FF] bg-[#F0F7FF] p-5 shadow-[var(--shadow-card)] md:p-8">
         <div
-          className="pointer-events-none absolute -right-8 top-1/2 h-32 w-32 -translate-y-1/2 rounded-full bg-primary/[0.04]"
+          className="pointer-events-none absolute -right-12 top-0 h-48 w-48 rounded-full bg-primary/[0.06]"
           aria-hidden
         />
 
         <div className="relative">
-          <span className="inline-flex rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/25 bg-white/90 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
             本周核心判断
           </span>
 

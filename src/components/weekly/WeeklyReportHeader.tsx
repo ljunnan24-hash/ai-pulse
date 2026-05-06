@@ -11,7 +11,7 @@ export function WeeklyReportHeader({ reportDate, title, readingMinutes }: Props)
     <header id="weekly-report-top" className="mb-5 border-b border-slate-200 pb-5 md:mb-6 md:pb-6">
       <p className="text-xs font-medium tabular-nums text-slate-500">{reportDate}</p>
       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-        <h1 className="font-headline text-2xl font-bold tracking-tight text-slate-900 md:text-[1.75rem] md:leading-snug">
+        <h1 className="font-headline text-2xl font-bold tracking-tight text-[#111827] md:text-[1.85rem] md:leading-snug">
           {displayTitle}
         </h1>
         <span className="inline-flex w-fit shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium tabular-nums text-slate-600">

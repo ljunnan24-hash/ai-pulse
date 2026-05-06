@@ -10,9 +10,9 @@
   --color-surface-container-lowest: #ffffff;
   --color-on-surface: #1e293b;
   --color-on-surface-variant: #64748b;
-  --color-primary: #005bc1;
-  --color-primary-dim: #004faa;
-  --color-primary-container: #e8eef8;
+  --color-primary: #0066ff;
+  --color-primary-dim: #0052cc;
+  --color-primary-container: #eef4ff;
   --color-on-primary-container: #0b3d82;
   --color-outline: #e2e8f0;
   --color-outline-variant: #cbd5e1;
@@ -32,14 +32,27 @@
 
 @layer base {
   body {
-    @apply bg-surface text-on-surface font-sans antialiased;
+    @apply bg-white text-on-surface font-sans antialiased;
   }
 }
 
 @layer components {
   /* 页面容器：~1152px max */
   .page-container {
-    @apply mx-auto w-full max-w-[72rem] px-4 pb-16 pt-6 md:px-6 md:pb-20 md:pt-8;
+    @apply mx-auto w-full max-w-[75rem] px-4 pb-16 pt-6 md:px-6 md:pb-20 md:pt-8;
+  }
+
+  /** 设计稿表格：仅横线、表头极浅底 */
+  .table-design-wrap thead tr {
+    @apply bg-slate-50/90;
+  }
+
+  .table-design-wrap tbody tr {
+    @apply border-b border-slate-100;
+  }
+
+  .table-design-wrap tbody tr:last-child {
+    @apply border-b-0;
   }
 
   .section-y {
@@ -62,12 +75,12 @@
   /* 按钮 */
   .btn-primary {
     border-radius: var(--radius-btn);
-    @apply inline-flex h-10 items-center justify-center bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-[#004a9e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+    @apply inline-flex h-10 items-center justify-center bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-[#0052cc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
   }
 
   .btn-primary-lg {
     border-radius: var(--radius-btn);
-    @apply inline-flex h-11 items-center justify-center bg-primary px-6 text-sm font-semibold text-white transition-colors hover:bg-[#004a9e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+    @apply inline-flex h-11 items-center justify-center bg-primary px-6 text-sm font-semibold text-white transition-colors hover:bg-[#0052cc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
   }
 
   .btn-secondary {

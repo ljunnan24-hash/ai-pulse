@@ -4,8 +4,11 @@ import { Link } from 'react-router-dom';
 import { fetchRankings } from '../api/public';
 import type { RankingItem } from '../components/rankings/RankingCard';
 import { buildDisplayJudgment, RankingCard } from '../components/rankings/RankingCard';
+import { RankingTableRow } from '../components/rankings/RankingTableRow';
+import { ScoreBadge } from '../components/common/ScoreBadge';
 import { EmptyState } from '../components/common/EmptyState';
 import { categoryLabel } from '../lib/categoryLabels';
+import { displayInsightSummary } from '../lib/insightFallback';
 
 const RANGES = [
   { id: 'today', label: '今日' },
@@ -56,6 +59,9 @@ export default function RankingsPage() {
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
   const topJudgmentPreview = items[0] ? buildDisplayJudgment(items[0]) : null;
+  const topLeadMeans = items[0]
+    ? displayInsightSummary(items[0].what_it_means_for_you, items[0].what_happened)
+    : '';
 
   return (
     <div className="page-container">
@@ -104,30 +110,48 @@ export default function RankingsPage() {
 
       {items.length > 0 ? (
         <section
-          className="card-surface-muted section-y px-5 py-5 md:px-6 md:py-6"
+          className="card-surface mb-8 flex flex-col gap-5 overflow-hidden p-5 md:mb-10 md:flex-row md:items-stretch md:gap-8 md:p-6"
           aria-label={range === 'today' ? '今日判断' : '榜单判断'}
         >
-          <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-            {range === 'today' ? '今日判断' : '榜单判断'}
-          </p>
-          <p
-            className={`mt-3 font-headline leading-snug md:text-xl ${
-              topJudgmentPreview?.isTitleFallback
-                ? 'line-clamp-3 text-base font-medium text-slate-700'
-                : 'line-clamp-4 text-lg font-semibold text-slate-900'
-            }`}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                {range === 'today' ? '今日判断' : '榜单判断'}
+              </span>
+              {items[0] ? <ScoreBadge score={items[0].ranking_score} variant="pill" /> : null}
+            </div>
+            <p
+              className={`mt-3 font-headline leading-snug md:text-xl ${
+                topJudgmentPreview?.isTitleFallback
+                  ? 'line-clamp-4 text-base font-medium text-slate-700'
+                  : 'line-clamp-5 text-lg font-semibold text-slate-900'
+              }`}
+            >
+              {topJudgmentPreview?.text || '浏览下方条目查看具体判断与依据。'}
+            </p>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#666666] line-clamp-3 md:line-clamp-none">
+              {topLeadMeans ||
+                (range === 'today'
+                  ? '基于当前榜单首条的摘要判断；下方表格可逐项核对来源与行动建议。'
+                  : '基于当前筛选列表首条；切换条件可对照不同窗口下的主线信号。')}
+            </p>
+            <Link
+              to={items[0] ? `/events/${items[0].id}` : '/rankings'}
+              className="mt-5 inline-flex text-sm font-semibold text-primary hover:underline"
+            >
+              查看详情 →
+            </Link>
+          </div>
+          <div
+            className="relative hidden h-36 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-primary/15 via-primary/5 to-transparent ring-1 ring-primary/15 md:flex md:h-auto md:min-h-[9rem] md:w-44 lg:w-52"
+            aria-hidden
           >
-            {topJudgmentPreview?.text || '浏览下方条目查看具体判断与依据。'}
-          </p>
-          <p className="mt-2 text-xs text-slate-500">
-            {range === 'today' ? '基于当前榜单 Top 综合摘要。' : '基于当前筛选列表 Top 综合摘要。'}
-          </p>
-          <Link
-            to={items[0] ? `/events/${items[0].id}` : '/rankings'}
-            className="mt-4 inline-flex text-xs font-semibold text-primary hover:underline md:text-sm"
-          >
-            查看首条详情 →
-          </Link>
+            <div className="absolute inset-x-5 top-8 h-2 rounded-full bg-white/80 shadow-sm" />
+            <div className="absolute inset-x-7 top-14 space-y-2">
+              <div className="h-2 rounded-full bg-white/70" />
+              <div className="h-2 w-[85%] rounded-full bg-white/60" />
+            </div>
+          </div>
         </section>
       ) : null}
 
@@ -142,10 +166,41 @@ export default function RankingsPage() {
       ) : null}
 
       <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
-        <div className="space-y-3 lg:col-span-8">
-          {items.map((row, i) => (
-            <RankingCard key={row.id} rank={i + 1} item={row} variant="full" />
-          ))}
+        <div className="lg:col-span-8">
+          {!err && items.length > 0 ? (
+            <>
+            <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--shadow-card)] md:block">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] border-collapse text-left text-sm xl:min-w-[900px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="whitespace-nowrap px-3 py-3 lg:px-4">排名</th>
+                      <th className="whitespace-nowrap px-3 py-3 lg:px-4">Pulse Score</th>
+                      <th className="min-w-[11rem] px-3 py-3 lg:px-4">判断（今日一句话）</th>
+                      <th className="hidden min-w-[9rem] px-3 py-3 md:table-cell lg:px-4">对你意味着什么</th>
+                      <th className="hidden px-3 py-3 lg:table-cell lg:px-4">分类</th>
+                      <th className="hidden px-3 py-3 xl:table-cell xl:px-4">时间</th>
+                      <th className="whitespace-nowrap px-3 py-3 text-right lg:px-4">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((row, i) => (
+                      <RankingTableRow key={row.id} rank={i + 1} item={row} variant="rankings" />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="border-t border-slate-100 py-3 text-center text-xs text-slate-500">
+                当前展示 {items.length} 条 · 调整上方时间范围与分类可切换窗口
+              </div>
+            </div>
+            <div className="space-y-3 md:hidden">
+              {items.map((row, i) => (
+                <RankingCard key={row.id} rank={i + 1} item={row} variant="full" />
+              ))}
+            </div>
+            </>
+          ) : null}
           {!err && items.length === 0 ? (
             <EmptyState
               title="暂无匹配结果"
@@ -177,7 +232,7 @@ export default function RankingsPage() {
             </p>
             <Link
               to="/#subscribe"
-              className="btn-secondary mt-4 inline-flex w-full justify-center font-headline no-underline"
+              className="btn-primary mt-4 inline-flex w-full justify-center font-headline no-underline"
             >
               订阅周报
             </Link>

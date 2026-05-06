@@ -20,9 +20,9 @@ function NavLink({ to, children }: { to: string; children: string }) {
 
 export function SiteLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-surface selection:bg-primary-container selection:text-on-primary-container">
+    <div className="flex min-h-screen flex-col bg-white selection:bg-primary-container selection:text-on-primary-container">
       <nav className="fixed top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-[72rem] items-center justify-between gap-3 px-4 md:gap-4 md:px-6">
+        <div className="mx-auto flex h-14 max-w-[75rem] items-center justify-between gap-3 px-4 md:gap-4 md:px-6">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 md:gap-x-6">
             <Link
               to="/"
@@ -38,7 +38,10 @@ export function SiteLayout() {
               <NavLink to="/about">关于我们</NavLink>
             </div>
           </div>
-          <Link to="/#subscribe" className="btn-primary shrink-0 px-4 py-0 text-xs md:text-sm">
+          <Link
+            to="/#subscribe"
+            className="btn-primary shrink-0 rounded-lg px-5 py-2 text-xs shadow-sm md:text-sm"
+          >
             订阅周报
           </Link>
         </div>
