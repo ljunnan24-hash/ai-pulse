@@ -61,9 +61,10 @@ def compute_stable_key(link: str, title: str) -> str:
     return "x" + hashlib.sha256(b"empty").hexdigest()
 
 
-def _clip(s: str, n: int) -> str:
+def _cap_plain(s: str, n: int) -> str:
+    """截断至字段上限，不追加「…」，避免详情页出现误导性省略号。"""
     t = (s or "").strip()
-    return t if len(t) <= n else t[: n - 1] + "…"
+    return t[:n]
 
 
 def _action_suggestion(user_value: float, freshness: float) -> str:
@@ -336,8 +337,8 @@ def find_or_create_global_for_raw(db: Session, raw: RawItem) -> GlobalEvent:
         sources_json="[]",
         metrics_json="{}",
         capability_tags_json="{}",
-        what_happened=_clip(summary, 120),
-        why_important=_clip(summary, 200),
+        what_happened=_cap_plain(summary, 512),
+        why_important=_cap_plain(summary, 1024),
         what_it_means_for_you="若与你的场景相关，建议安排短时间跟进官方动态或试用入口。",
         status="active",
     )

@@ -241,11 +241,10 @@ def _normalize_capability_tags(raw: Any) -> dict[str, float]:
     return out
 
 
-def _clip(s: str, max_len: int) -> str:
+def _cap_field(s: str, max_len: int) -> str:
+    """按数据库字段长度截断，不追加省略号（详情页需展示完整可读正文）。"""
     t = (s or "").strip()
-    if len(t) <= max_len:
-        return t
-    return t[: max_len - 1] + "…"
+    return t[:max_len]
 
 
 def _build_user_payload(ge: GlobalEvent) -> dict[str, Any]:
@@ -281,9 +280,9 @@ _INSIGHT_SYSTEM = """你是 AI 行业情报编辑，面向非技术职场人与�
 输出必须是单一 JSON 对象，顶层键为 "insights"，值为数组；数组元素格式：
 {
   "event_id": <整数>,
-  "what_happened": "<=40字，陈述已发生的事实>",
-  "why_important": "<=60字，行业层面意义>",
-  "what_it_means_for_you": "<=60字，对读者工作/创业的影响>",
+  "what_happened": "陈述已发生的事实，建议约 80～220 字，信息完整、不要用省略号收尾",
+  "why_important": "行业层面意义，建议约 80～320 字，不要用省略号收尾",
+  "what_it_means_for_you": "对读者工作/创业的影响与行动提示，建议约 80～320 字，不要用省略号收尾",
   "action_suggestion": "现在试用 | 先观望 | 可以忽略",
   "user_value_score": <0到100的整数>,
   "capability_tags": {
@@ -390,9 +389,9 @@ def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: boo
             if not row:
                 continue
             try:
-                wh = _strip_banned(_clip(str(row.get("what_happened", "")), 40))
-                wi = _strip_banned(_clip(str(row.get("why_important", "")), 60))
-                wm = _strip_banned(_clip(str(row.get("what_it_means_for_you", "")), 60))
+                wh = _strip_banned(_cap_field(str(row.get("what_happened", "")), 512))
+                wi = _strip_banned(_cap_field(str(row.get("why_important", "")), 1024))
+                wm = _strip_banned(_cap_field(str(row.get("what_it_means_for_you", "")), 1024))
                 act = _normalize_action(row.get("action_suggestion"))
                 uv_raw = row.get("user_value_score", 50)
                 try:
@@ -403,9 +402,9 @@ def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: boo
                 caps = _normalize_capability_tags(row.get("capability_tags"))
 
                 if not wh:
-                    wh = _clip(ge.canonical_title or "", 40)
+                    wh = _cap_field(ge.canonical_title or "", 512)
                 if not wi:
-                    wi = _clip(ge.summary or ge.canonical_title or "", 60)
+                    wi = _cap_field(ge.summary or ge.canonical_title or "", 1024)
                 if not wm:
                     wm = "结合标题与来源核对是否与你业务相关。"
 
