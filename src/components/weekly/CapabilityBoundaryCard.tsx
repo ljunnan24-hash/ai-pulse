@@ -19,7 +19,7 @@ export function CapabilityBoundaryCard({ row }: Props) {
   const conclusion = row.conclusion != null ? String(row.conclusion).trim() : '';
 
   return (
-    <article className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_2px_14px_rgba(15,23,42,0.06)] md:p-7">
+    <article className="card-surface p-5 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h3 className="font-headline text-lg font-bold leading-snug text-slate-900 md:text-xl">
           {String(row.question ?? '').trim() || '—'}
@@ -34,9 +34,9 @@ export function CapabilityBoundaryCard({ row }: Props) {
       </div>
 
       {conclusion ? (
-        <div className="mt-5 rounded-xl border border-[#005bc1]/25 bg-[#e8f4fc] px-5 py-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#004291]">结论</p>
-          <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-900 md:text-[0.95rem]">{conclusion}</p>
+        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">结论</p>
+          <p className="mt-1.5 text-sm font-medium leading-relaxed text-slate-900">{conclusion}</p>
         </div>
       ) : null}
 

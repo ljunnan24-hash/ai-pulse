@@ -8,7 +8,7 @@ type Props = {
 
 export function NoiseCard({ row }: Props) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-slate-100/70 px-5 py-5 text-slate-700 shadow-inner md:px-6">
+    <article className="card-surface border-slate-200/90 bg-slate-50/50 px-4 py-4 text-slate-700 md:px-5 md:py-5">
       <div className="flex flex-wrap items-center gap-2">
         <ActionBadge suggestion="可以忽略" />
       </div>

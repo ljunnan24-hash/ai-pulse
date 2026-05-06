@@ -15,64 +15,61 @@ export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount, nois
   const lines = Array.isArray(thesis.trend_lines) ? thesis.trend_lines.filter(Boolean) : [];
 
   return (
-    <section id="weekly-thesis" className="mb-10 scroll-mt-28 md:mb-12">
-      <div className="relative overflow-hidden rounded-3xl border-2 border-[#005bc1]/25 bg-gradient-to-br from-[#dbeafe]/90 via-white to-[#f0f7ff] p-7 shadow-[0_24px_64px_rgba(0,91,193,0.14)] md:p-10">
-        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#005bc1]/[0.06] blur-3xl" aria-hidden />
-        <div className="relative flex flex-wrap items-center gap-2">
-          <span className="inline-flex rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold tracking-wide text-[#005bc1] shadow-md ring-1 ring-[#005bc1]/20">
-            本周一句话判断
+    <section id="weekly-thesis" className="mb-8 scroll-mt-28 md:mb-10">
+      <div className="card-surface-muted relative overflow-hidden p-5 md:p-7">
+        <div
+          className="pointer-events-none absolute -right-8 top-1/2 h-32 w-32 -translate-y-1/2 rounded-full bg-primary/[0.04]"
+          aria-hidden
+        />
+
+        <div className="relative">
+          <span className="inline-flex rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">
+            本周核心判断
           </span>
-        </div>
 
-        {thesis.headline ? (
-          <p className="relative mt-6 font-headline text-2xl font-bold leading-snug text-slate-900 md:text-3xl md:leading-tight">
-            {thesis.headline}
-          </p>
-        ) : null}
+          {thesis.headline ? (
+            <p className="mt-4 font-headline text-xl font-bold leading-snug text-slate-900 md:text-2xl md:leading-tight">
+              {thesis.headline}
+            </p>
+          ) : null}
 
-        {thesis.summary ? (
-          <p className="relative mt-6 text-base leading-[1.8] text-slate-700 md:text-[1.125rem]">{thesis.summary}</p>
-        ) : null}
+          {thesis.summary ? (
+            <p className="relative mt-4 text-sm leading-[1.75] text-slate-700 md:text-[0.95rem] md:leading-[1.8]">{thesis.summary}</p>
+          ) : null}
 
-        {lines.length > 0 ? (
-          <div className="relative mt-8 border-t border-[#005bc1]/12 pt-7">
-            <p className="text-xs font-semibold text-slate-600">趋势线</p>
-            <ul className="mt-4 space-y-3 text-[15px] leading-relaxed text-slate-800 md:text-base">
-              {lines.map((line, i) => (
-                <li key={i} className="flex gap-2.5">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#005bc1]" />
-                  <span>{line}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+          {lines.length > 0 ? (
+            <div className="relative mt-6 border-t border-slate-200/90 pt-5">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">本期信号要点</p>
+              <ul className="mt-3 space-y-2.5 border-l-2 border-primary/25 pl-3 text-sm leading-relaxed text-slate-800">
+                {lines.map((line, i) => (
+                  <li key={i} className="[overflow-wrap:anywhere] break-words">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
-        <div className="mt-8 rounded-2xl border border-white/80 bg-white/70 px-4 py-4 backdrop-blur-sm md:px-5">
-          <p className="text-xs font-semibold text-slate-500">报告基于</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm">
-              过去 7 天 AI Pulse 事件池
+          <div className="relative mt-6 flex flex-wrap gap-1.5 border-t border-slate-200/90 pt-5">
+            <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] font-medium text-slate-600">
+              过去 7 天事件池
             </span>
-            <span className="rounded-full border border-[#005bc1]/20 bg-[#005bc1]/5 px-3 py-1 text-xs font-semibold text-[#004291]">
+            <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] text-slate-600">
               Top 判断 {topJudgmentCount} 条
             </span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+            <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] text-slate-600">
               噪音过滤 {noiseFilteredCount} 条
             </span>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+            <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[0.65rem] text-slate-600">
               阅读约 {readingMinutes} 分钟
             </span>
           </div>
-        </div>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
-          <Link
-            to="/#subscribe"
-            className="inline-flex justify-center rounded-full bg-[#005bc1] px-6 py-3 text-center font-headline text-sm font-bold text-white shadow-md hover:bg-[#004a9e]"
-          >
-            订阅每周判断报告
-          </Link>
+          <div className="relative mt-5">
+            <Link to="/#subscribe" className="btn-secondary inline-flex px-4 py-2 text-xs font-semibold no-underline md:text-sm">
+              订阅周报
+            </Link>
+          </div>
         </div>
       </div>
     </section>

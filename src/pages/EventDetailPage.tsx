@@ -1,233 +1,340 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import { fetchEventDetail } from '../api/public';
-import type { EventDetailResponse } from '../api/public';
-import { EVENT_DETAIL_PROSE, EVENT_DETAIL_PROSE_MUTED } from '../components/common/eventDetailProse';
-import { ActionBadge } from '../components/common/ActionBadge';
+import { fetchEventDetail, type EventDetailResponse } from '../api/public';
 import { ScoreBadge } from '../components/common/ScoreBadge';
-import { SectionCard } from '../components/common/SectionCard';
-import { CAPABILITY_DIMENSIONS, allCapabilityTagsZero } from '../lib/capabilityTags';
-import { categoryLabel } from '../lib/categoryLabels';
-import { displayActionSuggestion, displayEventTitle } from '../lib/insightFallback';
-import { deriveEventPageHeading } from '../lib/titleDisplay';
-import { formatSourceDistribution, hasScoreSourceMix } from '../lib/sourceCoverage';
+import { ActionBadge } from '../components/common/ActionBadge';
+import { EmptyState } from '../components/common/EmptyState';
+import { deriveEventPageHeading, splitTitleForDisplay } from '../lib/titleDisplay';
 
-export default function EventDetailPage() {
-  const { eventId } = useParams<{ eventId: string }>();
-  const [data, setData] = useState<EventDetailResponse | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    const id = Number(eventId);
-    if (!Number.isFinite(id)) {
-      setErr('无效的事件 ID');
-      return;
-    }
-    setErr(null);
-    fetchEventDetail(id)
-      .then(setData)
-      .catch((e: Error) => setErr(e.message));
-  }, [eventId]);
-
-  const sourcesUnique = useMemo(() => {
-    if (!data?.sources?.length) return [];
-    const seen = new Set<string>();
-    const out: EventDetailResponse['sources'] = [];
-    for (const s of data.sources) {
-      const u = (s.url || '').trim();
-      if (!u || seen.has(u)) continue;
-      seen.add(u);
-      out.push(s);
-    }
-    return out;
-  }, [data]);
-
-  if (err) {
-    return <p className="pt-8 text-red-600">{err}</p>;
+function safeHostname(raw: string): string {
+  const u = raw.trim();
+  if (!u) return '';
+  try {
+    const normalized = /^https?:\/\//i.test(u) ? u : `https://${u}`;
+    return new URL(normalized).hostname.replace(/^www\./, '');
+  } catch {
+    return u.length > 56 ? `${u.slice(0, 56)}…` : u;
   }
-  if (!data) {
-    return <p className="pt-8 text-slate-500">加载中…</p>;
-  }
-
-  const sb = data.score_breakdown ?? {};
-  const capabilityTags = data.capability_tags ?? {};
-  const capabilityAllZero = allCapabilityTagsZero(capabilityTags);
-  const sourceMixLine = hasScoreSourceMix(sb as Record<string, number>);
-  const distributionLine = sourceMixLine ? formatSourceDistribution(sourcesUnique) : null;
-  const heading = deriveEventPageHeading(data.title, data.what_happened);
-
-  return (
-    <div className="mx-auto grid max-w-7xl min-w-0 gap-10 pb-20 pt-4 md:gap-12 lg:grid-cols-12 lg:pt-6">
-      <div className="min-w-0 space-y-8 lg:col-span-8">
-        <Link to="/rankings" className="inline-flex text-sm font-semibold text-[#005bc1] hover:underline">
-          ← 返回排行榜
-        </Link>
-
-        <header className="min-w-0">
-          <h1 className="font-headline text-3xl font-extrabold leading-snug tracking-tight text-slate-900 whitespace-normal break-words [overflow-wrap:anywhere] md:text-[2.25rem] md:leading-snug">
-            {heading.primary}
-          </h1>
-          {heading.subtitleLine ? (
-            <p className="mt-3 text-sm leading-relaxed text-slate-500 whitespace-normal break-words [overflow-wrap:anywhere]">
-              {heading.subtitleLine}
-            </p>
-          ) : null}
-
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <ScoreBadge score={data.ranking_score} variant="pill" />
-            <ActionBadge suggestion={data.action_suggestion} className="max-w-full whitespace-normal text-sm px-3 py-1.5" />
-            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-              {categoryLabel(data.category)}
-            </span>
-            <span className="text-sm text-slate-500">
-              {data.published_at ? new Date(data.published_at).toLocaleString('zh-CN') : '—'}
-            </span>
-          </div>
-        </header>
-
-        <SectionCard title="发生了什么" eyebrow="判断" detail>
-          <p className={EVENT_DETAIL_PROSE_MUTED}>{data.what_happened?.trim() || '—'}</p>
-        </SectionCard>
-
-        <SectionCard title="为什么重要" eyebrow="判断" detail>
-          <p className={EVENT_DETAIL_PROSE_MUTED}>{data.why_important?.trim() || '—'}</p>
-        </SectionCard>
-
-        <SectionCard title="对你意味着什么" eyebrow="判断" detail>
-          <p className={EVENT_DETAIL_PROSE}>{data.what_it_means_for_you?.trim() || '—'}</p>
-        </SectionCard>
-
-        <SectionCard title="建议" eyebrow="行动" detail>
-          <div className="rounded-xl border-2 border-[#005bc1]/25 bg-gradient-to-br from-[#005bc1]/[0.07] to-white px-5 py-6">
-            <p className="text-xs font-semibold tracking-wide text-[#004291]">AI Pulse 行动建议</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <ActionBadge
-                suggestion={data.action_suggestion}
-                className="max-w-full whitespace-normal text-sm px-4 py-2 font-bold"
-              />
-            </div>
-            <p className={`mt-5 ${EVENT_DETAIL_PROSE}`}>{displayActionSuggestion(data.action_suggestion)}</p>
-          </div>
-        </SectionCard>
-
-        <SectionCard title="来源" eyebrow="可追溯" detail>
-          <p className="mb-5 text-sm leading-relaxed text-slate-600">
-            下列链接已按 URL 去重，便于核对事实与出处。链接完整展示，可换行阅读。
-          </p>
-          <ul className="space-y-4">
-            {sourcesUnique.map((s) => (
-              <li key={s.url} className="rounded-xl border border-slate-200 bg-[#f7f9fc] px-4 py-4">
-                <p className="text-sm font-semibold text-slate-800">
-                  {s.source_name} · {labelSourceDisplay(s.source_type)}
-                </p>
-                <a
-                  href={s.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`mt-2 block text-sm font-medium text-[#005bc1] underline decoration-[#005bc1]/30 underline-offset-2 hover:decoration-[#005bc1] ${EVENT_DETAIL_PROSE}`}
-                >
-                  {s.url}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
-      </div>
-
-      <aside className="min-w-0 space-y-6 lg:col-span-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="font-headline font-bold text-slate-900">评分依据</h3>
-          <p className="mt-3 text-xs leading-relaxed text-slate-500">
-            Pulse Score 在同批次事件中做<strong className="text-slate-700">可比较的加权排序</strong>
-            ，综合下方维度；用于提示优先级，而非主观随意打分。
-          </p>
-          <ul className="mt-5 space-y-2 text-sm text-slate-600">
-            <li className="flex justify-between gap-3">
-              <span>新鲜度</span>
-              <span className="tabular-nums font-medium text-slate-900">{sb.freshness?.toFixed(1) ?? '—'}</span>
-            </li>
-            <li className="flex justify-between gap-3">
-              <span>可信度</span>
-              <span className="tabular-nums font-medium text-slate-900">{sb.trust?.toFixed(1) ?? '—'}</span>
-            </li>
-            <li className="flex justify-between gap-3">
-              <span>热度</span>
-              <span className="tabular-nums font-medium text-slate-900">{sb.heat?.toFixed(1) ?? '—'}</span>
-            </li>
-            <li className="flex justify-between gap-3">
-              <span>用户价值</span>
-              <span className="tabular-nums font-medium text-slate-900">{sb.user_value?.toFixed(1) ?? '—'}</span>
-            </li>
-            {sourceMixLine ? (
-              <li className="border-t border-slate-100 pt-3">
-                <div className="flex justify-between gap-3">
-                  <span>来源覆盖</span>
-                  <span className="tabular-nums font-medium text-slate-900">{sb.source_mix!.toFixed(1)}</span>
-                </div>
-                {distributionLine ? <p className="mt-2 text-xs leading-relaxed text-slate-500">{distributionLine}</p> : null}
-              </li>
-            ) : null}
-          </ul>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="font-headline font-bold text-slate-900">AI 能力影响</h3>
-          {capabilityAllZero ? (
-            <p className="mt-3 text-sm leading-relaxed text-slate-600">该事件暂未识别出明确能力影响</p>
-          ) : (
-            <ul className="mt-4 space-y-4">
-              {CAPABILITY_DIMENSIONS.map(({ key, label }) => {
-                const raw = Number(capabilityTags[key]);
-                const v = Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
-                const pct = Math.round(v * 100);
-                return (
-                  <li key={key}>
-                    <div className="mb-1.5 flex justify-between text-xs text-slate-600">
-                      <span>{label}</span>
-                      <span className="tabular-nums font-medium text-slate-900">{pct}%</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full border border-slate-100 bg-slate-100">
-                      <div className="h-full rounded-full bg-[#005bc1]/90 transition-[width]" style={{ width: `${pct}%` }} />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="font-headline font-bold text-slate-900">相关事件</h3>
-          <ul className="mt-3 space-y-2">
-            {data.related_events.map((r) => (
-              <li key={r.id}>
-                <Link
-                  to={`/events/${r.id}`}
-                  className="block text-sm font-medium leading-relaxed text-[#005bc1] hover:underline [overflow-wrap:anywhere] break-words"
-                >
-                  {displayEventTitle(r.title)}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="rounded-2xl border border-[#005bc1]/15 bg-[#005bc1]/5 p-5">
-          <h3 className="font-headline font-bold text-slate-900">订阅周报</h3>
-          <p className="mt-2 text-sm text-slate-600">获取每周结构化判断报告，节省筛选信息的时间。</p>
-          <Link to="/#subscribe" className="mt-3 inline-block font-semibold text-[#005bc1]">
-            去订阅 →
-          </Link>
-        </div>
-      </aside>
-    </div>
-  );
 }
 
-/** 来源类型：与后端 slug 对齐，展示为小写英文标签（与示例 OpenAI · official 一致） */
-function labelSourceDisplay(raw: string): string {
-  const k = (raw || '').trim().toLowerCase();
-  if (!k) return 'unknown';
-  return k;
+function splitSentences(text: string): string[] {
+  const t = text.trim();
+  if (!t) return [];
+  const parts = t.split(/(?<=[。！？!?])\s*/).filter(Boolean);
+  return parts.length ? parts : [t];
+}
+
+/** 顶部主判断标题：one_liner → why → means → happened → 解析标题（与榜单逻辑一致） */
+function leadHeadline(data: EventDetailResponse): string {
+  const one = data.one_liner?.trim();
+  if (one) return one;
+  const pick = (s: string, max = 160) => {
+    const p = s.trim();
+    if (!p) return '';
+    const first = splitSentences(p)[0] ?? p;
+    return first.length > max ? `${first.slice(0, max).trim()}…` : first;
+  };
+  const whyFull = data.why_important?.trim();
+  if (whyFull) return pick(whyFull);
+  const m = pick(data.what_it_means_for_you);
+  if (m) return m;
+  const h = pick(data.what_happened);
+  if (h) return h;
+  return deriveEventPageHeading(data.title, data.what_happened).primary;
+}
+
+export default function EventDetailPage() {
+  const { eventId: eventIdParam } = useParams<{ eventId: string }>();
+  const eventId = Number(eventIdParam);
+
+  const [data, setData] = useState<EventDetailResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+
+  useEffect(() => {
+    if (!Number.isFinite(eventId)) {
+      setIsLoading(false);
+      setIsError(true);
+      return;
+    }
+    setIsLoading(true);
+    setIsError(false);
+    fetchEventDetail(eventId)
+      .then((d) => {
+        setData(d);
+        setIsError(false);
+      })
+      .catch(() => {
+        setData(null);
+        setIsError(true);
+      })
+      .finally(() => setIsLoading(false));
+  }, [eventId]);
+
+  if (!Number.isFinite(eventId)) {
+    return (
+      <div className="page-container section-y">
+        <EmptyState title="无效的事件 ID" description="请从排行榜或周报返回并重新进入。" actionLabel="返回首页" actionTo="/" />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="page-container section-y">
+        <div className="card-surface-muted h-40 animate-pulse rounded-[var(--radius-card)]" aria-hidden />
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="page-container section-y">
+        <EmptyState title="暂无可展示判断" description="该事件可能已下线或暂时不可用。稍后回来查看新的 AI 信号。" actionLabel="返回首页" actionTo="/" />
+      </div>
+    );
+  }
+
+  const headingMeta = deriveEventPageHeading(data.title, data.what_happened);
+  const split = splitTitleForDisplay(data.title);
+  const mainJudgment = leadHeadline(data);
+  const showOriginalTitle = Boolean(headingMeta.subtitleLine) || mainJudgment.trim() !== data.title.trim() || Boolean(split.secondary);
+
+  const why = data.why_important.trim();
+  const means = data.what_it_means_for_you.trim();
+  const happened = data.what_happened.trim();
+
+  const sb = data.score_breakdown;
+  const metrics =
+    (Number(sb.freshness) || 0) +
+    (Number(sb.trust) || 0) +
+    (Number(sb.heat) || 0) +
+    (Number(sb.source_mix) || 0) +
+    (Number(sb.user_value) || 0);
+
+  /** 后端按可信度与日期排序，首条视为优先核对来源 */
+  const primaryLink = data.sources[0];
+  const primaryHost = primaryLink?.url ? safeHostname(primaryLink.url) : '';
+
+  return (
+    <div className="page-container section-y pb-16 md:pb-20">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <Link to="/rankings" className="btn-secondary px-4 py-2 text-sm font-semibold no-underline">
+            ← 返回排行榜
+          </Link>
+          <Link to="/" className="btn-secondary px-4 py-2 text-sm font-semibold no-underline">
+            首页
+          </Link>
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          <div className="space-y-6">
+            <article className="card-surface p-5 md:p-7">
+              <div className="flex flex-wrap items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <span className="max-w-[70%] break-words [overflow-wrap:anywhere] sm:max-w-none">{data.category}</span>
+                <span className="text-slate-300">·</span>
+                <span>{data.published_at ? new Date(data.published_at).toLocaleDateString('zh-CN') : '日期未知'}</span>
+                <span className="text-slate-300">·</span>
+                <span>{data.sources.length} 条来源</span>
+                {primaryHost ? (
+                  <>
+                    <span className="text-slate-300">·</span>
+                    <span className="normal-case tracking-normal text-slate-600">主来源 {primaryHost}</span>
+                  </>
+                ) : null}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">Pulse</span>
+                <ScoreBadge score={data.ranking_score} variant="subtle" />
+                <ActionBadge suggestion={data.action_suggestion} />
+              </div>
+
+              <h1 className="mt-5 text-balance text-xl font-bold leading-snug text-slate-900 line-clamp-5 [overflow-wrap:anywhere] md:heading-page md:line-clamp-none">
+                {mainJudgment}
+              </h1>
+
+              {showOriginalTitle ? (
+                <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                  <span className="font-medium text-slate-600">原始标题与题注</span>
+                  <span className="mx-1.5 text-slate-300">·</span>
+                  {headingMeta.subtitleLine ? (
+                    <span>{headingMeta.subtitleLine}</span>
+                  ) : split.secondary ? (
+                    <>
+                      <span className="font-medium text-slate-800">{split.primary}</span>
+                      <span className="mx-1 text-slate-300">/</span>
+                      <span>{split.secondary}</span>
+                    </>
+                  ) : (
+                    <span>{data.title}</span>
+                  )}
+                </p>
+              ) : null}
+            </article>
+
+            {why ? (
+              <section className="card-surface p-5 md:p-6">
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">判断报告</p>
+                <h2 className="heading-section mt-1 text-slate-900">为什么重要</h2>
+                <div className="mt-4 space-y-3 text-body text-slate-700">
+                  {why.split('\n').map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {means ? (
+              <section className="card-surface p-5 md:p-6">
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">判断报告</p>
+                <h2 className="heading-section mt-1 text-slate-900">对你意味着什么</h2>
+                <div className="mt-4 space-y-3 text-body text-slate-700">
+                  {means.split('\n').map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {happened ? (
+              <section className="card-surface p-5 md:p-6">
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">判断报告</p>
+                <h2 className="heading-section mt-1 text-slate-900">发生了什么</h2>
+                <div className="mt-4 space-y-3 text-body text-slate-700">
+                  {happened.split('\n').map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {!why && !means && !happened ? (
+              <section className="card-surface p-5 md:p-6">
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">判断报告</p>
+                <h2 className="heading-section mt-1 text-slate-900">事件摘要</h2>
+                <p className="mt-4 text-body text-slate-700">暂无结构化判断正文，请以标题与来源为准。</p>
+              </section>
+            ) : null}
+
+            <section className="card-surface-muted p-5 md:p-6">
+              <h2 className="heading-section text-slate-900">来源与核实</h2>
+              <p className="mt-1 text-sm text-slate-600">优先阅读主来源；交叉比对后再做决策。</p>
+              {data.sources.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-600">暂无来源信息。请以标题与其他渠道自行核实。</p>
+              ) : (
+                <ul className="mt-4 divide-y divide-[color:var(--border-default)] rounded-[var(--radius-card)] border border-[color:var(--border-default)] bg-white">
+                  {data.sources.map((s, i) => {
+                    const urlStr = (s.url ?? '').trim();
+                    const host = urlStr ? safeHostname(urlStr) : '';
+                    return (
+                      <li key={`${urlStr || 'src'}-${i}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                        <div className="min-w-0 flex-1">
+                          <div className="line-clamp-2 font-medium text-slate-900 [overflow-wrap:anywhere]">{s.source_name?.trim() || '来源'}</div>
+                          <div className="truncate text-xs text-slate-500">{host || '—'}</div>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                          {i === 0 ? (
+                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-emerald-800">
+                              优先核对
+                            </span>
+                          ) : null}
+                          {urlStr ? (
+                            <a
+                              href={urlStr}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn-primary px-3 py-1.5 text-xs font-semibold no-underline"
+                            >
+                              打开链接
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400">无链接</span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </div>
+
+          <aside className="space-y-4 lg:sticky lg:top-28">
+            <div className="card-surface p-5">
+              <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">Pulse 分解</div>
+              <div className="mt-3 space-y-2 text-sm">
+                {[
+                  ['新鲜度', data.score_breakdown.freshness],
+                  ['可信度', data.score_breakdown.trust],
+                  ['热度', data.score_breakdown.heat],
+                  ['来源多样性', data.score_breakdown.source_mix],
+                  ['对你价值', data.score_breakdown.user_value],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between gap-3">
+                    <span className="text-slate-600">{label}</span>
+                    <span className="font-headline font-semibold tabular-nums text-slate-900">
+                      {Number.isFinite(Number(value)) ? Number(value).toFixed(2) : '—'}
+                    </span>
+                  </div>
+                ))}
+                <div className="mt-3 flex items-center justify-between border-t border-[color:var(--border-default)] pt-3 text-xs text-slate-500">
+                  <span>加权合计（示意）</span>
+                  <span className="font-medium tabular-nums text-slate-700">{metrics.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card-surface p-5">
+              <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">能力标签</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {Object.entries(data.capability_tags).map(([key, value]) => {
+                  const v = typeof value === 'number' ? value : Number(value);
+                  const strong = Number.isFinite(v) && v >= 0.55;
+                  return (
+                    <span
+                      key={key}
+                      className={
+                        strong
+                          ? 'rounded-full border border-[color:var(--border-default)] bg-slate-900 px-2.5 py-1 text-[0.7rem] font-medium text-white'
+                          : 'rounded-full border border-[color:var(--border-default)] bg-slate-50 px-2.5 py-1 text-[0.7rem] font-medium text-slate-700'
+                      }
+                    >
+                      {key}: {Number.isFinite(v) ? v.toFixed(2) : '—'}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            {data.related_events.length > 0 ? (
+              <div className="card-surface p-5">
+                <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">同分类相关</div>
+                <ul className="mt-3 space-y-2 text-sm">
+                  {data.related_events.map((ev) => (
+                    <li key={ev.id}>
+                      <Link to={`/events/${ev.id}`} className="nav-link block rounded-lg px-2 py-1.5 text-slate-800 no-underline hover:bg-slate-50">
+                        <div className="line-clamp-2 font-medium leading-snug [overflow-wrap:anywhere]">{ev.title}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <ScoreBadge score={ev.ranking_score} variant="subtle" />
+                          <span className="break-words">{ev.category}</span>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            <div className="card-surface-muted p-5 text-sm text-slate-600">
+              <div className="font-semibold text-slate-800">获取更新节奏</div>
+              <p className="mt-2 leading-relaxed">完整周报与归档仍可通过首页与归档入口访问；我们不在这里收集邮箱。</p>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -7,13 +7,33 @@ import type { EventDetailResponse } from '../api/public';
 import { fetchEventDetail, fetchRankings, fetchWeeklyLatest } from '../api/public';
 import { ActionBadge } from '../components/common/ActionBadge';
 import { ScoreBadge } from '../components/common/ScoreBadge';
-import { RankingCard } from '../components/rankings/RankingCard';
+import { buildDisplayJudgment, RankingCard } from '../components/rankings/RankingCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { estimateReadingMinutes } from '../components/weekly/weeklyPayloadUtils';
 
-function fmtScore(n: number | undefined) {
-  if (n == null || !Number.isFinite(n)) return '—';
-  return n.toFixed(1);
+/** 由分项分数推导「编辑视角」标签，避免仪表盘式大数字 */
+function judgmentChips(
+  br: EventDetailResponse['score_breakdown'] | undefined,
+  category: string,
+): string[] {
+  const out: string[] = [];
+  if (br) {
+    if ((br.trust ?? 0) >= 72) out.push('可信来源');
+    if ((br.freshness ?? 0) >= 68) out.push('新鲜度高');
+    if ((br.user_value ?? 0) >= 62) out.push('用户相关');
+    if ((br.heat ?? 0) >= 58) out.push('关注度高');
+  }
+  const catMap: Record<string, string> = {
+    model: '模型能力',
+    tool: '企业落地',
+    industry: '行业动态',
+    open_source: '开源生态',
+    application: '应用落地',
+  };
+  const fill = catMap[category] ?? '综合信号';
+  if (out.length === 0) out.push(fill);
+  else if (out.length < 3 && !out.includes(fill)) out.push(fill);
+  return out.slice(0, 3);
 }
 
 export default function HomePage() {
@@ -29,6 +49,7 @@ export default function HomePage() {
   const [topErr, setTopErr] = useState<string | null>(null);
   const [topLoaded, setTopLoaded] = useState(false);
   const [leadDetail, setLeadDetail] = useState<EventDetailResponse | null>(null);
+  const [leadDetailLoading, setLeadDetailLoading] = useState(false);
   const [weeklyPreview, setWeeklyPreview] = useState<{
     headline: string;
     summary: string;
@@ -57,11 +78,14 @@ export default function HomePage() {
     const id = top5[0]?.id;
     if (!id) {
       setLeadDetail(null);
+      setLeadDetailLoading(false);
       return;
     }
+    setLeadDetailLoading(true);
     fetchEventDetail(id)
       .then(setLeadDetail)
-      .catch(() => setLeadDetail(null));
+      .catch(() => setLeadDetail(null))
+      .finally(() => setLeadDetailLoading(false));
   }, [top5]);
 
   useEffect(() => {
@@ -116,34 +140,22 @@ export default function HomePage() {
 
   const lead = top5[0];
   const br = leadDetail?.score_breakdown;
+  const leadJudgment = lead ? buildDisplayJudgment(lead) : null;
   const judgmentLine =
-    (lead?.one_liner ?? '').trim() ||
-    (topLoaded ? '暂无一句话判断，请查看下方列表或完整榜单。' : '正在加载…');
+    leadJudgment?.text ??
+    (!lead && topLoaded ? '暂无榜单数据。运行每日任务后将自动展示。' : !lead ? '正在加载…' : '');
+  const chips = lead ? judgmentChips(br, lead.category) : [];
 
   return (
     <div className="page-container">
-      {/* Hero */}
-      <header className="section-y grid gap-8 lg:grid-cols-2 lg:items-start lg:gap-12">
-        <div>
-          <h1 className="font-headline text-[1.75rem] font-bold leading-tight tracking-tight text-slate-900 md:text-[2.25rem] md:leading-[1.15]">
-            每天看 AI 信号，每周读 AI 判断
-          </h1>
-          <p className="mt-4 max-w-lg text-body md:text-[0.95rem]">
-            多源聚合与 Pulse Score 排序，帮你忽略噪音；周报提炼一周<span className="font-medium text-slate-800">值得投入</span>
-            的方向。
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link to="/rankings" className="btn-primary-lg no-underline">
-              查看今日榜单
-            </Link>
-            <Link to="/#subscribe" className="btn-secondary no-underline">
-              订阅周报
-            </Link>
-          </div>
-        </div>
+      {/* Hero：移动端顺序为 标题 → 今日判断卡 → 副文案 → CTA；桌面端左文案右卡片 */}
+      <header className="section-y grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-12 lg:items-start">
+        <h1 className="font-headline text-[1.75rem] font-bold leading-tight tracking-tight text-slate-900 md:text-[2.25rem] md:leading-[1.15] lg:col-start-1 lg:row-start-1">
+          每天看 AI 信号，每周读 AI 判断
+        </h1>
 
-        <div className="card-surface p-5 md:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="card-surface p-4 md:p-5 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
             <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">今日判断</span>
             {rankUpdatedAt ? (
               <time className="text-[0.7rem] tabular-nums text-slate-500" dateTime={rankUpdatedAt}>
@@ -156,34 +168,38 @@ export default function HomePage() {
 
           {lead ? (
             <>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <ScoreBadge score={lead.ranking_score} variant="pill" />
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <ScoreBadge score={lead.ranking_score} variant="subtle" />
                 <ActionBadge suggestion={lead.action_suggestion} />
               </div>
-              <p className="mt-4 font-headline text-base font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
+              <p
+                className={`mt-3 font-headline leading-snug text-slate-900 [overflow-wrap:anywhere] ${
+                  leadJudgment?.isTitleFallback
+                    ? 'line-clamp-4 text-[0.9rem] font-medium text-slate-800 md:line-clamp-5 md:text-[0.95rem]'
+                    : 'line-clamp-5 text-[0.95rem] font-semibold md:line-clamp-6 md:text-base'
+                }`}
+              >
                 {judgmentLine}
               </p>
-              <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-slate-100 pt-4 text-center">
-                <div>
-                  <dt className="text-[0.65rem] font-medium text-slate-500">新鲜度</dt>
-                  <dd className="mt-1 font-headline text-sm font-semibold tabular-nums text-slate-800">
-                    {fmtScore(br?.freshness)}
-                  </dd>
+              {leadDetailLoading ? (
+                <div className="mt-4 flex flex-wrap gap-2" aria-hidden>
+                  <span className="h-6 w-14 animate-pulse rounded-md bg-slate-100" />
+                  <span className="h-6 w-14 animate-pulse rounded-md bg-slate-100" />
+                  <span className="h-6 w-14 animate-pulse rounded-md bg-slate-100" />
                 </div>
-                <div>
-                  <dt className="text-[0.65rem] font-medium text-slate-500">热度</dt>
-                  <dd className="mt-1 font-headline text-sm font-semibold tabular-nums text-slate-800">
-                    {fmtScore(br?.heat)}
-                  </dd>
+              ) : (
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {chips.map((c) => (
+                    <span
+                      key={c}
+                      className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[0.65rem] font-medium text-slate-600"
+                    >
+                      {c}
+                    </span>
+                  ))}
                 </div>
-                <div>
-                  <dt className="text-[0.65rem] font-medium text-slate-500">用户价值</dt>
-                  <dd className="mt-1 font-headline text-sm font-semibold tabular-nums text-slate-800">
-                    {fmtScore(br?.user_value)}
-                  </dd>
-                </div>
-              </dl>
-              <div className="mt-5 flex flex-wrap gap-3 border-t border-slate-100 pt-4">
+              )}
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-3">
                 <Link to={`/events/${lead.id}`} className="text-sm font-semibold text-primary hover:underline">
                   查看事件详情 →
                 </Link>
@@ -197,6 +213,21 @@ export default function HomePage() {
               {!topLoaded ? '正在加载榜单…' : '暂无榜单数据。运行每日任务后将自动展示。'}
             </p>
           )}
+        </div>
+
+        <div className="flex flex-col gap-4 lg:col-start-1 lg:row-start-2">
+          <p className="max-w-lg text-body md:text-[0.95rem]">
+            多源聚合与 Pulse Score 排序，帮你忽略噪音；周报提炼一周<span className="font-medium text-slate-800">值得投入</span>
+            的方向。
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link to="/rankings" className="btn-primary-lg no-underline">
+              查看今日榜单
+            </Link>
+            <Link to="/#subscribe" className="btn-secondary no-underline">
+              订阅周报
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -212,7 +243,7 @@ export default function HomePage() {
           </Link>
         </div>
         {topErr ? <p className="mb-4 text-sm text-amber-800">{topErr}</p> : null}
-        <div className="space-y-2">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
           {top5.map((item, idx) => (
             <RankingCard key={item.id} rank={idx + 1} item={item} variant="homeRow" />
           ))}
@@ -277,7 +308,7 @@ export default function HomePage() {
               <span className="text-slate-300">·</span>
               <span>约 {weeklyPreview.readingMinutes} 分钟</span>
             </div>
-            <h3 className="mt-4 font-headline text-lg font-semibold leading-snug text-slate-900 md:text-xl">
+            <h3 className="mt-4 line-clamp-4 font-headline text-lg font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere] md:text-xl">
               {weeklyPreview.headline}
             </h3>
             {weeklyPreview.summary ? (

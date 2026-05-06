@@ -9,7 +9,7 @@ export function CategoryRecapCard({ row }: Props) {
   const top = events.slice(0, 3).map((ev) => (typeof ev === 'string' ? ev : JSON.stringify(ev)));
 
   return (
-    <article className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_2px_12px_rgba(15,23,42,0.05)] md:p-7">
+    <article className="card-surface p-5 md:p-6">
       <h3 className="font-headline text-lg font-bold text-slate-900">{String(row.category ?? '').trim() || '—'}</h3>
 
       {row.trend ? (

@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 
 import { fetchRankings } from '../api/public';
 import type { RankingItem } from '../components/rankings/RankingCard';
-import { RankingCard } from '../components/rankings/RankingCard';
+import { buildDisplayJudgment, RankingCard } from '../components/rankings/RankingCard';
+import { EmptyState } from '../components/common/EmptyState';
 import { categoryLabel } from '../lib/categoryLabels';
 
 const RANGES = [
@@ -54,6 +55,7 @@ export default function RankingsPage() {
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
+  const topJudgmentPreview = items[0] ? buildDisplayJudgment(items[0]) : null;
 
   return (
     <div className="page-container">
@@ -108,8 +110,14 @@ export default function RankingsPage() {
           <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
             {range === 'today' ? '今日判断' : '榜单判断'}
           </p>
-          <p className="mt-3 font-headline text-lg font-semibold leading-snug text-slate-900 md:text-xl">
-            {(items[0]?.one_liner ?? '').trim() || '浏览下方条目查看具体判断与依据。'}
+          <p
+            className={`mt-3 font-headline leading-snug md:text-xl ${
+              topJudgmentPreview?.isTitleFallback
+                ? 'line-clamp-3 text-base font-medium text-slate-700'
+                : 'line-clamp-4 text-lg font-semibold text-slate-900'
+            }`}
+          >
+            {topJudgmentPreview?.text || '浏览下方条目查看具体判断与依据。'}
           </p>
           <p className="mt-2 text-xs text-slate-500">
             {range === 'today' ? '基于当前榜单 Top 综合摘要。' : '基于当前筛选列表 Top 综合摘要。'}
@@ -123,7 +131,15 @@ export default function RankingsPage() {
         </section>
       ) : null}
 
-      {err ? <p className="mb-6 text-sm text-red-600">{err}</p> : null}
+      {err ? (
+        <div className="card-surface-muted mb-6 px-5 py-4 text-sm">
+          <p className="font-headline font-semibold text-slate-900">暂时无法加载榜单</p>
+          <p className="mt-2 leading-relaxed text-slate-600">{err}</p>
+          <Link to="/" className="btn-secondary mt-4 inline-flex px-4 py-2 text-xs font-semibold no-underline">
+            返回首页
+          </Link>
+        </div>
+      ) : null}
 
       <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
         <div className="space-y-3 lg:col-span-8">
@@ -131,7 +147,13 @@ export default function RankingsPage() {
             <RankingCard key={row.id} rank={i + 1} item={row} variant="full" />
           ))}
           {!err && items.length === 0 ? (
-            <p className="text-sm text-slate-600">暂无数据。请先运行后端 `daily_rankings`。</p>
+            <EmptyState
+              title="暂无匹配结果"
+              description="当前筛选条件下没有可展示的榜单事件。可切换时间范围或分类，或确认后端已运行 daily_rankings。"
+              actionLabel="返回首页"
+              actionTo="/"
+              actionVariant="secondary"
+            />
           ) : null}
         </div>
 

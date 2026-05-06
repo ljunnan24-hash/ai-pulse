@@ -30,6 +30,8 @@ export type EventDetailResponse = {
   category: string;
   published_at: string | null;
   ranking_score: number;
+  /** 若后端将来下发，摘要区优先展示 */
+  one_liner?: string;
   what_happened: string;
   why_important: string;
   what_it_means_for_you: string;

@@ -2,13 +2,24 @@ type Props = {
   score: number;
   label?: string;
   className?: string;
-  /** default：列表弱化；pill：强调；subtle：最弱（首页/紧凑列表） */
-  variant?: 'default' | 'pill' | 'subtle';
+  /** micro：首页紧凑行；default / pill / subtle 见各场景 */
+  variant?: 'default' | 'pill' | 'subtle' | 'micro';
 };
 
 export function ScoreBadge({ score, label = 'Pulse', className = '', variant = 'default' }: Props) {
   const v = Number.isFinite(score) ? score : NaN;
   const num = Number.isFinite(v) ? v.toFixed(1) : '—';
+
+  if (variant === 'micro') {
+    return (
+      <span
+        className={`inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md border border-slate-200 bg-slate-50 px-1.5 font-headline tabular-nums text-slate-600 ${className}`}
+      >
+        <span className="text-[0.55rem] font-medium uppercase tracking-wide text-slate-500">{label}</span>
+        <span className="text-[0.7rem] font-semibold text-slate-700">{num}</span>
+      </span>
+    );
+  }
 
   if (variant === 'subtle') {
     return (

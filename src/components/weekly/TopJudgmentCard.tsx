@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 import { ActionBadge } from '../common/ActionBadge';
 import { ScoreBadge } from '../common/ScoreBadge';
 
@@ -32,57 +34,105 @@ function whyImportant(row: JudgmentRow): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
 
-const bodyClass =
-  'mt-3 text-base leading-[1.75] text-slate-700 [overflow-wrap:anywhere] whitespace-normal break-words md:leading-[1.8]';
-const bodyEmClass =
-  'mt-3 text-base leading-[1.75] font-medium text-slate-900 [overflow-wrap:anywhere] whitespace-normal break-words md:leading-[1.8]';
+function themeTag(row: JudgmentRow): string {
+  const t = row.theme || row.category || row.judgment_theme || row.tag;
+  return typeof t === 'string' ? t.trim() : '';
+}
 
-const fieldBlock = (label: string, value: string | undefined, emphasize?: boolean) => {
-  if (!value?.trim()) return null;
-  return (
-    <div className={emphasize ? 'rounded-xl border border-[#005bc1]/12 bg-white px-5 py-4' : ''}>
-      <p className="text-xs font-semibold text-slate-600">{label}</p>
-      <p className={emphasize ? bodyEmClass : bodyClass}>{value}</p>
-    </div>
-  );
-};
+function firstEventId(row: JudgmentRow): number | null {
+  const eid = row.event_id;
+  if (eid && /^\d+$/.test(String(eid))) return parseInt(String(eid), 10);
+  const raw = row.related_event_ids;
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(String(raw));
+    if (Array.isArray(j) && j.length > 0 && /^\d+$/.test(String(j[0]))) {
+      return parseInt(String(j[0]), 10);
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
 
 export function TopJudgmentCard({ rank, row }: Props) {
   const pulse = pulseScore(row);
   const urls = parseUrls(row.source_urls);
-  const rankMark = `#${String(rank).padStart(2, '0')}`;
+  const rankNum = String(rank).padStart(2, '0');
+  const tag = themeTag(row);
+  const why = whyImportant(row);
+  const eventId = firstEventId(row);
+
+  const detailHref = eventId != null ? `/events/${eventId}` : urls[0] || null;
 
   return (
-    <article className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_2px_14px_rgba(15,23,42,0.06)] md:p-8">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-5">
-        <span className="font-headline text-3xl font-black tabular-nums leading-none text-[#005bc1]">{rankMark}</span>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+    <article className="card-surface p-4 md:p-5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2.5">
+        <span className="font-headline text-[0.7rem] font-semibold tabular-nums text-primary/90">{rankNum}</span>
+        {pulse > 0 ? <ScoreBadge score={pulse} label="Pulse" variant="subtle" /> : null}
+        {tag ? (
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[0.65rem] font-medium text-slate-700">
+            {tag}
+          </span>
+        ) : null}
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
           {row.action_level ? <ActionBadge suggestion={row.action_level} /> : null}
-          {pulse > 0 ? <ScoreBadge score={pulse} label="Pulse" variant="pill" /> : null}
         </div>
       </div>
 
-      <h3 className="mt-6 font-headline text-xl font-bold leading-snug text-slate-900 md:text-[1.35rem]">{row.title || '—'}</h3>
+      <h3 className="mt-3 font-headline text-lg font-semibold leading-snug text-slate-900 md:text-[1.125rem]">
+        {row.title || '—'}
+      </h3>
 
-      <div className="mt-8 space-y-8">
-        {fieldBlock('发生了什么', row.what_happened)}
-        {fieldBlock('为什么重要', whyImportant(row))}
-        {fieldBlock('谁应该关注', row.who_should_care)}
-        {fieldBlock('现在怎么做', row.what_to_do_now, true)}
+      <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-700">
+        {row.what_happened ? (
+          <p className="[overflow-wrap:anywhere] break-words line-clamp-4 md:line-clamp-[5]">{row.what_happened}</p>
+        ) : null}
+        {why ? (
+          <p className="border-l-2 border-primary/20 pl-3 text-slate-700 [overflow-wrap:anywhere] break-words">
+            <span className="font-medium text-slate-800">对你意味着什么：</span>
+            {why}
+          </p>
+        ) : null}
+        {row.who_should_care ? (
+          <p className="text-xs text-slate-600">
+            <span className="font-medium text-slate-700">谁应关注：</span>
+            {row.who_should_care}
+          </p>
+        ) : null}
+        {row.what_to_do_now ? (
+          <p className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm font-medium text-slate-800">
+            {row.what_to_do_now}
+          </p>
+        ) : null}
       </div>
 
       {urls.length > 0 ? (
-        <div className="mt-8 border-t border-slate-100 pt-6">
-          <p className="text-xs font-semibold text-slate-500">参考来源</p>
-          <ul className="mt-3 space-y-2">
-            {urls.map((u) => (
+        <div className="mt-4 border-t border-slate-100 pt-3">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">参考来源</p>
+          <ul className="mt-2 space-y-1.5">
+            {urls.slice(0, 3).map((u) => (
               <li key={u}>
-                <a href={u} target="_blank" rel="noreferrer" className="break-all text-base text-[#005bc1] hover:underline">
+                <a href={u} target="_blank" rel="noreferrer" className="break-all text-xs text-primary hover:underline">
                   {u}
                 </a>
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {detailHref ? (
+        <div className="mt-4 flex justify-end border-t border-slate-100 pt-3">
+          {eventId != null ? (
+            <Link to={detailHref} className="text-xs font-semibold text-primary hover:underline md:text-sm">
+              查看详情 →
+            </Link>
+          ) : (
+            <a href={detailHref} target="_blank" rel="noreferrer" className="text-xs font-semibold text-primary hover:underline md:text-sm">
+              查看详情 →
+            </a>
+          )}
         </div>
       ) : null}
     </article>

@@ -16,7 +16,7 @@ export function GlossaryGrid({ rows }: Props) {
   return (
     <dl className="grid gap-4 sm:grid-cols-2">
       {rows.map((g, i) => (
-        <div key={`${g.term}-${i}`} className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
+        <div key={`${g.term}-${i}`} className="card-surface p-4 md:p-5">
           <dt className="font-headline text-base font-bold text-slate-900">{g.term || '—'}</dt>
           <dd className="mt-2 text-sm leading-relaxed text-slate-600">{clip(g.explain, 50)}</dd>
         </div>
