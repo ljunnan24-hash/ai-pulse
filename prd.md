@@ -24,6 +24,7 @@ AI行业信息筛选 + 用户价值解释 + 行动判断建议
 输入：多源AI信息（官网 / 媒体 / GitHub / 社区）
 处理：事件抽取 → 去重 → 事实校验 → 价值解释
 输出：
+- **每日 AI Pulse 排行榜**（免费引流：`global_events`，多源聚合 + Pulse Score + **一句话判断 one_liner**）
 - Simple周报（快速了解）
 - Normal周报（决策参考）
 - AI能力判断（核心差异）
@@ -49,13 +50,15 @@ AI行业信息筛选 + 用户价值解释 + 行动判断建议
 场景3：发现AI工具与商业机会
 
 三、核心体验流程
-访问官网 → 选择模式 → 输入邮箱 + 关键词 → 订阅
+访问官网 → **（可选）浏览今日排行榜 / 事件详情** → 选择模式 → 输入邮箱 + 关键词 → 订阅
 ↓
 邮件确认（double opt-in）
 ↓
 每周自动收到周报
 ↓
 可退订 / 修改关键词 / 切换模式
+
+补充（已实现）：访客可直接打开 **`/rankings`** 查看当日 TopN 信号；首页展示 **Top 5** 与 **「今日判断」**（取 Top1 的 `one_liner`），无需先订阅即可建立「判断感」认知。
 
 四、周报产品结构（核心模块🔥）
 
@@ -189,6 +192,28 @@ Yes / No
 4.2.5 术语表
 术语：
 ≤50字解释
+
+4.5 每日 AI Pulse 排行榜（引流入口 · 已实现）
+
+**定位**
+- 面向非技术用户的 **「AI 判断榜」**：第一眼呈现 **一句话判断（one_liner）**，而不是英文标题或纯新闻摘要。
+- **免费**用于拉新；与周刊沉淀价值互补（周刊见第四节）。
+
+**数据与任务（实现）**
+- 跨周期事件表 **`global_events`**：由定时/手动任务 **`app.jobs.daily_rankings`** 抓取 RSS/GitHub 等 → 写入 **`raw_items`**（`issue_id` 可为空）→ 合并/去重 upsert 至 **`global_events`** / **`global_event_sources`**。
+- 榜单排序字段 **`ranking_score`（Pulse Score）**：由 **`ranking_score.py`** 与 **`global_event_service.recalculate_global_event`** 基于可信度、新鲜度、热度、多源覆盖、`raw_items.score_total` 等 **确定性规则** 计算；列表查询可按时间范围做衰减（`/api/rankings?range=today|7d|30d`）。
+
+**一句话判断（one_liner）**
+- **产品定义**：中文 **判断句**（趋势 / 影响 / 机会 / 风险 / 格局变化之一），**≤35 个汉字**；禁止「发布了/宣布了」等纯新闻句式，禁止空话套话（如「这表明」「该事件」泛化开头）。
+- **生成**：开启 **Ranking Insight**（`RANKING_INSIGHT_*` + 豆包）时，由 **`ranking_insight_service`** 批处理写入文案字段与 **`metrics_json.one_liner`**；并对 **`finalize_one_liner_for_event`** 做规范化与「资讯短句 → 用 why/正文兜底升级」。未开 Insight 时，可由 **`why_important` / `what_happened`** 经规则截断兜底（API 侧 **`resolve_one_liner_for_api`**）。
+- **列表 API**：**`GET /api/rankings`** 返回每条 **`one_liner`**（及 `title`、`what_happened`、`what_it_means_for_you`、`action_suggestion` 等）。若未来列表接口增加 **`why_important`**，前端标签将优先显示「为什么重要」语义（当前以前端可选字段预留）。
+
+**前端（SPA）**
+- 路由 **`/rankings`**：筛选栏下方 **「今日判断 / 榜单判断」** 模块（Top1 `one_liner`）；卡片 **判断区优先于标题**展示，附 **原始标题**、**对你意味着什么**（或将来 **为什么重要**）、**行动建议**、**复制链接**。
+- 首页 **`/`**：Top 5 上方 **「今日判断」**（Top1 `one_liner`），与 **`/weekly/latest`** 周报入口并存。
+- **移动端**：有 `one_liner` 时 **判断块置于 Rank + Pulse 之上**，弱化 Pulse  pill 视觉权重，避免英文标题抢占首屏。
+
+**说明**：本节不涉及 **Opportunity Score**（机会分）；周刊生成逻辑仍以 **`generate_weekly` / `weekly_issues` / `weekly_reports`** 为准，见 6.3 与 `docs/MULTI_AGENT_V1.md`。
 
 五、数据来源策略与信息源爬虫清单（v1）
 
@@ -418,6 +443,10 @@ S = 热度 + 新鲜度 + 来源可信度
 是否可用：Yes / No
 适用人群：...
 
+**每日榜单（global_events）补充（已实现）**
+- **Pulse Score**：见 **`ranking_score.compute_ranking_score`**（分量加权 + 列表侧时间衰减）；详情页可展示 **`metrics_json.score_breakdown`** 拆解。
+- **Ranking Insight（可选）**：豆包 JSON 输出可调整 **`user_value_score`** 并写入 **`metrics_json`**；**`one_liner`** 存于 **`metrics_json`**，重算分数时 **`recalculate_global_event`** 会保留该字段。
+
 原则
 👉 不追求精确
 👉 追求“用户感知正确”
@@ -484,6 +513,7 @@ S = 热度 + 新鲜度 + 来源可信度
 十四、里程碑
 
 M1：基础抓取 + 周报生成（无社媒）
+**M1.5（已与主干对齐）**：**每日排行榜（`global_events`）** + **`/api/rankings` one_liner** + **首页/榜单判断优先 UI**（引流闭环前置）
 M2：多Agent + 后台
 M3：社媒增强 + 个性化
 
