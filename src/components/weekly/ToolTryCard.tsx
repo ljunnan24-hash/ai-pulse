@@ -56,7 +56,7 @@ export function ToolTryCard({ row }: Props) {
           rel="noreferrer"
           className="mt-4 inline-block truncate text-sm font-medium text-[#005bc1] hover:underline"
         >
-          打开链接 →
+          访问官网 →
         </a>
       ) : null}
     </article>

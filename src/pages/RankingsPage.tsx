@@ -53,16 +53,40 @@ export default function RankingsPage() {
   }, [range, category]);
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
+  const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
+  const catLabel = CATS.find((c) => c.id === category)?.label ?? category;
 
   return (
     <div className="mx-auto max-w-7xl pb-20 pt-4 md:pt-6">
       <header className="mb-8 md:mb-10">
         <h1 className="font-headline text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
-          今日 AI Pulse 排行榜
+          {range === 'today' ? '今日 AI Pulse 排行榜' : `AI Pulse 排行榜 · ${rangeLabel}`}
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600 md:text-base">
-          基于来源可信度、新鲜度、热度、用户价值与 AI 相关性综合评分（Pulse Score）。每天打开一次，掌握当天最重要信号。
+          基于来源可信度、新鲜度、热度、用户价值与 AI 相关性综合评分（Pulse Score）。每日打开一次，掌握当日最值得关注的 AI 信号。
         </p>
+
+        {meta ? (
+          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-l-4 border-[#005bc1]/40 pl-4 text-sm text-slate-600">
+            <span>
+              <span className="font-semibold text-slate-800">更新时间</span>
+              <span className="mx-1.5 text-slate-300">·</span>
+              {new Date(meta.updated_at).toLocaleString('zh-CN')}
+            </span>
+            <span className="text-slate-300">|</span>
+            <span>
+              <span className="font-semibold text-slate-800">当前事件</span> {items.length} 条
+            </span>
+            <span className="text-slate-300">|</span>
+            <span>
+              范围：<span className="font-medium text-slate-800">{rangeLabel}</span>
+            </span>
+            <span className="text-slate-300">|</span>
+            <span>
+              分类：<span className="font-medium text-slate-800">{catLabel}</span>
+            </span>
+          </div>
+        ) : null}
       </header>
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -95,9 +119,6 @@ export default function RankingsPage() {
         ))}
       </div>
 
-      {meta ? (
-        <p className="mb-6 text-xs text-slate-500">更新：{new Date(meta.updated_at).toLocaleString('zh-CN')}</p>
-      ) : null}
       {err ? <p className="mb-6 text-sm text-red-600">{err}</p> : null}
 
       <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
@@ -113,7 +134,7 @@ export default function RankingsPage() {
         <aside className="space-y-8 lg:col-span-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="font-headline text-lg font-bold text-slate-900">今日趋势</h3>
-            <p className="mt-1 text-xs text-slate-500">根据当前榜单分类粗略聚合</p>
+            <p className="mt-1 text-xs text-slate-500">基于当前榜单的分类粗略聚合</p>
             <ul className="mt-4 space-y-3 text-sm text-slate-700">
               {sidebarTrends.map((line, idx) => (
                 <li key={idx} className="flex gap-2">
@@ -127,7 +148,8 @@ export default function RankingsPage() {
           <div className="rounded-2xl border border-[#005bc1]/20 bg-gradient-to-br from-[#005bc1]/5 to-white p-6 shadow-sm">
             <h3 className="font-headline text-lg font-bold text-slate-900">订阅周报</h3>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              排行榜告诉你今天发生了什么；周报告诉你这一周<strong className="text-slate-800">真正值得投入什么</strong>。
+              排行榜告诉你<strong className="text-slate-800">今天发生了什么</strong>；
+              周报告诉你这一周<strong className="text-slate-800">真正值得投入什么</strong>。
             </p>
             <Link
               to="/#subscribe"

@@ -16,7 +16,8 @@ import { NoiseCard } from './NoiseCard';
 import { TopJudgmentCard } from './TopJudgmentCard';
 import { ToolTryCard } from './ToolTryCard';
 import type { ThesisShape } from './WeeklyThesisCard';
-import { WeeklyThesisCard } from './WeeklyThesisCard';
+import { ReportCoverCard } from './ReportCoverCard';
+import { ReportCoverFallback } from './ReportCoverFallback';
 import { WeeklyReportHeader } from './WeeklyReportHeader';
 import type { TocItem } from './WeeklyToc';
 import { WeeklyToc } from './WeeklyToc';
@@ -82,10 +83,12 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
     })) || [];
 
   const readingMinutes = estimateReadingMinutes(payload);
+  const top3Count = showJudgments ? top3Judgments.length : legacyTop3.length;
+  const noiseCount = noiseIgnore.length;
 
   const tocItems: TocItem[] = [];
-  if (showThesis && thesis) tocItems.push({ id: 'weekly-thesis', label: '本周判断' });
-  if (showJudgments || showLegacyTop3) tocItems.push({ id: 'top3-judgments', label: 'Top 3' });
+  tocItems.push({ id: 'weekly-thesis', label: '本周判断' });
+  if (showJudgments || showLegacyTop3) tocItems.push({ id: 'top3-judgments', label: 'Top 3 判断' });
   if (showCapsV2 || showCapsLegacy) tocItems.push({ id: 'capability-boundaries', label: '能力边界' });
   if (radarData.length > 0) tocItems.push({ id: 'capability-radar', label: '能力雷达' });
   if (showToolsV2 || showToolsLegacy) tocItems.push({ id: 'tools-to-try', label: '工具' });
@@ -95,9 +98,18 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
 
   return (
     <div className="mx-auto max-w-[1120px] px-4 pb-24 pt-6 md:px-6 md:pt-8">
-      <WeeklyReportHeader reportDate={reportDate} title={title} readingMinutes={readingMinutes} />
+      <WeeklyReportHeader reportDate={reportDate} title={title} />
 
-      {showThesis && thesis ? <WeeklyThesisCard thesis={thesis} /> : null}
+      {showThesis && thesis ? (
+        <ReportCoverCard
+          thesis={thesis}
+          readingMinutes={readingMinutes}
+          topJudgmentCount={top3Count}
+          noiseFilteredCount={noiseCount}
+        />
+      ) : (
+        <ReportCoverFallback readingMinutes={readingMinutes} topJudgmentCount={top3Count} noiseFilteredCount={noiseCount} />
+      )}
 
       {tocItems.length > 0 ? (
         <div className="mb-8 flex flex-wrap gap-2 lg:hidden">
@@ -137,8 +149,8 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
                       className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_2px_14px_rgba(15,23,42,0.06)] md:p-7"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
-                        <span className="font-headline text-lg font-black tabular-nums text-[#005bc1]">
-                          Rank {String(i + 1).padStart(2, '0')}
+                        <span className="font-headline text-3xl font-black tabular-nums leading-none text-[#005bc1]">
+                          #{String(i + 1).padStart(2, '0')}
                         </span>
                         <ActionBadge suggestion="先观望" />
                       </div>

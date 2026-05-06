@@ -1,12 +1,58 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { BookOpen, Filter, LineChart, Sparkles, X } from 'lucide-react';
+import { BookOpen, Filter, LineChart, X } from 'lucide-react';
 
 import { apiBase } from '../config';
 import { fetchRankings, fetchWeeklyLatest } from '../api/public';
+import { ActionBadge } from '../components/common/ActionBadge';
+import { ScoreBadge } from '../components/common/ScoreBadge';
 import { RankingCard } from '../components/rankings/RankingCard';
 import { EmptyState } from '../components/common/EmptyState';
+import { splitTitleForDisplay } from '../lib/titleDisplay';
+
+function HomeProductPreview({
+  top5,
+  weeklyPreview,
+}: {
+  top5: Awaited<ReturnType<typeof fetchRankings>>['items'];
+  weeklyPreview: { headline: string; titles: string[]; boundary?: string } | null;
+}) {
+  const lead = top5[0];
+  const t = lead ? splitTitleForDisplay(lead.title) : { primary: '' };
+
+  return (
+    <>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_28px_rgba(15,23,42,0.07)]">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">今日信号</p>
+        {lead ? (
+          <>
+            <p className="mt-2 font-headline text-lg font-bold leading-snug text-slate-900 line-clamp-2">{t.primary}</p>
+            {t.secondary ? <p className="mt-1 text-xs text-slate-500">原文标题：{t.secondary}</p> : null}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <ScoreBadge score={lead.ranking_score} variant="pill" />
+              <ActionBadge suggestion={lead.action_suggestion} />
+            </div>
+            <Link to={`/events/${lead.id}`} className="mt-4 inline-block text-sm font-bold text-[#005bc1] hover:underline">
+              查看详情 →
+            </Link>
+          </>
+        ) : (
+          <p className="mt-2 text-sm text-slate-500">榜单加载完成后，这里会展示今日头条信号。</p>
+        )}
+      </div>
+      <div className="rounded-2xl border border-[#005bc1]/25 bg-gradient-to-br from-[#e8f2fc] via-white to-white p-5 shadow-[0_8px_28px_rgba(0,91,193,0.08)]">
+        <p className="text-xs font-semibold text-[#005bc1]">本周判断</p>
+        <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800 line-clamp-4">
+          {weeklyPreview?.headline?.trim() || '周报就绪后，这里会展示本周一句话主线判断。'}
+        </p>
+        <Link to="/weekly/latest" className="mt-4 inline-block text-sm font-bold text-[#005bc1] hover:underline">
+          阅读完整周报 →
+        </Link>
+      </div>
+    </>
+  );
+}
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -40,13 +86,17 @@ export default function HomePage() {
         const thesis = normal.weekly_thesis as { headline?: string } | undefined;
         const tj = (normal.top3_judgments as Array<{ title?: string }> | undefined) || [];
         const legacy = (normal.top3 as Array<{ title?: string }> | undefined) || [];
-        const caps = (normal.capability_boundaries as Array<{ question?: string }> | undefined) || [];
+        const caps =
+          (normal.capability_boundaries as Array<{ question?: string; conclusion?: string }> | undefined) || [];
         const hl = thesis?.headline?.trim();
         const titles = (tj.length ? tj : legacy).map((x) => String(x.title || '')).filter(Boolean).slice(0, 3);
+        const cap0 = caps[0];
+        const boundaryLine =
+          cap0?.conclusion?.trim() || cap0?.question?.trim() || '';
         setWeeklyPreview({
           headline: hl || r.title || '',
           titles,
-          boundary: caps[0]?.question,
+          boundary: boundaryLine,
         });
         setWeeklyErr(false);
       })
@@ -87,15 +137,15 @@ export default function HomePage() {
         <div>
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#005bc1]/20 bg-white px-3 py-1 shadow-sm">
             <div className="h-2 w-2 rounded-full bg-[#005bc1] pulse-dot" />
-            <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#005bc1]">
-              Signal · Judgment · Action
+            <span className="text-[0.7rem] font-semibold tracking-wide text-[#005bc1]">
+              每日信号 · 每周判断 · 行动建议
             </span>
           </div>
           <h1 className="font-headline text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 md:text-5xl lg:text-[3.25rem]">
             每天看 AI 信号，每周读 AI 判断
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
-            AI Pulse 每日追踪全球 AI 动态，用 Pulse Score 排出最值得关注的事件，并在每周报告中告诉你：
+            AI Pulse 每日追踪全球 AI 动态，用 Pulse Score 筛出最值得关注的事件，并在每周报告中告诉你：
             <strong className="font-semibold text-slate-800">什么值得投入，什么可以忽略。</strong>
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
@@ -113,21 +163,8 @@ export default function HomePage() {
             </Link>
           </div>
         </div>
-        <div className="relative flex min-h-[220px] items-center justify-center rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-[#005bc1]/[0.06] to-white p-8 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <div className="absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_30%_20%,rgba(0,91,193,0.12),transparent_55%)]" />
-          <div className="relative grid grid-cols-3 gap-3 md:gap-4">
-            {[0.92, 0.78, 0.65].map((op, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08 }}
-                className="h-24 w-20 rounded-2xl bg-white/90 shadow-md ring-1 ring-slate-200/80 md:h-28 md:w-24"
-                style={{ opacity: op }}
-              />
-            ))}
-          </div>
-          <Sparkles className="absolute right-6 top-6 h-8 w-8 text-[#005bc1]/40" aria-hidden />
+        <div className="flex min-h-[280px] flex-col justify-center gap-4">
+          <HomeProductPreview top5={top5} weeklyPreview={weeklyPreview} />
         </div>
       </header>
 
@@ -168,27 +205,27 @@ export default function HomePage() {
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#005bc1]/10 text-[#005bc1]">
               <LineChart className="h-5 w-5" />
             </div>
-            <h3 className="font-headline text-lg font-bold text-slate-900">每日排行榜</h3>
+            <h3 className="font-headline text-lg font-bold text-slate-900">每日信号榜</h3>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              免费查看当天最重要的 AI 事件，快速知道 AI 圈发生了什么。
+              从多源信息中提取 AI 事件并去重，再用 Pulse Score 排序呈现。
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#005bc1]/10 text-[#005bc1]">
               <Filter className="h-5 w-5" />
             </div>
-            <h3 className="font-headline text-lg font-bold text-slate-900">事件详情</h3>
+            <h3 className="font-headline text-lg font-bold text-slate-900">事件判断</h3>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              查看事件来源、评分依据、影响判断，避免只看标题做决定。
+              为每个事件生成「发生了什么 / 为什么重要 / 对你意味着什么」与行动建议。
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#005bc1]/10 text-[#005bc1]">
               <BookOpen className="h-5 w-5" />
             </div>
-            <h3 className="font-headline text-lg font-bold text-slate-900">每周判断报告</h3>
+            <h3 className="font-headline text-lg font-bold text-slate-900">每周报告</h3>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              从一周事件中提炼趋势、能力边界、工具机会和可忽略噪音。
+              从一周信号中提炼主线、能力边界、工具机会与可忽略噪音。
             </p>
           </div>
         </div>
@@ -196,38 +233,42 @@ export default function HomePage() {
 
       {/* Weekly preview */}
       <section className="mb-20">
-        <h2 className="mb-6 font-headline text-2xl font-bold text-slate-900 md:text-3xl">本周判断报告预览</h2>
+        <h2 className="mb-2 font-headline text-2xl font-bold text-slate-900 md:text-3xl">本周判断报告预览</h2>
+        <p className="mb-6 text-sm text-slate-600">像研究报告摘要一样，快速浏览主线与重点判断。</p>
         {weeklyErr || !weeklyPreview?.headline ? (
           <EmptyState
             title="暂无已发布周报"
-            description="订阅后，我们将在每期周报就绪时推送摘要链接；你也可以稍后在「周报」页查看。"
+            description="订阅后，我们将在每期周报就绪时推送摘要；你也可以稍后在「周报」页查看。"
             actionLabel="订阅周报"
             actionTo="/#subscribe"
           />
         ) : (
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,0.06)] md:p-8">
-            <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#005bc1]">一句话判断</p>
-            <p className="mt-3 font-headline text-xl font-bold leading-snug text-slate-900 md:text-2xl">{weeklyPreview.headline}</p>
+          <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-[0_14px_44px_rgba(15,23,42,0.08)] md:p-8">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-[#005bc1]/10 px-3 py-1 text-xs font-bold text-[#004291]">报告摘要</span>
+            </div>
+            <p className="mt-4 text-xs font-semibold text-slate-500">本周一句话判断</p>
+            <p className="mt-2 font-headline text-xl font-bold leading-snug text-slate-900 md:text-2xl">{weeklyPreview.headline}</p>
             {weeklyPreview.titles.length > 0 ? (
-              <ul className="mt-6 space-y-2 border-t border-slate-100 pt-6">
-                <li className="text-xs font-semibold uppercase tracking-wide text-slate-500">本周重点判断</li>
+              <ul className="mt-6 space-y-3 border-t border-slate-100 pt-6">
+                <li className="text-xs font-semibold text-slate-500">Top 3 判断标题</li>
                 {weeklyPreview.titles.map((t, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-slate-700">
-                    <span className="font-bold text-[#005bc1]">{i + 1}.</span>
-                    <span>{t}</span>
+                  <li key={i} className="flex gap-3 text-sm text-slate-800">
+                    <span className="font-headline font-bold tabular-nums text-[#005bc1]">{i + 1}</span>
+                    <span className="leading-relaxed">{t}</span>
                   </li>
                 ))}
               </ul>
             ) : null}
             {weeklyPreview.boundary ? (
-              <p className="mt-6 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                <span className="font-semibold text-slate-900">能力边界示例：</span>
-                {weeklyPreview.boundary}
-              </p>
+              <div className="mt-6 rounded-2xl border border-[#005bc1]/15 bg-[#f7f9fc] px-4 py-4">
+                <p className="text-xs font-semibold text-slate-500">能力边界摘录</p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-800">{weeklyPreview.boundary}</p>
+              </div>
             ) : null}
             <Link
               to="/weekly/latest"
-              className="mt-8 inline-flex rounded-full bg-[#005bc1] px-6 py-2.5 font-headline text-sm font-bold text-white"
+              className="mt-8 inline-flex rounded-full bg-[#005bc1] px-7 py-3 font-headline text-sm font-bold text-white shadow-md hover:bg-[#004a9e]"
             >
               阅读完整周报
             </Link>
@@ -248,14 +289,14 @@ export default function HomePage() {
             onClick={() => setMode('simple')}
             className={`rounded-full px-4 py-2 text-sm font-bold ${mode === 'simple' ? 'bg-[#005bc1] text-white' : 'bg-slate-100 text-slate-600'}`}
           >
-            Simple
+            简洁
           </button>
           <button
             type="button"
             onClick={() => setMode('normal')}
             className={`rounded-full px-4 py-2 text-sm font-bold ${mode === 'normal' ? 'bg-[#005bc1] text-white' : 'bg-slate-100 text-slate-600'}`}
           >
-            Normal
+            标准
           </button>
         </div>
 

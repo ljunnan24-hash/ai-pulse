@@ -35,7 +35,7 @@ export function CategoryRecapCard({ row }: Props) {
 
       {row.what_to_watch ? (
         <div className="mt-6 border-t border-slate-100 pt-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">后续看什么</p>
+          <p className="text-xs font-semibold text-slate-500">接下来关注什么</p>
           <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800">{String(row.what_to_watch)}</p>
         </div>
       ) : null}
