@@ -48,7 +48,7 @@ export function HomeTopFiveTable({ items }: Props) {
                   </span>
                 </div>
                 <div className="flex items-center">
-                  <span className="font-headline text-[22px] font-extrabold tabular-nums leading-none text-[#2563EB]">
+                  <span className="font-headline text-[20px] font-extrabold tabular-nums leading-none text-[#2563EB]">
                     {pulse.toFixed(1)}
                   </span>
                 </div>
@@ -89,7 +89,7 @@ export function HomeTopFiveTable({ items }: Props) {
             <li key={item.id} className="px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-headline text-[24px] font-extrabold tabular-nums leading-none text-[#2563EB]">{rank}</span>
-                <span className="font-headline text-[20px] font-extrabold tabular-nums leading-none text-[#2563EB]">
+                <span className="font-headline text-[18px] font-extrabold tabular-nums leading-none text-[#2563EB]">
                   {pulse.toFixed(1)}
                 </span>
               </div>

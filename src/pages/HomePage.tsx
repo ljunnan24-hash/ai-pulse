@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
 import { fetchRankings, fetchWeeklyLatest } from '../api/public';
 import { HomeTopFiveTable } from '../components/home/HomeTopFiveTable';
+import { InformationQualityWorkflow } from '../components/home/InformationQualityWorkflow';
 import { TodayFocusCard } from '../components/home/TodayFocusCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { estimateReadingMinutes } from '../components/weekly/weeklyPayloadUtils';
@@ -28,41 +28,6 @@ function ReportPreviewIllustration() {
         </svg>
       </div>
     </div>
-  );
-}
-
-function StepIconDaily() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-[1.125rem] w-[1.125rem]" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-      <path d="M4 6h16M4 12h10M4 18h14" strokeLinecap="round" />
-      <path d="M18 8l2 2-2 2M16 10h4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function StepIconPulse() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-[1.125rem] w-[1.125rem]" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-      <path d="M4 18V6M9 18v-5M14 18V9M19 18v-8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function StepIconHint() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-[1.125rem] w-[1.125rem]" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-      <path d="M12 3v4M12 21v-4M4.5 7.5l3 1.5M16.5 16.5l3 1.5M3 12h4M17 12h4M4.5 16.5l3-1.5M16.5 7.5l3-1.5" strokeLinecap="round" />
-      <circle cx="12" cy="12" r="2.5" />
-    </svg>
-  );
-}
-
-function StepIconWeekly() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-[1.125rem] w-[1.125rem]" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-      <path d="M7 4h10v16H7z" strokeLinejoin="round" />
-      <path d="M9 8h6M9 12h4" strokeLinecap="round" />
-    </svg>
   );
 }
 
@@ -134,29 +99,29 @@ export default function HomePage() {
   }, [navigate]);
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] px-4 pb-16 pt-6 md:px-6 md:pb-20 md:pt-8">
+    <div className="mx-auto w-full max-w-[1180px] px-4 pb-16 pt-5 md:px-6 md:pb-20 md:pt-7">
       {/* Hero */}
-      <section className="mb-[88px]">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_480px] lg:items-start lg:gap-[88px]">
+      <section className="mb-16 pb-10 md:mb-20 md:pb-12">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_470px] lg:items-start lg:gap-16">
           <div className="min-w-0">
-            <h1 className="max-w-[560px] font-headline text-[38px] font-extrabold leading-[1.15] tracking-[-0.03em] text-[#0F172A] md:text-[56px] md:leading-[1.12]">
+            <h1 className="max-w-[520px] font-headline text-[40px] font-extrabold leading-[1.12] tracking-[-0.03em] text-[#0F172A] md:text-[64px] md:leading-[1.1]">
               每天看 AI 信号，
               <br className="hidden sm:block" />
-              每周读 AI 判断
+              每周读 AI 简报
             </h1>
-            <p className="mt-5 max-w-[560px] text-[16px] font-normal leading-[1.85] text-[#64748B]">
-              AI Pulse 每日追踪全球 AI 产品、模型、工具与行业动态，基于多源数据与 Pulse Score 筛出最值得看的信息，并在每周摘要中整理关键变化。
+            <p className="mt-4 max-w-[540px] text-[16px] font-normal leading-[1.8] text-[#64748B] md:mt-5">
+              AI Pulse 持续追踪全球 AI 产品、模型、工具与行业动态，基于多源数据筛选重要信息，用 Pulse Score 作为排序参考，并在每周 AI 信号简报中整理关键变化、工具线索与背景解释。
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-4 md:mt-7">
               <Link
                 to="/rankings"
-                className="inline-flex h-[46px] items-center justify-center rounded-full bg-[#1463FF] px-[22px] text-[15px] font-bold text-white no-underline transition-opacity hover:opacity-95"
+                className="inline-flex h-[46px] items-center justify-center rounded-full bg-[#1463FF] px-5 text-[15px] font-bold text-white no-underline transition-opacity hover:opacity-95"
               >
                 查看今日榜单
               </Link>
               <Link
                 to="/subscribe"
-                className="inline-flex h-[46px] items-center justify-center rounded-full border border-[#BFD3FF] bg-white px-[22px] text-[15px] font-bold text-[#1463FF] no-underline transition-colors hover:bg-[#F8FAFF]"
+                className="inline-flex h-[46px] items-center justify-center rounded-full border border-[#BFD3FF] bg-white px-5 text-[15px] font-bold text-[#1463FF] no-underline transition-colors hover:bg-[#F8FAFF]"
               >
                 订阅周报
               </Link>
@@ -189,58 +154,7 @@ export default function HomePage() {
         </p>
       </section>
 
-      {/* How it works */}
-      <section className="mb-[72px]">
-        <h2 className="font-headline text-[30px] font-extrabold leading-[1.2] text-[#0F172A]">AI Pulse 如何工作</h2>
-        <p className="mb-8 mt-2 max-w-2xl text-[15px] text-[#64748B]">
-          从海量 AI 动态中提炼信息，用结构化摘要帮助你更快理解变化。
-        </p>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-          {[
-            {
-              n: '01',
-              icon: StepIconDaily,
-              t: '每日信息榜单',
-              d: '汇聚全球多源信号，整理成每日 AI 信息 Top 榜。',
-            },
-            {
-              n: '02',
-              icon: StepIconPulse,
-              t: 'Pulse Score',
-              d: '综合新鲜度、可信度、热度与用户价值，作为排序参考。',
-            },
-            {
-              n: '03',
-              icon: StepIconHint,
-              t: '轻量信息提示',
-              d: '补充「发生了什么」「为什么值得看」「对你意味着什么」。',
-            },
-            {
-              n: '04',
-              icon: StepIconWeekly,
-              t: '每周信息摘要',
-              d: '每周整理关键变化、工具线索与值得继续跟踪的方向。',
-            },
-          ].map((step, i, arr) => {
-            const Icon = step.icon;
-            return (
-              <Fragment key={step.n}>
-                <div className="flex min-h-[148px] flex-1 flex-col rounded-[18px] border border-[#E9EEF6] bg-white p-[22px]">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#2563EB]/20 bg-white text-[#2563EB]">
-                    <Icon />
-                  </div>
-                  <p className="mt-3 text-[14px] font-bold text-[#2563EB]">{step.n}</p>
-                  <h3 className="mt-1 font-headline text-[16px] font-bold leading-snug text-[#0F172A]">{step.t}</h3>
-                  <p className="mt-2 flex-1 text-[14px] leading-[1.7] text-[#64748B]">{step.d}</p>
-                </div>
-                {i < arr.length - 1 ? (
-                  <ChevronRight className="hidden h-6 w-6 shrink-0 self-center text-slate-300 lg:block" aria-hidden />
-                ) : null}
-              </Fragment>
-            );
-          })}
-        </div>
-      </section>
+      <InformationQualityWorkflow />
 
       {/* Weekly preview */}
       <section>
