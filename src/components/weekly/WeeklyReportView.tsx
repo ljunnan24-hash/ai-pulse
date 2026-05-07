@@ -24,7 +24,6 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
   const thesis = normal.weekly_thesis as { headline?: string; summary?: string } | undefined;
 
   const headline = (thesis?.headline ?? '').trim() || title.trim() || '本期周报';
-  const summary = (thesis?.summary ?? '').trim();
 
   const topThreeRaw = getWeeklyTopThreeJudgments(payload);
   const topThree = enrichWeeklyTopThreeWithLegacyTop3(topThreeRaw, normal.top3);
@@ -58,7 +57,7 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
 
           {/* 1. 本周判断 */}
           <section className="mb-12 md:mb-14">
-            <WeeklyJudgmentCard headline={headline} summary={summary || undefined} />
+            <WeeklyJudgmentCard headline={headline} />
           </section>
 
           {/* 2. 本周最重要的三件事 */}
