@@ -83,7 +83,7 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
               PULSE {pulse !== null && Number.isFinite(pulse) ? pulse.toFixed(1) : '—'}
             </span>
           </div>
-          <h3 className="mt-3 line-clamp-2 text-[17px] font-medium leading-snug text-slate-800 [overflow-wrap:anywhere] md:text-[18px]">
+          <h3 className="mt-3 line-clamp-2 text-[17px] font-bold leading-snug text-[#0F172A] [overflow-wrap:anywhere] md:text-[18px]">
             {pulseEventTitleZh(item)}
           </h3>
           {pulseEventTitleEn(item) ? (

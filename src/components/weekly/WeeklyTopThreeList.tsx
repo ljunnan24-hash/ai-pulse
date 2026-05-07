@@ -8,6 +8,30 @@ import {
 } from './weeklyPayloadUtils';
 import { PulseRankingsTableLayout, type PulseRankingsTableRow } from '../pulse/PulseRankingsTableLayout';
 
+/** 站内 `/events/:id` 仅支持数字 GlobalEvent id；从 event_id 或 related_event_ids 中取首个正整数 */
+function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null {
+  const tryParse = (raw: string | undefined): number | null => {
+    const s = (raw ?? '').trim();
+    if (!s) return null;
+    if (/^\d+$/.test(s)) {
+      const n = Number(s);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+    return null;
+  };
+
+  const direct = tryParse(row.event_id);
+  if (direct !== null) return direct;
+
+  const rel = (row.related_event_ids ?? '').trim();
+  if (!rel) return null;
+  for (const part of rel.split(/[,，]/)) {
+    const id = tryParse(part);
+    if (id !== null) return id;
+  }
+  return null;
+}
+
 /**
  * 周报「本周最重要三件事」：**与排行榜页同一组件、同一栅格与样式**（{@link PulseRankingsTableLayout}）。
  * 数据：`getWeeklyTopThreeJudgments` → 归并候选 → `pickMergedWeeklyTopThree` 最多 3 条。
@@ -18,16 +42,8 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
   }
 
   const pulseRows: PulseRankingsTableRow[] = rows.map((row, i) => {
-    let eid = row.event_id ? Number(row.event_id) : NaN;
-    if (!Number.isFinite(eid) || eid <= 0) {
-      const rel = (row.related_event_ids ?? '').trim();
-      if (rel) {
-        const first = rel.split(/[,，]/).map((x) => x.trim()).find(Boolean);
-        const n = first ? Number(first) : NaN;
-        if (Number.isFinite(n) && n > 0) eid = n;
-      }
-    }
-    const hasEvent = Number.isFinite(eid) && eid > 0;
+    const eid = resolveWeeklyNumericEventId(row);
+    const hasEvent = eid !== null;
     const urlStr = (row.url ?? '').trim();
 
     return {
@@ -38,7 +54,7 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
       titleEn: weeklyPulseTitleEn(row),
       meaning: weeklyPulseMeaning(row),
       categorySlug: weeklyRowCategorySlug(row),
-      detailTo: hasEvent ? `/events/${eid}` : undefined,
+      detailTo: eid !== null ? `/events/${eid}` : undefined,
       externalUrl: !hasEvent && urlStr ? urlStr : undefined,
     };
   });

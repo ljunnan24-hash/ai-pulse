@@ -64,6 +64,7 @@ const WEEKLY_OPTIONAL_KEYS = [
   'user_value',
   'meaning_for_user',
   'what_it_means',
+  'why_it_matters',
   'why_it_matters_to_you',
   'summary',
   'cluster_id',
@@ -151,6 +152,7 @@ export function weeklyPulseTitleEn(row: WeeklyLooseRow): string | undefined {
 export function weeklyPulseMeaning(row: WeeklyLooseRow): string {
   for (const k of [
     'what_it_means_for_you',
+    'why_it_matters',
     'user_value',
     'meaning_for_user',
     'what_it_means',

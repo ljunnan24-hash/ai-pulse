@@ -97,6 +97,9 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
             "what_it_means_for_you": str(t.get("what_it_means_for_you") or "")[:800],
             "attention_level": str(t.get("attention_level") or "3")[:8],
         }
+        cat_top = str(t.get("category") or "").strip()
+        if cat_top:
+            row["category"] = cat_top[:64]
         eid_top = str(t.get("event_id") or "").strip()
         if eid_top:
             row["event_id"] = eid_top

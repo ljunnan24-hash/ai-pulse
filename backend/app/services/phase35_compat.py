@@ -211,6 +211,9 @@ def sync_legacy_top3_from_judgments(normal: dict[str, Any]) -> None:
         jeid = str(j.get("event_id") or "").strip()
         if jeid:
             t["event_id"] = jeid
+        jc = str(j.get("category") or "").strip()
+        if jc:
+            t["category"] = jc[:64]
         for fld in ("source_urls", "related_event_ids", "related_stable_keys"):
             v = j.get(fld)
             if isinstance(v, list) and v:
@@ -343,8 +346,7 @@ def map_top3_judgments_to_top3(jlist: list[Any]) -> list[dict[str, str]]:
         url = ""
         if isinstance(su, list) and su:
             url = str(su[0]).strip()
-        out.append(
-            {
+        row_t = {
                 "title": title[:200],
                 "url": url[:2048],
                 "what_happened": str(j.get("what_happened") or "")[:800],
@@ -352,7 +354,13 @@ def map_top3_judgments_to_top3(jlist: list[Any]) -> list[dict[str, str]]:
                 "what_it_means_for_you": str(j.get("what_to_do_now") or "")[:800],
                 "attention_level": att,
             }
-        )
+        jc = str(j.get("category") or "").strip()
+        if jc:
+            row_t["category"] = jc[:64]
+        jeid = str(j.get("event_id") or "").strip()
+        if jeid:
+            row_t["event_id"] = jeid
+        out.append(row_t)
     return out
 
 
@@ -517,6 +525,10 @@ def extract_clean_phase35_normal(raw_normal: dict[str, Any] | None) -> dict[str,
                 ps = int(pulse) if pulse is not None else 0
             except Exception:
                 ps = 0
+            cat_j = str(j.get("category") or "").strip()
+            url_j = str(j.get("url") or "").strip()
+            if not url_j and surl:
+                url_j = str(surl[0]).strip()
             row_j = {
                     "title": tit[:200],
                     "related_event_ids": ids,
@@ -529,6 +541,10 @@ def extract_clean_phase35_normal(raw_normal: dict[str, Any] | None) -> dict[str,
                     "pulse_score": ps,
                     "source_urls": surl,
                 }
+            if cat_j:
+                row_j["category"] = cat_j[:64]
+            if url_j:
+                row_j["url"] = url_j[:2048]
             if eid_j:
                 row_j["event_id"] = eid_j
             clean_j.append(row_j)
