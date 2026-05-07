@@ -90,7 +90,7 @@ function PulseRankingsActionCell({
   mobileFullWidth?: boolean;
   weeklyUi?: boolean;
 }) {
-  const mobileCls = mobileFullWidth ? `${pulseRankDetailBtnCls} mt-4 w-full justify-center` : pulseRankDetailBtnCls;
+  const mobileCls = mobileFullWidth ? `${pulseRankDetailBtnCls} inline-flex self-start` : pulseRankDetailBtnCls;
 
   if (detailTo) {
     return <PulseRankDetailLink to={detailTo} className={mobileCls} />;
@@ -126,7 +126,7 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
           <span>事件</span>
           <span>对你意味着什么</span>
           <span className="text-center">分类</span>
-          <span className={`text-right ${stickyActionWrap}`}>操作</span>
+          <span className={`text-left ${stickyActionWrap}`}>操作</span>
         </div>
         <div className="divide-y divide-[#E2E8F0]">
           {rows.map((r) => (
@@ -160,7 +160,7 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
               <div className="flex items-start justify-center pt-0.5" role="cell">
                 <RankingsCategoryCell row={r} />
               </div>
-              <div className={`flex justify-end ${stickyActionWrap}`}>
+              <div className={`flex justify-start ${stickyActionWrap}`}>
                 <PulseRankingsActionCell
                   detailTo={r.detailTo}
                   externalUrl={r.externalUrl}
@@ -198,12 +198,14 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
             <div className="mt-2 flex justify-start">
               <RankingsCategoryCell row={r} />
             </div>
-            <PulseRankingsActionCell
-              detailTo={r.detailTo}
-              externalUrl={r.externalUrl}
-              mobileFullWidth
-              weeklyUi={r.weeklyUi}
-            />
+            <div className="mt-4 flex justify-start">
+              <PulseRankingsActionCell
+                detailTo={r.detailTo}
+                externalUrl={r.externalUrl}
+                mobileFullWidth
+                weeklyUi={r.weeklyUi}
+              />
+            </div>
           </li>
         ))}
       </ul>

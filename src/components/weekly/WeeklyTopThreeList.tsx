@@ -12,17 +12,6 @@ import {
 } from './weeklyPayloadUtils';
 import { PulseRankingsTableLayout, type PulseRankingsTableRow } from '../pulse/PulseRankingsTableLayout';
 
-function resolveWeeklyExternalUrl(row: WeeklyLooseRow): string {
-  const u = (row.url ?? '').trim();
-  if (u) return u;
-  return (
-    (row.source_urls ?? '')
-      .split(/\n/)
-      .map((x) => x.trim())
-      .find(Boolean) ?? ''
-  );
-}
-
 /** 站内 `/events/:id` 仅接受正整数 GlobalEvent.id */
 function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null {
   const tryParse = (raw: string | undefined): number | null => {
@@ -121,10 +110,9 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
   const pulseRows: PulseRankingsTableRow[] = rows.map((row, i) => {
     const eid = resolveWeeklyNumericEventId(row);
     const api = eid !== null ? eventById[eid] : undefined;
-    const extUrl = resolveWeeklyExternalUrl(row);
 
+    /** 与排行榜一致：仅站内事件详情；外链在详情页「来源」查看，不在表格里跳转外部 */
     const detailTo = eid !== null ? `/events/${eid}` : undefined;
-    const externalUrl = detailTo ? undefined : extUrl || undefined;
 
     const slug = categorySlugMerged(row, api?.category);
 
@@ -137,7 +125,6 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
       meaning: weeklyPulseMeaning(row),
       categorySlug: slug,
       detailTo,
-      externalUrl,
     };
   });
 
