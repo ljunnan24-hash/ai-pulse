@@ -14,6 +14,7 @@ English marketing SPA (Vite + React) plus a **Python (FastAPI)** backend: RSS in
 | `docs/SCORING_V1.md` | Event scoring spec (v1) |
 | `docs/SOCIAL_SOURCES.md` | Social sources whitelist (v1) |
 | `docs/MULTI_AGENT_V1.md` | Multi-agent newsletter workflow (v1) |
+| `docs/WEEKLY_TOP3_PROTOCOL.md` | Weekly Top3 payload / detail-link protocol (EN + 中文; PR blurb) |
 | `docs/部署与数据说明.md` | 迁移步骤、环境配置要点、数据库存储说明（中文） |
 
 ## Local development
