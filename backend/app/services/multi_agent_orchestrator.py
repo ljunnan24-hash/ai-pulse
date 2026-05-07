@@ -132,6 +132,86 @@ def _read_pool_item(it: Any, idx: int) -> tuple[str, str, str, int]:
     return title, summary, url, st
 
 
+def _stable_event_id_for_pool_item(it: Any, pool_index: int) -> str:
+    """
+    周报候选池 event_id：优先 GlobalEvent 主键（与 /api/events/:id 一致），否则池内序号 e01（legacy）。
+    """
+    if isinstance(it, dict):
+        gid = it.get("global_event_id")
+        if gid is not None:
+            try:
+                return str(int(gid))
+            except (TypeError, ValueError):
+                pass
+    return f"e{pool_index:02d}"
+
+
+def _build_url_to_event_id_map(events: list[dict[str, Any]]) -> dict[str, str]:
+    from app.services.top3_selector import normalize_url
+
+    m: dict[str, str] = {}
+    for e in events:
+        if not isinstance(e, dict):
+            continue
+        u = normalize_url(str(e.get("url") or ""))
+        if u:
+            m[u] = str(e.get("event_id") or "")
+    return m
+
+
+def _align_json_pack_events_by_url(pack: Any, url_to_id: dict[str, str]) -> None:
+    """将 Verifier / Impact 等 JSON 里的 events[].event_id 按 URL 对齐到稳定 id。"""
+    from app.services.top3_selector import normalize_url
+
+    if not isinstance(pack, dict) or not url_to_id:
+        return
+    for ev in pack.get("events") or []:
+        if not isinstance(ev, dict):
+            continue
+        for key in ("canonical_url", "url"):
+            u = normalize_url(str(ev.get(key) or ""))
+            if u and u in url_to_id:
+                ev["event_id"] = url_to_id[u]
+                break
+
+
+def _align_event_cards_by_url(cards: list[dict[str, Any]], url_to_id: dict[str, str]) -> None:
+    from app.services.top3_selector import normalize_url
+
+    if not url_to_id:
+        return
+    for c in cards:
+        if not isinstance(c, dict):
+            continue
+        u = normalize_url(str(c.get("url") or ""))
+        if u in url_to_id:
+            c["event_id"] = url_to_id[u]
+
+
+def _align_scoring_issues_event_ids(scoring: Any, canonical_events: list[dict[str, Any]]) -> None:
+    """
+    Scoring 仅输出 event_id（无 URL）；模型仍可能写 e04。
+    按与传入 LLM 相同的事件顺序，把 eNN 映射为 canonical_events 里对应条的稳定 id。
+    """
+    if not isinstance(scoring, dict) or not canonical_events:
+        return
+    alias: dict[str, str] = {}
+    for i, ev in enumerate(canonical_events, start=1):
+        if not isinstance(ev, dict):
+            continue
+        cid = str(ev.get("event_id") or "").strip()
+        if cid:
+            alias[f"e{i:02d}"] = cid
+    if not alias:
+        return
+    for iss in scoring.get("issues") or []:
+        if not isinstance(iss, dict):
+            continue
+        eid = str(iss.get("event_id") or "").strip()
+        if eid in alias:
+            iss["event_id"] = alias[eid]
+
+
 def _cleaner_filter(pool: list[Any]) -> tuple[list[Any], dict[str, Any]]:
     """PRD [Cleaner]：过滤明显垃圾/空条目（确定性，不调用 LLM）。"""
     dropped: list[dict[str, str]] = []
@@ -214,18 +294,20 @@ class MultiAgentOrchestrator:
             "note": "事件已在入库阶段按 IssueEvent 合并；本流水线不再对同源重复做 LLM 合并。",
         }
 
-        events = []
+        events: list[dict[str, Any]] = []
         for i, it in enumerate(pool, 1):
             title, summary, url, score_total = _read_pool_item(it, i)
             events.append(
                 {
-                    "event_id": f"e{i:02d}",
+                    "event_id": _stable_event_id_for_pool_item(it, i),
                     "title": title,
                     "summary": summary[:800],
                     "url": url,
                     "score_total": int(score_total),
                 }
             )
+
+        url_to_canonical_event_id = _build_url_to_event_id_map(events)
 
         # Verifier（PRD）
         verifier = self.llm.complete_json(
@@ -243,6 +325,7 @@ class MultiAgentOrchestrator:
             ),
             temperature=0.2,
         )
+        _align_json_pack_events_by_url(verifier, url_to_canonical_event_id)
 
         # Impact Analyst（决策增强：每条必须有明确 action）
         impact = self.llm.complete_json(
@@ -278,6 +361,7 @@ class MultiAgentOrchestrator:
             ),
             temperature=0.4,
         )
+        _align_json_pack_events_by_url(impact, url_to_canonical_event_id)
 
         # Scoring（审计噪声/重复）
         scoring = self.llm.complete_json(
@@ -291,6 +375,7 @@ class MultiAgentOrchestrator:
             ),
             temperature=0.2,
         )
+        _align_scoring_issues_event_ids(scoring, events)
 
         # EventCards（分批组装；失败批次降级为确定性卡片，避免单次 80 条超时）
         selected_events = _preselect_events_for_llm(events, max_items=MAX_LLM_EVENTS)
@@ -350,6 +435,7 @@ class MultiAgentOrchestrator:
                     all_event_cards.append(_deterministic_event_card(event))
 
         all_event_cards = _dedupe_event_cards_by_id(all_event_cards)
+        _align_event_cards_by_url(all_event_cards, url_to_canonical_event_id)
         event_cards = {"event_cards": all_event_cards}
 
         ev_pack = event_cards if isinstance(event_cards, dict) else {}

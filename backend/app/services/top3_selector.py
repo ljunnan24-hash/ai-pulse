@@ -950,6 +950,36 @@ def pool_index_from_event_id(event_id: str | None) -> int | None:
         return None
 
 
+def resolve_pool_row_index(event_id: str | None, pool: list[Any]) -> int | None:
+    """
+    解析 enriched card 的 event_id 在候选池 pool 中的下标。
+    - 兼容池内序号 e01、e02…（legacy IssueEvent 路径）
+    - 兼容 GlobalEvent 数字 id（与 global_events_to_orchestrator_dicts 的 global_event_id 对齐）
+    """
+    idx = pool_index_from_event_id(event_id)
+    if idx is not None and 0 <= idx < len(pool):
+        return idx
+    s = str(event_id or "").strip()
+    if s.isdigit():
+        gid = int(s)
+        for i, it in enumerate(pool):
+            if isinstance(it, dict):
+                try:
+                    if int(it.get("global_event_id") or -1) == gid:
+                        return i
+                except (TypeError, ValueError):
+                    continue
+            else:
+                pk = getattr(it, "id", None)
+                if pk is not None:
+                    try:
+                        if int(pk) == gid:
+                            return i
+                    except (TypeError, ValueError):
+                        continue
+    return None
+
+
 def _primary_source_type(pool_row: Any) -> str:
     if pool_row is None:
         return "rss"
@@ -1079,8 +1109,8 @@ def build_enriched_event_cards(
         if not isinstance(card, dict):
             continue
         eid = str(card.get("event_id") or "").strip()
-        idx = pool_index_from_event_id(eid)
-        pool_row = pool[idx] if idx is not None and 0 <= idx < len(pool) else None
+        idx = resolve_pool_row_index(eid, pool)
+        pool_row = pool[idx] if idx is not None else None
 
         title = str(card.get("title") or "")
         url = str(card.get("url") or "")

@@ -6,6 +6,7 @@ from app.services.top3_selector import (
     apply_locked_top3_merge,
     materialize_top3_public_fields,
     merge_top3_duplicate_into,
+    resolve_pool_row_index,
 )
 
 
@@ -117,6 +118,37 @@ def test_extract_clean_phase35_preserves_event_id_and_order():
     j0 = out["top3_judgments"][0]
     assert j0["event_id"] == "7"
     assert j0["related_event_ids"][0] == "7"
+
+
+def test_resolve_pool_row_index_en02_legacy():
+    pool = [{"global_event_id": 9001}, {"global_event_id": 9002}]
+    assert resolve_pool_row_index("e02", pool) == 1
+
+
+def test_resolve_pool_row_index_numeric_matches_global_event_id():
+    pool = [{"global_event_id": 42, "title": "a"}, {"global_event_id": 99, "title": "b"}]
+    assert resolve_pool_row_index("42", pool) == 0
+    assert resolve_pool_row_index("99", pool) == 1
+
+
+class _Obj:
+    def __init__(self, pk: int):
+        self.id = pk
+
+
+def test_resolve_pool_row_index_numeric_non_dict_pool():
+    pool = [_Obj(7), _Obj(8)]
+    assert resolve_pool_row_index("8", pool) == 1
+
+
+def test_resolve_pool_row_index_out_of_range_en_returns_none():
+    pool = [{"global_event_id": 1}]
+    assert resolve_pool_row_index("e99", pool) is None
+
+
+def test_resolve_pool_row_index_unknown_numeric_returns_none():
+    pool = [{"global_event_id": 1}]
+    assert resolve_pool_row_index("999", pool) is None
 
 
 def test_ensure_payload_v3_keeps_top3_event_id():
