@@ -88,9 +88,8 @@ def title_similarity(a: str, b: str) -> float:
 
 _TITLE_SIM_HIGH = 0.82
 _TITLE_SIM_MED = 0.62
-_TITLE_SIM_LOW = 0.50
 
-_PUB_WINDOW_HOURS = 7 * 24
+_PUB_WINDOW_HOURS = 7 * 24  # time_window：默认 7 天
 
 # 公司 / 平台实体（小写归一）
 _ENTITY_PATTERN = re.compile(
@@ -104,18 +103,59 @@ _GPT_NUMERIC_RE = re.compile(r"gpt[\s\-]*5[\.\s]*5(?:\s+instant\b)?|gpt[\s\-]*5[
 _INSTANT_RE = re.compile(r"\binstant\b", re.I)
 _AGENT_RE = re.compile(r"\bagents?\b|\bworkflow\b|\bmcp\b", re.I)
 
-# 动作 / 事件语义分组（同一组内重叠即视为「相近动作」）
-_ACTION_TAG_RES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"release|launch|announce|ships?|rolls?\s+out|默认|default\s+model|new\s+default", re.I), "release_default"),
-    (re.compile(r"hallucin|accura|benchmark|smarter|clearer|personalized|capabilities?", re.I), "quality_capability"),
-    (re.compile(r"pricing|cost|\$\d|美元|降价", re.I), "pricing"),
-    (re.compile(r"regulation|copyright|policy|lawsuit|训练数据|许可", re.I), "legal_policy"),
-    (re.compile(r"\bagent\b|\bworkflow\b|automation|\bmcp\b", re.I), "agent_automation"),
+# action_family：同一稿件可命中多个标签（用于冲突与兼容判断）
+_ACTION_FAMILY_RULES: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(
+            r"release|launch|announce|ships?|rolls?\s+out|默认模型|模型发布|模型升级|default\s+model|new\s+default|"
+            r"发布\s*gpt",
+            re.I,
+        ),
+        "model_release_default",
+    ),
+    (
+        re.compile(
+            r"hallucin|幻觉|准确率|accura|smarter|clearer|personalized|capabilities?|推理能力|多模态能力|"
+            r"reasoning|multimodal",
+            re.I,
+        ),
+        "quality_capability",
+    ),
+    (
+        re.compile(
+            r"API\s*价格|价格变化|定价|降价|pricing|\bcost\b|\$\d|美元\/百万|per\s+million|调价",
+            re.I,
+        ),
+        "pricing_cost",
+    ),
+    (
+        re.compile(
+            r"\bagent\b|智能体|工作流|workflow|automation|企业\s*agent|工具更新|\bmcp\b",
+            re.I,
+        ),
+        "agent_workflow",
+    ),
+    (re.compile(r"监管|政策|合规|regulation|compliance", re.I), "policy_regulation"),
+    (re.compile(r"版权|诉讼|训练数据|lawsuit|copyright", re.I), "legal_copyright"),
     (re.compile(r"open\s*source|开源", re.I), "open_source"),
-    (re.compile(r"multimodal|多模态", re.I), "multimodal"),
-    (re.compile(r"reasoning|推理", re.I), "reasoning"),
-    (re.compile(r"\bcoding\b|编程|代码", re.I), "coding"),
+    (re.compile(r"benchmark|评测|基准测试", re.I), "benchmark_eval"),
 ]
+
+# 明确冲突：命中任意无序对即禁止合并（即使标题相似）
+_ACTION_CONFLICT_PAIRS: frozenset[frozenset[str]] = frozenset(
+    {
+        frozenset({"model_release_default", "pricing_cost"}),
+        frozenset({"model_release_default", "agent_workflow"}),
+        frozenset({"pricing_cost", "agent_workflow"}),
+        frozenset({"legal_copyright", "model_release_default"}),
+        frozenset({"policy_regulation", "model_release_default"}),
+    }
+)
+
+_GPT55_STRONG_PRODUCT_TOKENS: frozenset[str] = frozenset(
+    {"gpt55", "gpt55_line", "gpt_instant", "chatgpt"}
+)
+_GPT55_NARRATIVE_ACTIONS: frozenset[str] = frozenset({"model_release_default", "quality_capability"})
 
 
 def normalize_text(s: str) -> str:
@@ -135,16 +175,30 @@ def _event_blob(ev: dict[str, Any]) -> str:
     )
 
 
-def extract_entities(text: str) -> set[str]:
-    """公司 / 平台类实体标签（小写）。"""
+def extract_company_entities(text: str) -> set[str]:
+    """company_entities：公司 / 平台标签（小写）。"""
+    raw = text or ""
     out: set[str] = set()
-    for m in _ENTITY_PATTERN.finditer(text or ""):
+    for m in _ENTITY_PATTERN.finditer(raw):
         out.add(m.group(1).lower())
+    low = raw.lower()
+    if "openai" in low:
+        out.add("openai")
+    if "anthropic" in low:
+        out.add("anthropic")
+    if "google" in low or "gemini" in low:
+        out.add("google")
+    if "meta" in low and "metadata" not in low:
+        out.add("meta")
+    if "amazon" in low or "aws" in low:
+        out.add("aws")
+    if "microsoft" in low or "azure" in low:
+        out.add("microsoft")
     return out
 
 
 def extract_product_tokens(text: str) -> set[str]:
-    """产品线 / 模型名线索（与实体互补）。"""
+    """product_tokens：产品线 / 模型名 / 接口类线索。"""
     raw = text or ""
     t = raw.lower()
     out: set[str] = set()
@@ -158,26 +212,55 @@ def extract_product_tokens(text: str) -> set[str]:
         out.add("chatgpt")
     if "openai" in t:
         out.add("openai_brand")
+    if re.search(r"\bapi\b", raw, re.I) or "API" in raw:
+        out.add("api")
     if _AGENT_RE.search(t):
         out.add("agent_stack")
     if "bedrock" in t:
         out.add("bedrock")
+    if "claude" in t:
+        out.add("claude")
+    if "gemini" in t:
+        out.add("gemini")
+    if "copilot" in t:
+        out.add("copilot")
     return out
 
 
-def extract_event_action_tokens(text: str) -> set[str]:
-    """动作 / 事件类型分组标签。"""
+def extract_action_families(text: str) -> set[str]:
+    """action_family：事件动作轴（一条可对应多个 family）。"""
     raw = text or ""
     out: set[str] = set()
-    for rx, tag in _ACTION_TAG_RES:
+    for rx, tag in _ACTION_FAMILY_RULES:
         if rx.search(raw):
             out.add(tag)
     return out
 
 
-def build_event_signature(ev: dict[str, Any]) -> tuple[set[str], set[str], set[str]]:
+def build_topic_axis(ev: dict[str, Any]) -> dict[str, Any]:
+    """事件签名：company_entities / product_tokens / action_families + time_window（小时由调用方用 published_at 计算）。"""
     blob = _event_blob(ev)
-    return extract_entities(blob), extract_product_tokens(blob), extract_event_action_tokens(blob)
+    return {
+        "company_entities": extract_company_entities(blob),
+        "product_tokens": extract_product_tokens(blob),
+        "action_families": extract_action_families(blob),
+    }
+
+
+def build_event_signature(ev: dict[str, Any]) -> tuple[set[str], set[str], set[str]]:
+    """兼容旧调用：返回 (entities, products, actions)。"""
+    axis = build_topic_axis(ev)
+    return axis["company_entities"], axis["product_tokens"], axis["action_families"]
+
+
+def extract_entities(text: str) -> set[str]:
+    """别名：与 extract_company_entities 相同。"""
+    return extract_company_entities(text)
+
+
+def extract_event_action_tokens(text: str) -> set[str]:
+    """别名：与 extract_action_families 相同。"""
+    return extract_action_families(text)
 
 
 def _parse_event_datetime(ev: dict[str, Any]) -> datetime | None:
@@ -203,67 +286,97 @@ def _within_publication_window(a: dict[str, Any], b: dict[str, Any], *, hours: f
     return dh <= hours
 
 
-def _both_openai_ecosystem(ea: set[str], eb: set[str], pa: set[str], pb: set[str]) -> bool:
-    """两条都在 OpenAI / ChatGPT / GPT-5.x 话语场内（允许仅标题含产品线、无公司名）。"""
-    tok = frozenset({"openai_brand", "chatgpt", "gpt55", "gpt55_line", "gpt_instant"})
-    a_ok = bool(ea & {"openai", "chatgpt"}) or bool(pa & tok)
-    b_ok = bool(eb & {"openai", "chatgpt"}) or bool(pb & tok)
-    return a_ok and b_ok
+def _openai_chatgpt_ecosystem(entities: set[str], products: set[str]) -> bool:
+    """同属 OpenAI / ChatGPT 产品线话语场（允许标题只有产品线没有公司名）。"""
+    ent_hit = bool(entities & {"openai", "chatgpt"})
+    prod_hit = bool(products & {"openai_brand", "chatgpt", "gpt55", "gpt55_line", "gpt_instant"})
+    return ent_hit or prod_hit
 
 
-def _gpt55_product_overlap(pa: set[str], pb: set[str]) -> bool:
-    g = frozenset({"gpt55", "gpt55_line", "gpt_instant"})
-    if pa & pb & g:
-        return True
-    ha = bool(pa & {"gpt55", "gpt55_line"})
-    hb = bool(pb & {"gpt55", "gpt55_line"})
-    return ha and hb
+def _action_families_conflict(fa: set[str], fb: set[str]) -> bool:
+    if not fa or not fb:
+        return False
+    for x in fa:
+        for y in fb:
+            if frozenset({x, y}) in _ACTION_CONFLICT_PAIRS:
+                return True
+    return False
+
+
+def _gpt55_model_narrative_cluster(
+    a: dict[str, Any], b: dict[str, Any], blob_a: str, blob_b: str
+) -> bool:
+    """
+    GPT-5.5 / Instant / ChatGPT 模型发布叙事特例：仅当强产品线信号 + 允许的动作轴 + 7 天窗口。
+    不泛化为「所有 OpenAI 新闻」。
+    """
+    if not _within_publication_window(a, b):
+        return False
+    ea, eb = extract_company_entities(blob_a), extract_company_entities(blob_b)
+    pa, pb = extract_product_tokens(blob_a), extract_product_tokens(blob_b)
+    fa, fb = extract_action_families(blob_a), extract_action_families(blob_b)
+    if not (_openai_chatgpt_ecosystem(ea, pa) and _openai_chatgpt_ecosystem(eb, pb)):
+        return False
+    if len((pa | pb) & _GPT55_STRONG_PRODUCT_TOKENS) < 2:
+        return False
+    if not fa or not fb:
+        return False
+    if not fa.issubset(_GPT55_NARRATIVE_ACTIONS) or not fb.issubset(_GPT55_NARRATIVE_ACTIONS):
+        return False
+    return True
+
+
+def _aws_bedrock_agent_cluster(
+    a: dict[str, Any],
+    b: dict[str, Any],
+    blob_a: str,
+    blob_b: str,
+    title_sim: float,
+) -> bool:
+    """Bedrock / Agent 垂直簇：仍需实体与产品线对齐且动作轴不冲突。"""
+    if not _within_publication_window(a, b):
+        return False
+    ea, eb = extract_company_entities(blob_a), extract_company_entities(blob_b)
+    pa, pb = extract_product_tokens(blob_a), extract_product_tokens(blob_b)
+    fa, fb = extract_action_families(blob_a), extract_action_families(blob_b)
+    if _action_families_conflict(fa, fb):
+        return False
+    if not (ea & eb & {"aws"}):
+        return False
+    if not (pa & pb & {"bedrock"}):
+        return False
+    if "agent_stack" not in pa and "agent_stack" not in pb:
+        return False
+    return bool(fa & fb) or title_sim >= 0.42
 
 
 def is_same_topic_by_signature(a: dict[str, Any], b: dict[str, Any]) -> bool:
     """
-    规则：共享核心实体 + 产品线（如 GPT-5.5 & Instant）+（动作标签或标题弱相似）+ 发布时间窗。
-    同一发布会多篇英文标题（未必含同一子串）依赖实体 + gpt 产品线 + 动作组。
+    签名级「同主题」：GPT-5.5 叙事特例、AWS Bedrock 簇、或实体∩产品线∩动作（动作须相交且不冲突）。
     """
-    ea, pa, aa = build_event_signature(a)
-    eb, pb, ab = build_event_signature(b)
-    ent_ov = ea & eb
-    prod_ov = pa & pb
-    act_ov = aa & ab
-
+    blob_a = _event_blob(a)
+    blob_b = _event_blob(b)
     ts = title_similarity(str(a.get("title", "")), str(b.get("title", "")))
 
-    if not _within_publication_window(a, b):
-        return False
-
-    # OpenAI / ChatGPT / GPT-5.5 簇：三条示例标题在此汇合（含不含「GPT-5.5」字样的稿件）
-    _model_story = frozenset({"release_default", "quality_capability"})
-    if _both_openai_ecosystem(ea, eb, pa, pb):
-        if _gpt55_product_overlap(pa, pb):
-            return True
-        if act_ov:
-            return True
-        if (aa & _model_story) and (ab & _model_story):
-            return True
-        if ent_ov and ts >= 0.28:
-            return True
-        if ts >= 0.38:
-            return True
-
-    # 其它：同一实体 + 产品线交集 + 动作组
-    if ent_ov and prod_ov and act_ov:
+    if _gpt55_model_narrative_cluster(a, b, blob_a, blob_b):
+        return True
+    if _aws_bedrock_agent_cluster(a, b, blob_a, blob_b, ts):
         return True
 
-    # AWS Bedrock + agent / workflow 报道簇
-    if ent_ov & {"aws"} and prod_ov & {"bedrock"} and ("agent_stack" in pa or "agent_stack" in pb):
-        if act_ov or ts >= 0.42:
-            return True
-
+    ea, eb = extract_company_entities(blob_a), extract_company_entities(blob_b)
+    pa, pb = extract_product_tokens(blob_a), extract_product_tokens(blob_b)
+    fa, fb = extract_action_families(blob_a), extract_action_families(blob_b)
+    if not _within_publication_window(a, b):
+        return False
+    if _action_families_conflict(fa, fb):
+        return False
+    if ea & eb and pa & pb and fa & fb:
+        return True
     return False
 
 
 def is_duplicate_event(a: dict[str, Any], b: dict[str, Any]) -> bool:
-    """分层判重：URL / stable_key → 高标题相似 → 签名主题 → 中低标题相似 + 实体重合。"""
+    """分层判重：stable_key / URL → 高标题相似 → GPT-5.5 叙事特例 → 保守中档相似 + 签名交集。"""
     sk_a = str(a.get("stable_key") or "").strip()
     sk_b = str(b.get("stable_key") or "").strip()
     if sk_a and sk_b and sk_a == sk_b:
@@ -283,36 +396,34 @@ def is_duplicate_event(a: dict[str, Any], b: dict[str, Any]) -> bool:
     title_b = str(b.get("title", ""))
     ts = title_similarity(title_a, title_b)
 
+    blob_a = _event_blob(a)
+    blob_b = _event_blob(b)
+    fa = extract_action_families(blob_a)
+    fb = extract_action_families(blob_b)
+
     if ts >= _TITLE_SIM_HIGH:
+        return True
+
+    if _action_families_conflict(fa, fb):
+        return False
+
+    if _gpt55_model_narrative_cluster(a, b, blob_a, blob_b):
         return True
 
     if is_same_topic_by_signature(a, b):
         return True
 
-    blob_a = _event_blob(a)
-    blob_b = _event_blob(b)
-    ea = extract_entities(blob_a)
-    eb = extract_entities(blob_b)
+    ea = extract_company_entities(blob_a)
+    eb = extract_company_entities(blob_b)
     pa = extract_product_tokens(blob_a)
     pb = extract_product_tokens(blob_b)
     ent_ov = ea & eb
     prod_ov = pa & pb
 
-    if ts >= _TITLE_SIM_MED and ent_ov:
+    if ts >= _TITLE_SIM_MED and ent_ov and prod_ov and fa and fb and not _action_families_conflict(fa, fb) and (fa & fb):
         return True
 
-    if ts >= _TITLE_SIM_LOW and ent_ov and prod_ov and _within_publication_window(a, b):
-        return True
-
-    # 模型发布口径：同名模型叙事 + 动作组重叠（英文标题差异大时兜底）
-    aa = extract_event_action_tokens(blob_a)
-    ab = extract_event_action_tokens(blob_b)
-    if (
-        _both_openai_ecosystem(ea, eb, pa, pb)
-        and (aa & ab)
-        and _within_publication_window(a, b)
-        and (_gpt55_product_overlap(pa, pb) or bool(ent_ov & {"openai", "chatgpt"}))
-    ):
+    if _aws_bedrock_agent_cluster(a, b, blob_a, blob_b, ts):
         return True
 
     return False
@@ -361,6 +472,109 @@ def merge_top3_duplicate_into(keeper: dict[str, Any], dup: dict[str, Any]) -> No
     db = str(dup.get("_text_blob") or "")
     if len(db) > len(kb) + 40:
         keeper["_text_blob"] = db[:1200]
+
+
+_CJK_CHAR_RE = re.compile(r"[\u4e00-\u9fff]")
+
+
+def contains_cjk(text: str | None) -> bool:
+    """标题/文案是否含中日韩统一表意文字（用于中文标题优先）。"""
+    return bool(_CJK_CHAR_RE.search(text or ""))
+
+
+def _dedupe_urls_ordered(primary: str | None, extras: list[str], *, max_n: int = 8) -> list[str]:
+    """主 URL 在前；按 normalize_url 去重；过滤空值。"""
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def consider(raw: str) -> None:
+        raw = raw.strip()
+        if not raw:
+            return
+        nu = normalize_url(raw)
+        if not nu or nu in seen:
+            return
+        seen.add(nu)
+        out.append(raw[:2048])
+
+    if primary:
+        consider(str(primary))
+    for x in extras:
+        consider(str(x))
+    return out[:max_n]
+
+
+def _dedupe_ids_ordered(primary: str | None, extras: list[str], *, max_n: int = 12) -> list[str]:
+    """主 id 在前（若存在）；字符串去重。"""
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def consider(raw: str) -> None:
+        s = raw.strip()
+        if not s or s in seen:
+            return
+        seen.add(s)
+        out.append(s[:512])
+
+    if primary:
+        consider(str(primary))
+    for x in extras:
+        consider(str(x))
+    return out[:max_n]
+
+
+def materialize_top3_public_fields(row: dict[str, Any]) -> None:
+    """
+    将 merge_top3_duplicate_into 写入的内部字段转为稳定 payload 字段，并移除 _top3_merged_*。
+    幂等：已存在 source_urls 且无待合并内部字段时跳过。
+    """
+    has_pending_merge = any(
+        k in row for k in ("_top3_merged_urls", "_top3_merged_event_ids", "_top3_merged_stable_keys")
+    )
+    if not has_pending_merge and "source_urls" in row:
+        return
+
+    merged_urls = row.pop("_top3_merged_urls", None)
+    if merged_urls is None:
+        merged_urls = []
+    if not isinstance(merged_urls, list):
+        merged_urls = []
+
+    primary_url = str(row.get("url") or "").strip()
+    row["source_urls"] = _dedupe_urls_ordered(primary_url or None, [str(u) for u in merged_urls])
+
+    merged_eids = row.pop("_top3_merged_event_ids", None)
+    if merged_eids is None:
+        merged_eids = []
+    if not isinstance(merged_eids, list):
+        merged_eids = []
+    keid = str(row.get("event_id") or "").strip()
+    row["related_event_ids"] = _dedupe_ids_ordered(
+        keid or None, [str(x) for x in merged_eids], max_n=12
+    )
+
+    merged_sks = row.pop("_top3_merged_stable_keys", None)
+    if merged_sks is None:
+        merged_sks = []
+    if not isinstance(merged_sks, list):
+        merged_sks = []
+    psk = str(row.get("stable_key") or "").strip()
+    row["related_stable_keys"] = _dedupe_ids_ordered(
+        psk or None, [str(x) for x in merged_sks], max_n=12
+    )
+
+
+def resolve_top3_display_title_vs_locked(old: dict[str, Any], lk: dict[str, Any]) -> str:
+    """normal.top3：Composer 已有中文标题时不要被英文 locked.title 覆盖。"""
+    ot = str(old.get("title") or "").strip()
+    lt = str(lk.get("title") or "").strip()
+    if contains_cjk(ot):
+        return ot[:200]
+    if contains_cjk(lt):
+        return lt[:200]
+    if lt:
+        return lt[:200]
+    return ot[:200]
 
 
 def get_num(event: dict[str, Any], key: str, default: float = 0) -> float:
@@ -592,7 +806,10 @@ def select_top3(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if len(selected) == 3:
                 break
 
-    return selected[:3]
+    out = selected[:3]
+    for row in out:
+        materialize_top3_public_fields(row)
+    return out
 
 
 def pool_index_from_event_id(event_id: str | None) -> int | None:
@@ -871,6 +1088,7 @@ def compact_for_section_prompt(enriched: dict[str, Any]) -> dict[str, Any]:
 
 
 def compact_for_top3_prompt(enriched: dict[str, Any]) -> dict[str, Any]:
+    materialize_top3_public_fields(enriched)
     return {
         "event_id": enriched.get("event_id"),
         "title": enriched.get("title"),
@@ -881,6 +1099,9 @@ def compact_for_top3_prompt(enriched: dict[str, Any]) -> dict[str, Any]:
         "top3_score": enriched.get("top3_score"),
         "user_value_score": enriched.get("user_value_score"),
         "actionability": enriched.get("actionability"),
+        "source_urls": list(enriched.get("source_urls") or []),
+        "related_event_ids": list(enriched.get("related_event_ids") or []),
+        "related_stable_keys": list(enriched.get("related_stable_keys") or []),
     }
 
 
@@ -1036,19 +1257,25 @@ def apply_locked_top3_merge(payload: dict[str, Any], locked: list[dict[str, Any]
         normal["top3"] = []
         return
     old_t3 = normal.get("top3") if isinstance(normal.get("top3"), list) else []
-    new_t3: list[dict[str, str]] = []
+    new_t3: list[dict[str, Any]] = []
     for i, lk in enumerate(locked[:3]):
         old = old_t3[i] if i < len(old_t3) and isinstance(old_t3[i], dict) else {}
         att = attention_level_to_digit(str(lk.get("attention_level") or ""))
-        new_t3.append(
-            {
-                "title": str(lk.get("title") or old.get("title") or "")[:200],
-                "url": str(lk.get("url") or old.get("url") or "")[:2048],
-                "what_happened": str(old.get("what_happened") or lk.get("one_liner") or "")[:800],
-                "why_important": str(old.get("why_important") or "")[:800],
-                "what_it_means_for_you": str(old.get("what_it_means_for_you") or lk.get("action") or "")[:800],
-                "attention_level": att,
-            }
-        )
+        materialize_top3_public_fields(lk)
+        row: dict[str, Any] = {
+            "title": resolve_top3_display_title_vs_locked(old, lk),
+            "url": str(lk.get("url") or old.get("url") or "")[:2048],
+            "what_happened": str(old.get("what_happened") or lk.get("one_liner") or "")[:800],
+            "why_important": str(old.get("why_important") or "")[:800],
+            "what_it_means_for_you": str(old.get("what_it_means_for_you") or lk.get("action") or "")[:800],
+            "attention_level": att,
+            "source_urls": list(lk.get("source_urls") or []),
+            "related_event_ids": list(lk.get("related_event_ids") or []),
+            "related_stable_keys": list(lk.get("related_stable_keys") or []),
+        }
+        pu = str(row.get("url") or "").strip()
+        if pu and (not row["source_urls"]):
+            row["source_urls"] = _dedupe_urls_ordered(pu, [])
+        new_t3.append(row)
     if new_t3:
         normal["top3"] = new_t3

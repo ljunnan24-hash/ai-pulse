@@ -44,8 +44,102 @@ def _clip(s: str, n: int) -> str:
     return t[: n - 1] + "…"
 
 
+def merge_top3_source_urls_judgment_locked(
+    j: dict[str, Any],
+    lk: dict[str, Any],
+    *,
+    max_n: int = 8,
+) -> list[str]:
+    """locked.source_urls + judgment.source_urls 去重合并；顺序以 locked 为主（已含主 URL 在前），再追加 judgment 独有项。"""
+    from app.services.top3_selector import materialize_top3_public_fields, normalize_url
+
+    materialize_top3_public_fields(lk)
+    locked_su = [str(x).strip() for x in (lk.get("source_urls") or []) if str(x).strip()]
+    jud_su = [str(x).strip() for x in (j.get("source_urls") or []) if str(x).strip()]
+    primary = str(lk.get("url") or "").strip()
+
+    seq: list[str] = []
+    for u in locked_su:
+        seq.append(u[:2048])
+    if not seq and primary:
+        seq.append(primary[:2048])
+    for u in jud_su:
+        seq.append(u[:2048])
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for u in seq:
+        nu = normalize_url(u)
+        if not nu or nu in seen:
+            continue
+        seen.add(nu)
+        ordered.append(u[:2048])
+    return ordered[:max_n]
+
+
+def merge_top3_related_strings(
+    j: dict[str, Any],
+    lk: dict[str, Any],
+    field: str,
+    *,
+    max_n: int = 12,
+    cap_len: int = 512,
+) -> list[str]:
+    """合并 judgment 与 locked 的 id/key 列表：先 locked 再 judgment，去重不覆盖语义。"""
+    from app.services.top3_selector import materialize_top3_public_fields
+
+    materialize_top3_public_fields(lk)
+    locked_l = lk.get(field) if isinstance(lk.get(field), list) else []
+    jud_l = j.get(field) if isinstance(j.get(field), list) else []
+    seq: list[str] = []
+    for src in (locked_l, jud_l):
+        for x in src:
+            xs = str(x).strip()
+            if xs:
+                seq.append(xs[:cap_len])
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for s in seq:
+        if s in seen:
+            continue
+        seen.add(s)
+        ordered.append(s)
+    return ordered[:max_n]
+
+
+def resolve_top3_judgment_display_title(j: dict[str, Any], lk: dict[str, Any]) -> str:
+    """
+    标题优先级：
+    1. title_zh / headline_zh
+    2. title / headline 且含中文
+    3. locked.title 且含中文
+    4. locked.title（英文）
+    5. source_title / original_title
+    """
+    from app.services.top3_selector import contains_cjk
+
+    for key in ("title_zh", "headline_zh"):
+        v = str(j.get(key) or "").strip()
+        if v:
+            return v[:200]
+    for key in ("title", "headline"):
+        v = str(j.get(key) or "").strip()
+        if v and contains_cjk(v):
+            return v[:200]
+    lt = str(lk.get("title") or "").strip()
+    if lt and contains_cjk(lt):
+        return lt[:200]
+    if lt:
+        return lt[:200]
+    for key in ("source_title", "original_title"):
+        v = str(j.get(key) or "").strip()
+        if v:
+            return v[:200]
+    return ""
+
+
 def apply_locked_top3_merge_judgments(normal: dict[str, Any], locked: list[dict[str, Any]]) -> None:
-    """将算法锁定的标题/URL 合并进 top3_judgments（保留模型生成的判断正文）。"""
+    """将算法锁定的标题/URL/event 合并进 top3_judgments（保留模型生成的判断正文与中文标题）。"""
     jlist = normal.get("top3_judgments")
     if not isinstance(jlist, list) or not locked:
         return
@@ -55,22 +149,14 @@ def apply_locked_top3_merge_judgments(normal: dict[str, Any], locked: list[dict[
         j = jlist[i]
         if not isinstance(j, dict):
             continue
-        url = str(lk.get("url") or "").strip()
-        title = str(lk.get("title") or j.get("title") or "").strip()
+
+        title = resolve_top3_judgment_display_title(j, lk)
         if title:
             j["title"] = title[:200]
-        su = j.get("source_urls")
-        if not isinstance(su, list):
-            su = []
-        if url:
-            merged = [url]
-            for x in su:
-                xs = str(x).strip()
-                if xs and xs not in merged:
-                    merged.append(xs)
-            j["source_urls"] = merged[:8]
-        elif su:
-            j["source_urls"] = [str(x).strip() for x in su if str(x).strip()][:8]
+
+        j["source_urls"] = merge_top3_source_urls_judgment_locked(j, lk, max_n=8)
+        j["related_event_ids"] = merge_top3_related_strings(j, lk, "related_event_ids", max_n=12)
+        j["related_stable_keys"] = merge_top3_related_strings(j, lk, "related_stable_keys", max_n=12)
 
 
 def sync_legacy_top3_from_judgments(normal: dict[str, Any]) -> None:
@@ -389,6 +475,8 @@ def extract_clean_phase35_normal(raw_normal: dict[str, Any] | None) -> dict[str,
                 continue
             rel = j.get("related_event_ids")
             ids = [str(x).strip() for x in rel][:16] if isinstance(rel, list) else []
+            rsk = j.get("related_stable_keys")
+            rsk_l = [str(x).strip() for x in rsk][:12] if isinstance(rsk, list) else []
             su = j.get("source_urls")
             surl = [str(x).strip() for x in su][:8] if isinstance(su, list) else []
             pulse = j.get("pulse_score")
@@ -400,6 +488,7 @@ def extract_clean_phase35_normal(raw_normal: dict[str, Any] | None) -> dict[str,
                 {
                     "title": tit[:200],
                     "related_event_ids": ids,
+                    "related_stable_keys": rsk_l,
                     "what_happened": str(j.get("what_happened") or "")[:800],
                     "why_it_matters": str(j.get("why_it_matters") or "")[:800],
                     "who_should_care": str(j.get("who_should_care") or "")[:800],

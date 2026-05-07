@@ -117,10 +117,58 @@ class Top3TopicDedupe(unittest.TestCase):
         ids = {str(x.get("event_id")) for x in picked}
         self.assertTrue({"e_aws", "e_meta"} <= ids)
 
-        # 最高分 GPT 稿应保留为 canonical，其它合并进 _top3_merged_urls
+        # 最高分 GPT 稿为 canonical；合并稿 URL 进入 source_urls
         keeper = next(x for x in picked if x["event_id"].startswith("e_gpt"))
-        merged = keeper.get("_top3_merged_urls") or []
-        self.assertGreaterEqual(len(merged), 1)
+        su = keeper.get("source_urls") or []
+        self.assertGreaterEqual(len(su), 3, keeper)
+
+    def test_three_openai_cn_events_same_week_are_not_dupes_full_top3(self):
+        """同一周三条 OpenAI 不同动作轴：两两不判重，且可填满 Top3。"""
+        ts = datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc)
+        e1 = _base_ev(
+            eid="e_cn1",
+            title="GPT-5.5 默认模型更新",
+            url_suffix="cn1",
+            user_value_score=85,
+        )
+        e2 = _base_ev(
+            eid="e_cn2",
+            title="OpenAI API 价格变化",
+            url_suffix="cn2",
+            user_value_score=84,
+        )
+        e3 = _base_ev(
+            eid="e_cn3",
+            title="OpenAI 企业 Agent 工具更新",
+            url_suffix="cn3",
+            user_value_score=83,
+        )
+        for ev in (e1, e2, e3):
+            ev["published_at"] = ts
+
+        self.assertFalse(is_duplicate_event(e1, e2))
+        self.assertFalse(is_duplicate_event(e1, e3))
+        self.assertFalse(is_duplicate_event(e2, e3))
+
+        picked = select_top3([e1, e2, e3])
+        self.assertEqual(len(picked), 3)
+        self.assertEqual({str(x.get("event_id")) for x in picked}, {"e_cn1", "e_cn2", "e_cn3"})
+
+    def test_same_company_same_product_different_action_family_not_dup(self):
+        """同公司同产品线（GPT / API）但动作轴冲突 → 不判重。"""
+        a = _base_ev(eid="e_pub", title="OpenAI 发布 GPT-5.5", url_suffix="pub")
+        b = _base_ev(eid="e_price", title="OpenAI 调整 API 价格", url_suffix="price")
+        self.assertFalse(is_duplicate_event(a, b))
+
+    def test_same_gpt55_event_two_headlines_are_dupes(self):
+        """同事件不同英文标题：叙事特例判重。"""
+        a = _base_ev(eid="e_a", title="OpenAI releases GPT-5.5 Instant", url_suffix="da")
+        b = _base_ev(
+            eid="e_b",
+            title="ChatGPT new default model reduces hallucinations",
+            url_suffix="db",
+        )
+        self.assertTrue(is_duplicate_event(a, b))
 
     def test_merge_accumulates_urls(self):
         k = _base_ev(eid="e1", title="OpenAI GPT story", url_suffix="x1")

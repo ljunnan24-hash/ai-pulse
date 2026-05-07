@@ -78,7 +78,7 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(normal, dict):
         normal = {}
     top3_in = normal.get("top3") if isinstance(normal.get("top3"), list) else []
-    clean_top3: list[dict[str, str]] = []
+    clean_top3: list[dict[str, Any]] = []
     for t in top3_in:
         if not isinstance(t, dict):
             continue
@@ -86,16 +86,24 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
         url = str(t.get("url") or "").strip()
         if not title:
             continue
-        clean_top3.append(
-            {
-                "title": title[:200],
-                "url": url[:2048],
-                "what_happened": str(t.get("what_happened") or "")[:800] or _clip(title, 120),
-                "why_important": str(t.get("why_important") or "")[:800],
-                "what_it_means_for_you": str(t.get("what_it_means_for_you") or "")[:800],
-                "attention_level": str(t.get("attention_level") or "3")[:8],
-            }
-        )
+        row: dict[str, Any] = {
+            "title": title[:200],
+            "url": url[:2048],
+            "what_happened": str(t.get("what_happened") or "")[:800] or _clip(title, 120),
+            "why_important": str(t.get("why_important") or "")[:800],
+            "what_it_means_for_you": str(t.get("what_it_means_for_you") or "")[:800],
+            "attention_level": str(t.get("attention_level") or "3")[:8],
+        }
+        su = t.get("source_urls")
+        if isinstance(su, list):
+            row["source_urls"] = [str(x).strip()[:2048] for x in su if str(x).strip()][:8]
+        rel = t.get("related_event_ids")
+        if isinstance(rel, list):
+            row["related_event_ids"] = [str(x).strip() for x in rel if str(x).strip()][:12]
+        rsk = t.get("related_stable_keys")
+        if isinstance(rsk, list):
+            row["related_stable_keys"] = [str(x).strip() for x in rsk if str(x).strip()][:12]
+        clean_top3.append(row)
 
     sections_out: list[dict[str, Any]] = []
     for sec in normal.get("sections") or []:
