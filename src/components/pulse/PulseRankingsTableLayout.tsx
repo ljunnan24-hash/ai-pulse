@@ -14,9 +14,9 @@ import {
   pulseRankTitleZhBoldCls,
 } from './PulseRankItem';
 
-/** 排名 | Score | 事件 | 对你意味着什么 | 分类 | 操作 */
+/** 排名 | Score | 事件 | 对你意味着什么 | 分类 | 操作（与排行榜页一致） */
 export const PULSE_RANKINGS_TABLE_GRID_COLUMNS =
-  '72px minmax(56px, 68px) minmax(260px, 2fr) minmax(200px, 1.35fr) minmax(80px, 100px) 108px' as const;
+  '72px minmax(56px, 68px) minmax(280px, 2.2fr) minmax(180px, 1.25fr) minmax(72px, 92px) 112px' as const;
 
 export const pulseRankingsTableWrapCls =
   'overflow-hidden rounded-[22px] border border-[#D8E2F0] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.035)]';
@@ -116,9 +116,9 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
 
   return (
     <div className={`${pulseRankingsTableWrapCls} max-w-full overflow-x-auto`}>
-      <div className="hidden md:block min-w-[860px]">
+      <div className="hidden md:block min-w-[920px]">
         <div
-          className="grid h-12 items-center gap-x-2 border-b border-[#E2E8F0] bg-white px-3 text-left text-[13px] font-semibold text-slate-500 lg:min-w-0 lg:px-4"
+          className="grid h-12 items-center gap-x-3 border-b border-[#E2E8F0] bg-white px-4 text-left text-[13px] font-semibold text-slate-500"
           style={{ gridTemplateColumns: PULSE_RANKINGS_TABLE_GRID_COLUMNS }}
         >
           <span className="text-center">排名</span>
@@ -132,13 +132,13 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
           {rows.map((r) => (
             <div
               key={r.key}
-              className="grid items-start gap-x-2 bg-white px-3 py-4 lg:min-w-0 lg:items-center lg:px-4 lg:py-5"
+              className="grid items-center gap-x-3 bg-white px-4 py-4 md:py-5"
               style={{ gridTemplateColumns: PULSE_RANKINGS_TABLE_GRID_COLUMNS }}
             >
-              <div className="flex justify-center pt-0.5 lg:pt-0">
+              <div className="flex justify-center">
                 <PulseRankRankBadge rank={r.rank} paddedTwoDigits={r.rankPaddedTwoDigits} />
               </div>
-              <div className="flex items-center justify-start pt-0.5 lg:pt-0">
+              <div className="flex items-center justify-start">
                 <PulseRankScoreCell score={r.score} compact />
               </div>
               <div className="min-w-0">
@@ -160,7 +160,7 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
               <div className="flex items-start justify-center pt-0.5" role="cell">
                 <RankingsCategoryCell row={r} />
               </div>
-              <div className={`flex justify-end pt-0.5 lg:pt-0 ${stickyActionWrap}`}>
+              <div className={`flex justify-end ${stickyActionWrap}`}>
                 <PulseRankingsActionCell
                   detailTo={r.detailTo}
                   externalUrl={r.externalUrl}

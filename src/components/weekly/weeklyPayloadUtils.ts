@@ -299,6 +299,17 @@ export function enrichWeeklyTopThreeWithLegacyTop3(rows: WeeklyLooseRow[], legac
       }
     }
 
+    if (!(out.pulse_score ?? '').trim()) {
+      const ps = String(
+        o.pulse_score ?? o.ranking_score ?? (o as { score_total?: unknown }).score_total ?? '',
+      ).trim();
+      if (ps) out.pulse_score = ps;
+    }
+    if (!(out.ranking_score ?? '').trim()) {
+      const rs = String(o.ranking_score ?? '').trim();
+      if (rs) out.ranking_score = rs;
+    }
+
     return out;
   });
 }

@@ -1,9 +1,7 @@
+import { useEffect, useMemo, useState } from 'react';
+
+import { fetchEventDetail } from '../../api/public';
 import { resolveWeeklyCategoryDisplay } from '../../lib/weeklyCategoryDisplay';
-import {
-  pulseRankMeaningWeeklyFullCls,
-  pulseRankTitleEnWeeklyCls,
-  pulseRankTitleWeeklyZhCls,
-} from '../pulse/PulseRankItem';
 import type { WeeklyLooseRow } from './weeklyPayloadUtils';
 import {
   pickWeeklyCategoryRaw,
@@ -25,7 +23,7 @@ function resolveWeeklyExternalUrl(row: WeeklyLooseRow): string {
   );
 }
 
-/** 站内 `/events/:id` 仅接受正整数 GlobalEvent.id；禁止 `/events/undefined`、字符串占位 id */
+/** 站内 `/events/:id` 仅接受正整数 GlobalEvent.id */
 function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null {
   const tryParse = (raw: string | undefined): number | null => {
     const s = (raw ?? '').trim();
@@ -47,38 +45,97 @@ function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null {
   return null;
 }
 
+function scoreForRow(row: WeeklyLooseRow, apiRanking?: number): number {
+  const base = weeklyPulseDisplayScore(row);
+  if (base > 0) return base;
+  if (apiRanking != null && Number.isFinite(apiRanking)) {
+    return Math.round(apiRanking * 10) / 10;
+  }
+  return 0;
+}
+
+function categorySlugMerged(row: WeeklyLooseRow, apiCategory?: string): string {
+  const raw = pickWeeklyCategoryRaw(row).trim() || (apiCategory ?? '').trim();
+  if (!raw) return '';
+  return resolveWeeklyCategoryDisplay(raw)?.slug ?? '';
+}
+
+type EventPatch = { category: string; ranking_score: number };
+
 /**
- * 周报「本周最重要三件事」：与排行榜共用 {@link PulseRankingsTableLayout}，周报专用分类解析与操作文案。
+ * 周报 Top3：与排行榜同款表格样式（粗标题、摘要三行截断、分类 pill）。
+ * 若 payload 缺分类/分数，对有合法 GlobalEvent.id 的行请求 `/api/events/:id` 补齐。
  */
 export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
+  const [eventById, setEventById] = useState<Record<number, EventPatch>>({});
+
+  const fetchIdsSig = useMemo(
+    () =>
+      [...new Set(rows.map((r) => resolveWeeklyNumericEventId(r)).filter((x): x is number => x !== null))]
+        .sort((a, b) => a - b)
+        .join(','),
+    [rows],
+  );
+
+  useEffect(() => {
+    const ids = fetchIdsSig
+      ? fetchIdsSig
+          .split(',')
+          .map((s) => Number(s))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      : [];
+    if (ids.length === 0) {
+      setEventById({});
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const d = await fetchEventDetail(id);
+            return [id, { category: d.category ?? '', ranking_score: d.ranking_score }] as const;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      if (cancelled) return;
+      const next: Record<number, EventPatch> = {};
+      for (const e of entries) {
+        if (e) next[e[0]] = e[1];
+      }
+      setEventById(next);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchIdsSig]);
+
   if (rows.length === 0) {
     return <p className="text-[14px] text-slate-500">本期暂无上榜条目。</p>;
   }
 
   const pulseRows: PulseRankingsTableRow[] = rows.map((row, i) => {
     const eid = resolveWeeklyNumericEventId(row);
+    const api = eid !== null ? eventById[eid] : undefined;
     const extUrl = resolveWeeklyExternalUrl(row);
 
     const detailTo = eid !== null ? `/events/${eid}` : undefined;
     const externalUrl = detailTo ? undefined : extUrl || undefined;
 
-    const catRaw = pickWeeklyCategoryRaw(row).trim();
-    const weeklyCategoryResolved = catRaw ? resolveWeeklyCategoryDisplay(catRaw) : null;
+    const slug = categorySlugMerged(row, api?.category);
 
     return {
       key: `${row.title}-${i}`,
       rank: i + 1,
-      score: weeklyPulseDisplayScore(row),
+      score: scoreForRow(row, api?.ranking_score),
       titleZh: weeklyPulseTitleZh(row),
       titleEn: weeklyPulseTitleEn(row),
       meaning: weeklyPulseMeaning(row),
-      categorySlug: '',
-      weeklyCategoryResolved,
-      weeklyUi: true,
-      titleZhClassName: pulseRankTitleWeeklyZhCls,
-      titleEnClassName: pulseRankTitleEnWeeklyCls,
-      meaningClassName: pulseRankMeaningWeeklyFullCls,
-      overflowHints: true,
+      categorySlug: slug,
       detailTo,
       externalUrl,
     };
