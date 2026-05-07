@@ -1,5 +1,7 @@
 """
-Phase 3：从 global_events 选取周报候选，转为 MultiAgentOrchestrator 可用的 dict 池。
+Phase 3：从 global_events 构造周报 Orchestrator 候选池（候选池 ≠ 最终 Top3）。
+
+时间窗内预排序用于充实候选池；最终三条簇由 top3_selector.select_top3（top3_score + 同簇合并 + 分类上限）决定。
 """
 
 from __future__ import annotations
@@ -141,6 +143,7 @@ def _insight_bonus(ge: GlobalEvent) -> float:
 
 
 def _sort_score(ge: GlobalEvent, *, now: datetime) -> float:
+    """候选池预排序分（不直接等于 Top3 的 top3_score）：effective_ranking_score(..., "7d") + 文案/来源/相关性等。"""
     pub = ge.published_at or ge.last_seen_at
     eff = effective_ranking_score(float(ge.ranking_score or 0.0), pub, "7d", now=now)
     bonus = _insight_bonus(ge)
@@ -233,8 +236,11 @@ def select_global_events_for_weekly(
     fallback_lookback_days: int = 14,
 ) -> tuple[list[GlobalEvent], dict[str, Any]]:
     """
-    按 last_seen_at 时间窗选取 active、可排序的 global_events；
-    不足 min_candidates 时自动放宽到 fallback_lookback_days。
+    构造周报候选池（不直接输出 Top3）。
+
+    - 来源：过去 lookback_days（默认 7）内 last_seen_at 落在窗内的 active GlobalEvent；不足 min_candidates 时可放宽到 fallback_lookback_days（如 14）。
+    - 预排序使用 _sort_score（内含 effective_ranking_score(..., "7d")、文案完整度、来源数、AI 相关性等），再经 select_with_category_caps 做池内类别配额。
+    - 该列表供下游组装 EventCards / select_top3；Top3 本身由 top3_score 与簇合并规则决定。
     返回 (events, audit dict)。
     """
     now = datetime.now(timezone.utc)

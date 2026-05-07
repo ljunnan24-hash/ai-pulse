@@ -1,6 +1,14 @@
 """
-确定性 Top3 筛选：重要 + 可信 + 不重复 + 类型分散（不依赖 LLM 选 Top3）。
-在 EventCards 之后、Composer 之前调用；Composer 仅润色文案，顺序与 URL 由本模块锁定。
+确定性周报 Top3（簇优先 cluster-first）：重要 + 可信 + 同簇合并 + 分类分散。
+
+产品语义：周报 Top3 表示「过去一周最重要的三个独立事件簇」，不是「过去 7 天全局 ranking / 平均分最高的三条 raw」。
+候选池与时间窗见 weekly_from_rankings_service；本模块在 EventCards 之后、Composer 之前调用，Composer 仅润色文案，顺序与主 URL 由 select_top3 / locked 协议锁定。
+
+选题分 top3_score：
+    周报 Top3 使用 top3_score 作为选题分。top3_score 不等于 ranking_score，也不是七天平均分；
+    它在基础重要性、用户价值、AI 相关性、行动价值、来源可信、新鲜度和热度之间加权，
+    用于判断某事件是否适合作为本周代表性事件。计算见 calculate_top3_score（权重已定稿，勿随意调整）。
+    PRD 摘要：docs/WEEKLY_TOP3_PROTOCOL.md「top3_score」小节。
 """
 
 from __future__ import annotations
@@ -603,6 +611,72 @@ def get_num(event: dict[str, Any], key: str, default: float = 0) -> float:
         return default
 
 
+_BASE_IMPORTANCE_KEYS_ORDER: tuple[str, ...] = (
+    "score_total",
+    "_score_total",
+    "ranking_score",
+    "effective_ranking_score",
+    "effective_score",
+    "ranking_score_7d",
+    "pulse_score",
+)
+
+
+def _score_fields_from_pool_row(pool_row: Any) -> dict[str, Any]:
+    """从 ORM 或 dict 池行抽取用于 base 解析的分数字段（轻量，无外部依赖）。"""
+    out: dict[str, Any] = {}
+    if pool_row is None:
+        return out
+    if isinstance(pool_row, dict):
+        for k in _BASE_IMPORTANCE_KEYS_ORDER:
+            if k in pool_row and pool_row[k] is not None:
+                out[k] = pool_row[k]
+        return out
+    for k in _BASE_IMPORTANCE_KEYS_ORDER:
+        if hasattr(pool_row, k):
+            try:
+                v = getattr(pool_row, k)
+            except Exception:
+                continue
+            if v is not None:
+                out[k] = v
+    return out
+
+
+def _resolve_base_importance(event: dict[str, Any]) -> float:
+    """
+    选题分中的 base（基础重要性）解析。
+
+    优先 score_total，其次按序 fallback 到 ranking_score、effective_ranking_score、
+    effective_score、ranking_score_7d、pulse_score 等（见 _BASE_IMPORTANCE_KEYS_ORDER）；
+    取第一个 >0 的数值。若仍无，则使用已写入的 base_score；再无则 0。
+    """
+    for key in _BASE_IMPORTANCE_KEYS_ORDER:
+        if key not in event:
+            continue
+        v = get_num(event, key)
+        if v > 0:
+            return v
+    b = get_num(event, "base_score")
+    if b > 0:
+        return b
+    return 0.0
+
+
+_ACTIONABILITY_SCORE_MAP: dict[str, float] = {
+    "now_try": 100.0,
+    "watch": 70.0,
+    "ignore": 35.0,
+    "not_for_general_user": 0.0,
+}
+
+
+def actionability_score_for_top3(event: dict[str, Any]) -> float:
+    """actionability 字符串 → 连续分；not_for_general_user 仍由硬门槛拦截。"""
+    a = normalize_actionability(event.get("actionability"))
+    return float(_ACTIONABILITY_SCORE_MAP.get(a, 70.0))
+
+
 def _attention_bucket(score_total: float, pool_scores: list[float]) -> str:
     if not pool_scores:
         return "Medium"
@@ -719,20 +793,44 @@ def calculate_top3_score_legacy_for_audit(event: dict[str, Any]) -> float:
 
 def calculate_top3_score(event: dict[str, Any]) -> float:
     """
-    Top3 综合分（P0）：用户价值优先，其次基础分与可信源，热度弱化且 GitHub heat 封顶。
+    周报 Top3 选题分 ``top3_score``。
+
+    ``top3_score`` **不等于** ``ranking_score``，也**不是**七天平均分。它在基础重要性、用户价值、
+    AI 相关性、行动价值、来源可信、新鲜度和热度之间做加权，用于判断某个事件是否适合作为本周代表性事件。
+
+    当前公式（权重已定稿，非必要请勿改动）::
+
+        top3_score =
+            0.35 × base
+          + 0.30 × user_value_score
+          + 0.10 × relevance_score
+          + 0.10 × actionability_score
+          + 0.05 × source_trust_score
+          + 0.05 × freshness_score
+          + 0.05 × heat_eff
+
+    - ``base``：见 ``_resolve_base_importance``（优先 ``score_total``，其次 fallback 到
+      ``ranking_score`` / ``effective_ranking_score`` / ``pulse_score`` 等）。
+    - ``heat_eff``：``heat_score_for_top3``（GitHub 来源时对 heat 封顶）。
+
+    说明：候选池预排序使用的 ``effective_ranking_score(..., "7d")`` 等与本选题分定义不同。
     """
+    base = _resolve_base_importance(event)
     uv = get_num(event, "user_value_score")
-    base_score = get_num(event, "base_score")
+    rel = get_num(event, "relevance_score")
+    act_s = actionability_score_for_top3(event)
     source_trust_score = get_num(event, "source_trust_score")
     freshness_score = get_num(event, "freshness_score")
     heat_eff = heat_score_for_top3(event)
 
     score = (
-        uv * 0.45
-        + base_score * 0.20
-        + source_trust_score * 0.15
-        + freshness_score * 0.10
-        + heat_eff * 0.10
+        base * 0.35
+        + uv * 0.30
+        + rel * 0.10
+        + act_s * 0.10
+        + source_trust_score * 0.05
+        + freshness_score * 0.05
+        + heat_eff * 0.05
     )
     return round(score, 2)
 
@@ -770,6 +868,15 @@ def is_valid_top3_candidate(event: dict[str, Any]) -> bool:
 
 
 def select_top3(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    从已通过校验的候选事件中选出最多 3 个「独立事件簇」（cluster-first）。
+
+    - 候选通常来自上游 GlobalEvent 池（时间窗 + 预排序仅用于造池，不直接等价于 Top3）。
+    - 按 top3_score 降序扫描；is_duplicate_event 判定为同簇时合并入已选条，只占一席；
+      合并保留先入选者（同簇内 top3_score 最高）为 canonical，其余进入 _top3_merged_*，materialize 后写入
+      related_event_ids / source_urls。
+    - 分类：同一 category 在尚未凑满 3 条前最多入选 2 条（减轻单赛道刷屏）；不足 3 簇时第二轮放宽 category 上限。
+    """
     candidates: list[dict[str, Any]] = []
 
     for event in events:
@@ -949,7 +1056,10 @@ def build_enriched_event_cards(
     pool_scores: list[float] = []
     for it in pool:
         try:
-            pool_scores.append(float(getattr(it, "score_total", 0) or 0))
+            if isinstance(it, dict):
+                pool_scores.append(float(_resolve_base_importance(it)))
+            else:
+                pool_scores.append(float(_resolve_base_importance(_score_fields_from_pool_row(it))))
         except Exception:
             pool_scores.append(0.0)
 
@@ -984,15 +1094,18 @@ def build_enriched_event_cards(
             summary = str(card.get("summary") or "")
 
         st = _primary_source_type(pool_row)
+        sf: dict[str, Any] = {}
         if pool_row is not None:
-            base_score = float(getattr(pool_row, "score_total", 0) or 0)
+            sf = _score_fields_from_pool_row(pool_row)
+            base_score = float(_resolve_base_importance(sf))
             heat_score = float(getattr(pool_row, "heat_score", 0) or 0)
             pub = getattr(pool_row, "published_at", None)
         else:
             try:
-                base_score = float(card.get("score") or 0)
+                card_sc = float(card.get("score") or 0)
             except Exception:
-                base_score = 0.0
+                card_sc = 0.0
+            base_score = float(_resolve_base_importance({"score_total": card_sc}))
             heat_score = 0.0
             pub = None
 
@@ -1074,6 +1187,9 @@ def build_enriched_event_cards(
             "user_value_from_impact": user_value_from_impact,
             "_text_blob": _text_blob,
         }
+        for k in ("ranking_score", "score_total", "_score_total", "pulse_score"):
+            if k in sf:
+                row[k] = get_num(sf, k)
 
         if high_noise_ids and eid in high_noise_ids:
             row["_exclude_top3"] = True
