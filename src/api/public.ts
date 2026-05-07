@@ -21,6 +21,16 @@ export type RankingsResponse = {
     action_suggestion: string;
     /** 一句话判断（榜单卡片展示；缺失时前端兜底） */
     one_liner?: string;
+    /** 若列表接口将来附带 metrics，可用于首页三指标 */
+    metrics_json?: Record<string, unknown>;
+    score_breakdown?: Record<string, number>;
+    pulse_score?: number;
+    score?: number;
+    freshness_score?: number;
+    hotness_score?: number;
+    popularity_score?: number;
+    user_value_score?: number;
+    normalized_title?: string;
   }>;
 };
 

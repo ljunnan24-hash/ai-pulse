@@ -1,11 +1,65 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Activity, BookOpen, ChevronRight, LineChart, Sparkles, X } from 'lucide-react';
+import { ChevronRight, X } from 'lucide-react';
 import { apiBase } from '../config';
 import { fetchRankings, fetchWeeklyLatest } from '../api/public';
-import { HomeTopInfoCards } from '../components/home/HomeTopInfoCards';
+import { HomeTopFiveTable } from '../components/home/HomeTopFiveTable';
+import { TodayFocusCard } from '../components/home/TodayFocusCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { estimateReadingMinutes } from '../components/weekly/weeklyPayloadUtils';
+import { formatSlashDateFromIso } from '../lib/homeRankingsDisplay';
+
+function ReportPreviewIllustration() {
+  return (
+    <div className="hidden md:flex h-44 w-44 shrink-0 items-center justify-center rounded-2xl bg-blue-100/70 shadow-sm ring-1 ring-blue-200/50" aria-hidden>
+      <svg viewBox="0 0 120 120" className="h-28 w-28 text-blue-500" fill="none">
+        <rect x="24" y="16" width="72" height="88" rx="12" fill="currentColor" opacity="0.12" />
+        <path
+          d="M40 42h40M40 58h32M40 76l12-10 10 7 18-20"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
+function StepIconDaily() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[1.125rem] w-[1.125rem]" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d="M4 6h16M4 12h10M4 18h14" strokeLinecap="round" />
+      <path d="M18 8l2 2-2 2M16 10h4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StepIconPulse() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[1.125rem] w-[1.125rem]" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d="M4 18V6M9 18v-5M14 18V9M19 18v-8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StepIconHint() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[1.125rem] w-[1.125rem]" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d="M12 3v4M12 21v-4M4.5 7.5l3 1.5M16.5 16.5l3 1.5M3 12h4M17 12h4M4.5 16.5l3-1.5M16.5 7.5l3-1.5" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  );
+}
+
+function StepIconWeekly() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[1.125rem] w-[1.125rem]" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+      <path d="M7 4h10v16H7z" strokeLinejoin="round" />
+      <path d="M9 8h6M9 12h4" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -15,7 +69,7 @@ export default function HomePage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [top3, setTop3] = useState<Awaited<ReturnType<typeof fetchRankings>>['items']>([]);
+  const [top5, setTop5] = useState<Awaited<ReturnType<typeof fetchRankings>>['items']>([]);
   const [rankUpdatedAt, setRankUpdatedAt] = useState<string | null>(null);
   const [topErr, setTopErr] = useState<string | null>(null);
   const [topLoaded, setTopLoaded] = useState(false);
@@ -31,9 +85,9 @@ export default function HomePage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchRankings({ range: 'today', category: 'all', limit: 3 })
+    fetchRankings({ range: 'today', category: 'all', limit: 5 })
       .then((r) => {
-        setTop3(r.items);
+        setTop5(r.items);
         setRankUpdatedAt(r.updated_at);
         setTopLoaded(true);
       })
@@ -93,54 +147,23 @@ export default function HomePage() {
     inputRef.current?.focus();
   };
 
-  const lead = top3[0];
-  const pulseNote =
-    lead && typeof lead.ranking_score === 'number' && Number.isFinite(lead.ranking_score)
-      ? lead.ranking_score.toFixed(1)
-      : null;
-
   return (
     <div className="page-container">
-      <header className="section-y">
-        <h1 className="font-headline text-[1.85rem] font-extrabold leading-[1.12] tracking-tight text-[#111827] md:text-[2.35rem]">
-          每天看 AI 信号，
-          <br className="hidden sm:block" />
-          每周读 AI 信息摘要
-        </h1>
-        <p className="mt-5 max-w-2xl text-[0.9375rem] leading-relaxed text-[#666666]">
-          我们持续从多个渠道<strong className="font-semibold text-[#111827]">收集、去重与整理</strong>
-          AI 领域的关键进展；再用 Pulse Score 做轻量排序参考，并附上简短价值提示，帮助你判断要不要投入时间深入了解。
-        </p>
-      </header>
-
-      {/* 主模块：今日最值得看的信息 */}
+      {/* Hero */}
       <section className="section-y">
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="heading-section">今日最值得看的信息</h2>
-            <p className="mt-1 max-w-2xl text-[0.8125rem] text-[#666666]">
-              每条均含事实摘要与价值提示；标题说明「发生了什么」，不会被一句抽象判断替代。
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,26.25rem)] lg:items-start lg:gap-12">
+          <div className="min-w-0">
+            <h1 className="font-headline text-[1.85rem] font-extrabold leading-[1.12] tracking-tight text-[#111827] md:text-[2.35rem]">
+              每天看 AI 信号，
+              <br className="hidden sm:block" />
+              每周读 AI 信息摘要
+            </h1>
+            <p className="mt-5 max-w-2xl text-[0.9375rem] leading-relaxed text-[#666666]">
+              AI Pulse 每日追踪全球 AI 产品、模型、工具与行业动态，基于多源数据与 Pulse Score 筛出最值得看的信息，并在每周摘要中整理关键变化。
             </p>
-          </div>
-          <Link to="/rankings" className="text-sm font-medium text-primary hover:underline">
-            打开完整信息榜单 →
-          </Link>
-        </div>
-        {topErr ? <p className="mb-4 text-sm text-amber-800">{topErr}</p> : null}
-        {!topErr && top3.length > 0 ? <HomeTopInfoCards items={top3} /> : null}
-        {!topErr && topLoaded && top3.length === 0 ? (
-          <p className="text-sm text-slate-600">暂无榜单数据。请在服务器运行：`python -m app.jobs.daily_rankings`</p>
-        ) : null}
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-10">
-          <div className="space-y-4">
-            <p className="text-[0.9375rem] leading-relaxed text-[#666666]">
-              需要更全的窗口与筛选？在榜单页可按时间范围与分类浏览，所有条目同样以
-              <strong className="font-semibold text-[#111827]">信息事实优先</strong>展示。
-            </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/rankings" className="btn-primary-lg no-underline">
-                查看信息榜单
+                查看今日榜单
               </Link>
               <Link
                 to="/#subscribe"
@@ -150,49 +173,73 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
-
-          <aside className="rounded-[var(--radius-card)] border border-dashed border-slate-200 bg-slate-50/90 p-5">
-            <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">辅助 · Pulse 排序参考</p>
-            {lead && pulseNote ? (
-              <>
-                <p className="mt-3 text-sm leading-relaxed text-slate-700">
-                  当前列表首条 Pulse 为 <span className="font-headline font-semibold tabular-nums text-slate-900">{pulseNote}</span>
-                  ，仅用于同类信息之间的相对排序，不代表投资建议或结论。
-                </p>
-                <Link to={`/events/${lead.id}`} className="mt-4 inline-flex text-sm font-semibold text-primary hover:underline">
-                  打开首条详情 →
-                </Link>
-              </>
-            ) : (
-              <p className="mt-3 text-sm text-slate-600">
-                {!topLoaded ? '正在加载…' : '暂无榜单时此处不显示 Pulse。数据就绪后将展示轻量排序参考。'}
-              </p>
-            )}
-          </aside>
+          <TodayFocusCard item={top5[0] ?? null} rankUpdatedAt={rankUpdatedAt} loaded={topLoaded} />
         </div>
+      </section>
+
+      {/* Top 5 table */}
+      <section className="section-y">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="heading-section">今日 AI Pulse Top 5</h2>
+            <p className="mt-1 max-w-2xl text-[0.8125rem] text-[#666666]">
+              基于多源信息与 Pulse Score，筛出今日最值得关注的 5 条 AI 动态。
+            </p>
+          </div>
+          <Link to="/rankings" className="shrink-0 text-sm font-medium text-primary hover:underline">
+            查看完整榜单 →
+          </Link>
+        </div>
+        {topErr ? <p className="mb-4 text-sm text-amber-800">{topErr}</p> : null}
+        {!topErr && top5.length > 0 ? <HomeTopFiveTable items={top5} /> : null}
+        {!topErr && topLoaded && top5.length === 0 ? (
+          <p className="text-sm text-slate-600">暂无榜单数据。请在服务器运行：`python -m app.jobs.daily_rankings`</p>
+        ) : null}
+        <p className="mt-4 text-[0.75rem] leading-relaxed text-slate-500">
+          Pulse Score 仅用于辅助排序，不代表投资、职业或商业决策建议。
+        </p>
       </section>
 
       {/* How it works */}
       <section className="section-y">
         <h2 className="heading-section mb-2">AI Pulse 如何工作</h2>
-        <p className="mb-6 max-w-2xl text-muted">先交付可追溯的信息，再叠加轻量辅助判断。</p>
+        <p className="mb-6 max-w-2xl text-muted">从海量 AI 动态中提炼信息，用结构化摘要帮助你更快理解变化。</p>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
           {[
-            { n: '01', icon: LineChart, t: '每日信息榜单', d: '多源收录、去重与结构化摘要。' },
-            { n: '02', icon: Activity, t: 'Pulse Score（参考）', d: '新鲜度、可信度、热度与价值的加权示意，用于排序而非结论。' },
-            { n: '03', icon: Sparkles, t: '轻量价值提示', d: '在事实之后补充「为什么值得看」「对你意味着什么」。' },
-            { n: '04', icon: BookOpen, t: '每周信息摘要', d: '按主题整理一周关键变化与值得继续跟踪的线索。' },
+            {
+              n: '01',
+              icon: StepIconDaily,
+              t: '每日信息榜单',
+              d: '汇聚全球多源信号，整理成每日 AI 信息 Top 榜。',
+            },
+            {
+              n: '02',
+              icon: StepIconPulse,
+              t: 'Pulse Score',
+              d: '综合新鲜度、可信度、热度与用户价值，作为排序参考。',
+            },
+            {
+              n: '03',
+              icon: StepIconHint,
+              t: '轻量信息提示',
+              d: '补充「发生了什么」「为什么值得看」「对你意味着什么」。',
+            },
+            {
+              n: '04',
+              icon: StepIconWeekly,
+              t: '每周信息摘要',
+              d: '每周整理关键变化、工具线索与值得继续跟踪的方向。',
+            },
           ].map((step, i, arr) => {
             const Icon = step.icon;
             return (
               <Fragment key={step.n}>
                 <div className="card-surface flex flex-1 flex-col p-4 md:p-5">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/20 bg-white text-primary">
-                    <Icon className="h-[1.125rem] w-[1.125rem]" strokeWidth={1.5} />
+                    <Icon />
                   </div>
                   <h3 className="mt-4 font-headline text-sm font-semibold leading-snug text-[#111827]">
-                    <span className="font-bold text-primary">{step.n}</span>{' '}
-                    {step.t}
+                    <span className="font-bold text-primary">{step.n}</span> {step.t}
                   </h3>
                   <p className="mt-2 flex-1 text-[0.8rem] leading-relaxed text-[#666666]">{step.d}</p>
                 </div>
@@ -208,7 +255,7 @@ export default function HomePage() {
       {/* Weekly preview */}
       <section className="section-y">
         <h2 className="heading-section mb-1">本周信息摘要预览</h2>
-        <p className="mb-5 text-muted">最新一期周报的结构化整理（若有）。</p>
+        <p className="mb-5 text-muted">最新一期周报的结构化整理。</p>
         {weeklyErr || !weeklyPreview?.headline ? (
           <EmptyState
             title="暂无已发布周报"
@@ -218,14 +265,14 @@ export default function HomePage() {
           />
         ) : (
           <div className="overflow-hidden rounded-[var(--radius-card)] border border-[#D6E8FF] bg-[#F0F7FF] shadow-[var(--shadow-card)]">
-            <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_min(40%,220px)] md:items-center md:gap-8 md:p-8">
+            <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-8 md:p-8">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-[#666666]">
                   <span className="rounded-md border border-primary/35 bg-white px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
                     本周信息摘要预览
                   </span>
                   {weeklyPreview.reportDate ? (
-                    <time dateTime={weeklyPreview.reportDate}>{weeklyPreview.reportDate}</time>
+                    <time dateTime={weeklyPreview.reportDate}>{formatSlashDateFromIso(weeklyPreview.reportDate)}</time>
                   ) : null}
                   <span className="text-slate-300">·</span>
                   <span>阅读约 {weeklyPreview.readingMinutes} 分钟</span>
@@ -239,14 +286,15 @@ export default function HomePage() {
                       .split(/\n\n+/)
                       .map((para) => para.trim())
                       .filter(Boolean)
+                      .slice(0, 2)
                       .map((para, i) => (
-                        <p key={i} className={i === 0 ? 'line-clamp-4 md:line-clamp-[5]' : 'line-clamp-3'}>
+                        <p key={i} className={i === 0 ? 'line-clamp-3 md:line-clamp-4' : 'line-clamp-3'}>
                           {para}
                         </p>
                       ))}
                   </div>
                 ) : weeklyPreview.boundary ? (
-                  <p className="mt-4 text-sm leading-relaxed text-[#666666] line-clamp-4">{weeklyPreview.boundary}</p>
+                  <p className="mt-4 text-sm leading-relaxed text-[#666666] line-clamp-3">{weeklyPreview.boundary}</p>
                 ) : weeklyPreview.titles[0] ? (
                   <p className="mt-4 text-sm leading-relaxed text-[#666666]">{weeklyPreview.titles[0]}</p>
                 ) : null}
@@ -254,16 +302,7 @@ export default function HomePage() {
                   阅读完整报告 →
                 </Link>
               </div>
-              <div className="hidden justify-end md:flex" aria-hidden>
-                <div className="relative h-36 w-44 shrink-0 rounded-2xl bg-gradient-to-br from-primary/30 via-primary/10 to-transparent shadow-inner ring-1 ring-primary/25">
-                  <div className="absolute inset-x-4 top-6 h-2 rounded-full bg-white/70 shadow-sm" />
-                  <div className="absolute inset-x-6 top-12 space-y-2">
-                    <div className="h-1.5 rounded-full bg-white/60" />
-                    <div className="h-1.5 w-[85%] rounded-full bg-white/50" />
-                  </div>
-                  <BookOpen className="absolute bottom-4 right-4 h-10 w-10 text-primary/60" />
-                </div>
-              </div>
+              <ReportPreviewIllustration />
             </div>
           </div>
         )}
