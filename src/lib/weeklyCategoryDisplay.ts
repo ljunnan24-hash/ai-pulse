@@ -9,7 +9,8 @@ const EXACT_SLUG: Record<string, WeeklyCategoryResolved> = {
   model: { slug: 'model', label: '模型' },
   model_update: { slug: 'model', label: '模型' },
   tool: { slug: 'tool', label: '工具' },
-  tool_product: { slug: 'product', label: '产品' },
+  /** 与后端 GlobalEvent / Top3 slug 对齐；pill 仍走 categoryPillClass('tool_product') */
+  tool_product: { slug: 'tool_product', label: '工具/产品' },
   application: { slug: 'product', label: '产品' },
   product: { slug: 'product', label: '产品' },
   enterprise: { slug: 'enterprise', label: '企业' },

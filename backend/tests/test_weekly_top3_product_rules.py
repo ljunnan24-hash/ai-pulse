@@ -136,6 +136,102 @@ def test_sync_legacy_top3_from_judgments_propagates_category():
     assert normal["top3"][0].get("category") == "industry"
 
 
+def test_finalize_backfill_judgment_category_model_case1():
+    """Case 1：judgment 无 category，legacy top3 有 category=model → finalize 后 judgment 带 category。"""
+    raw = {
+        "normal": {
+            "top3_judgments": [
+                {
+                    "title": "判断标题",
+                    "what_happened": "x",
+                    "why_it_matters": "y",
+                    "who_should_care": "",
+                    "what_to_do_now": "",
+                    "action_level": "观望",
+                    "pulse_score": 70,
+                    "source_urls": [],
+                    "related_stable_keys": [],
+                }
+            ],
+            "top3": [
+                {
+                    "title": "判断标题",
+                    "url": "https://example.com/a",
+                    "what_happened": "x",
+                    "why_important": "",
+                    "what_it_means_for_you": "",
+                    "attention_level": "3",
+                    "category": "model",
+                }
+            ],
+        }
+    }
+    fin = finalize_payload_v3(deepcopy(raw))
+    assert fin["normal"]["top3_judgments"][0].get("category") == "model"
+
+
+def test_finalize_backfill_from_legacy_category_slug_only():
+    """legacy 仅 category_slug 时，pick_category_fields 仍可回填 judgment.category。"""
+    raw = {
+        "normal": {
+            "top3_judgments": [
+                {
+                    "title": "T",
+                    "what_happened": "x",
+                    "why_it_matters": "y",
+                    "who_should_care": "",
+                    "what_to_do_now": "",
+                    "action_level": "观望",
+                    "pulse_score": 1,
+                    "source_urls": [],
+                    "related_stable_keys": [],
+                }
+            ],
+            "top3": [
+                {
+                    "title": "T",
+                    "url": "https://z/",
+                    "what_happened": "x",
+                    "why_important": "",
+                    "what_it_means_for_you": "",
+                    "attention_level": "3",
+                    "category_slug": "model_update",
+                }
+            ],
+        }
+    }
+    fin = finalize_payload_v3(deepcopy(raw))
+    assert fin["normal"]["top3_judgments"][0].get("category") == "model_update"
+
+
+def test_sync_legacy_top3_from_judgments_does_not_drop_category():
+    """judgment 有 category 时写入 legacy top3；不会清空已有分类路径。"""
+    normal = {
+        "top3_judgments": [
+            {
+                "title": "T",
+                "what_happened": "w",
+                "why_it_matters": "m",
+                "category": "industry",
+                "event_id": "9",
+            }
+        ],
+        "top3": [
+            {
+                "title": "legacy",
+                "url": "",
+                "what_happened": "",
+                "why_important": "",
+                "what_it_means_for_you": "",
+                "attention_level": "3",
+                "category": "tool_product",
+            }
+        ],
+    }
+    sync_legacy_top3_from_judgments(normal)
+    assert normal["top3"][0].get("category") == "industry"
+
+
 def test_extract_clean_preserves_non_numeric_event_id_case4():
     """非数字字符串 event_id（如池索引键）原样保留；生产路径应以 GlobalEvent 数字 id 为主事件。"""
     raw_normal = {

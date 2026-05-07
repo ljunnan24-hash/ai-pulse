@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { fetchEventDetail } from '../../api/public';
+import type { WeeklyCategoryResolved } from '../../lib/weeklyCategoryDisplay';
 import { resolveWeeklyCategoryDisplay } from '../../lib/weeklyCategoryDisplay';
 import type { WeeklyLooseRow } from './weeklyPayloadUtils';
 import {
@@ -12,8 +13,8 @@ import {
 } from './weeklyPayloadUtils';
 import { PulseRankingsTableLayout, type PulseRankingsTableRow } from '../pulse/PulseRankingsTableLayout';
 
-/** 站内 `/events/:id` 仅接受正整数 GlobalEvent.id */
-function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null {
+/** 站内 `/events/:id` 仅接受正整数 GlobalEvent.id（导出供单测与调试）。 */
+export function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null {
   const tryParse = (raw: string | undefined): number | null => {
     const s = (raw ?? '').trim();
     if (!s) return null;
@@ -43,10 +44,17 @@ function scoreForRow(row: WeeklyLooseRow, apiRanking?: number): number {
   return 0;
 }
 
-function categorySlugMerged(row: WeeklyLooseRow, apiCategory?: string): string {
+/**
+ * 周报专用：合并 payload 行与详情 API 的分类原始串，解析为 slug + 中文 label。
+ * 无可用分类时返回 null（对应 UI「未分类」pill，不使用「—」）。
+ */
+export function resolveWeeklyTopThreeCategory(
+  row: WeeklyLooseRow,
+  apiCategory?: string,
+): WeeklyCategoryResolved | null {
   const raw = pickWeeklyCategoryRaw(row).trim() || (apiCategory ?? '').trim();
-  if (!raw) return '';
-  return resolveWeeklyCategoryDisplay(raw)?.slug ?? '';
+  if (!raw) return null;
+  return resolveWeeklyCategoryDisplay(raw);
 }
 
 type EventPatch = { category: string; ranking_score: number };
@@ -114,7 +122,7 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
     /** 与排行榜一致：仅站内事件详情；外链在详情页「来源」查看，不在表格里跳转外部 */
     const detailTo = eid !== null ? `/events/${eid}` : undefined;
 
-    const slug = categorySlugMerged(row, api?.category);
+    const weeklyCategoryResolved = resolveWeeklyTopThreeCategory(row, api?.category);
 
     return {
       key: `${row.title}-${i}`,
@@ -123,8 +131,11 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
       titleZh: weeklyPulseTitleZh(row),
       titleEn: weeklyPulseTitleEn(row),
       meaning: weeklyPulseMeaning(row),
-      categorySlug: slug,
+      /** 周报固定走 weeklyCategoryResolved 分支，禁止回落到 categoryLabel 的「—」 */
+      weeklyCategoryResolved,
+      categorySlug: weeklyCategoryResolved?.slug ?? '',
       detailTo,
+      weeklyUi: true,
     };
   });
 
