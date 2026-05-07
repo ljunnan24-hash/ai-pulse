@@ -11,17 +11,23 @@ import { formatSlashDateFromIso } from '../lib/homeRankingsDisplay';
 
 function ReportPreviewIllustration() {
   return (
-    <div className="hidden md:flex h-44 w-44 shrink-0 items-center justify-center rounded-2xl bg-blue-100/70 shadow-sm ring-1 ring-blue-200/50" aria-hidden>
-      <svg viewBox="0 0 120 120" className="h-28 w-28 text-blue-500" fill="none">
-        <rect x="24" y="16" width="72" height="88" rx="12" fill="currentColor" opacity="0.12" />
-        <path
-          d="M40 42h40M40 58h32M40 76l12-10 10 7 18-20"
-          stroke="currentColor"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+    <div
+      className="hidden shrink-0 md:flex h-[220px] w-[220px] items-center justify-center rounded-[28px] border border-[#C7DCFF] bg-[#DCEBFF]"
+      aria-hidden
+    >
+      <div className="flex h-24 w-24 items-center justify-center rounded-[20px] bg-[#C9DCFF]">
+        <svg viewBox="0 0 120 120" className="h-[72px] w-[72px] text-[#3B82F6]" fill="none">
+          <rect x="22" y="14" width="76" height="92" rx="14" fill="currentColor" opacity="0.14" />
+          <path
+            d="M38 44h44M38 62h36M38 82l14-12 12 9 20-22"
+            stroke="currentColor"
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="85" cy="36" r="6" fill="currentColor" opacity="0.35" />
+        </svg>
+      </div>
     </div>
   );
 }
@@ -153,21 +159,24 @@ export default function HomePage() {
       <section className="section-y">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,26.25rem)] lg:items-start lg:gap-12">
           <div className="min-w-0">
-            <h1 className="font-headline text-[1.85rem] font-extrabold leading-[1.12] tracking-tight text-[#111827] md:text-[2.35rem]">
+            <h1 className="max-w-[520px] font-headline text-[40px] font-extrabold leading-[1.12] tracking-[-0.03em] text-[#0F172A] md:text-[64px]">
               每天看 AI 信号，
               <br className="hidden sm:block" />
               每周读 AI 信息摘要
             </h1>
-            <p className="mt-5 max-w-2xl text-[0.9375rem] leading-relaxed text-[#666666]">
+            <p className="mt-5 max-w-[560px] text-[18px] font-normal leading-[1.85] text-[#64748B]">
               AI Pulse 每日追踪全球 AI 产品、模型、工具与行业动态，基于多源数据与 Pulse Score 筛出最值得看的信息，并在每周摘要中整理关键变化。
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/rankings" className="btn-primary-lg no-underline">
+              <Link
+                to="/rankings"
+                className="inline-flex h-12 items-center justify-center rounded-full bg-[#1463FF] px-6 text-base font-semibold text-white no-underline transition-opacity hover:opacity-95"
+              >
                 查看今日榜单
               </Link>
               <Link
                 to="/#subscribe"
-                className="inline-flex h-11 items-center justify-center rounded-[var(--radius-btn)] border border-primary bg-white px-6 text-sm font-semibold text-primary shadow-sm transition-colors hover:bg-primary/5 no-underline"
+                className="inline-flex h-12 items-center justify-center rounded-full border border-[#BFD3FF] bg-white px-6 text-base font-semibold text-[#1463FF] no-underline transition-colors hover:bg-[#F8FAFF]"
               >
                 订阅周报
               </Link>
@@ -179,31 +188,33 @@ export default function HomePage() {
 
       {/* Top 5 table */}
       <section className="section-y">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="heading-section">今日 AI Pulse Top 5</h2>
-            <p className="mt-1 max-w-2xl text-[0.8125rem] text-[#666666]">
+            <h2 className="font-headline text-[40px] font-extrabold leading-[1.2] text-[#0F172A]">今日 AI Pulse Top 5</h2>
+            <p className="mt-2 max-w-2xl text-base leading-[1.7] text-[#64748B]">
               基于多源信息与 Pulse Score，筛出今日最值得关注的 5 条 AI 动态。
             </p>
           </div>
-          <Link to="/rankings" className="shrink-0 text-sm font-medium text-primary hover:underline">
+          <Link to="/rankings" className="shrink-0 text-base font-bold text-[#2563EB] hover:underline">
             查看完整榜单 →
           </Link>
         </div>
         {topErr ? <p className="mb-4 text-sm text-amber-800">{topErr}</p> : null}
         {!topErr && top5.length > 0 ? <HomeTopFiveTable items={top5} /> : null}
         {!topErr && topLoaded && top5.length === 0 ? (
-          <p className="text-sm text-slate-600">暂无榜单数据。请在服务器运行：`python -m app.jobs.daily_rankings`</p>
+          <p className="text-sm text-[#64748B]">暂无榜单数据。请在服务器运行：`python -m app.jobs.daily_rankings`</p>
         ) : null}
-        <p className="mt-4 text-[0.75rem] leading-relaxed text-slate-500">
+        <p className="mt-3 text-[13px] leading-snug text-[#94A3B8]">
           Pulse Score 仅用于辅助排序，不代表投资、职业或商业决策建议。
         </p>
       </section>
 
       {/* How it works */}
       <section className="section-y">
-        <h2 className="heading-section mb-2">AI Pulse 如何工作</h2>
-        <p className="mb-6 max-w-2xl text-muted">从海量 AI 动态中提炼信息，用结构化摘要帮助你更快理解变化。</p>
+        <h2 className="font-headline text-[40px] font-extrabold text-[#0F172A]">AI Pulse 如何工作</h2>
+        <p className="mb-8 mt-2 max-w-2xl text-base text-[#64748B]">
+          从海量 AI 动态中提炼信息，用结构化摘要帮助你更快理解变化。
+        </p>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
           {[
             {
@@ -234,14 +245,13 @@ export default function HomePage() {
             const Icon = step.icon;
             return (
               <Fragment key={step.n}>
-                <div className="card-surface flex flex-1 flex-col p-4 md:p-5">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/20 bg-white text-primary">
+                <div className="flex min-h-[168px] flex-1 flex-col rounded-[20px] border border-[#E9EEF6] bg-white p-6">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#2563EB]/20 bg-white text-[#2563EB]">
                     <Icon />
                   </div>
-                  <h3 className="mt-4 font-headline text-sm font-semibold leading-snug text-[#111827]">
-                    <span className="font-bold text-primary">{step.n}</span> {step.t}
-                  </h3>
-                  <p className="mt-2 flex-1 text-[0.8rem] leading-relaxed text-[#666666]">{step.d}</p>
+                  <p className="mt-4 text-[14px] font-bold text-[#2563EB]">{step.n}</p>
+                  <h3 className="mt-1 font-headline text-[18px] font-bold leading-snug text-[#0F172A]">{step.t}</h3>
+                  <p className="mt-2 flex-1 text-[14px] leading-[1.75] text-[#64748B]">{step.d}</p>
                 </div>
                 {i < arr.length - 1 ? (
                   <ChevronRight className="hidden h-6 w-6 shrink-0 self-center text-slate-300 lg:block" aria-hidden />
@@ -254,8 +264,8 @@ export default function HomePage() {
 
       {/* Weekly preview */}
       <section className="section-y">
-        <h2 className="heading-section mb-1">本周信息摘要预览</h2>
-        <p className="mb-5 text-muted">最新一期周报的结构化整理。</p>
+        <h2 className="font-headline text-[40px] font-extrabold leading-[1.2] text-[#0F172A]">本周信息摘要预览</h2>
+        <p className="mb-6 mt-2 text-base leading-[1.7] text-[#64748B]">最新一期周报的结构化整理。</p>
         {weeklyErr || !weeklyPreview?.headline ? (
           <EmptyState
             title="暂无已发布周报"
@@ -264,41 +274,44 @@ export default function HomePage() {
             actionTo="/#subscribe"
           />
         ) : (
-          <div className="overflow-hidden rounded-[var(--radius-card)] border border-[#D6E8FF] bg-[#F0F7FF] shadow-[var(--shadow-card)]">
-            <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-8 md:p-8">
+          <div className="min-h-[280px] overflow-hidden rounded-[24px] border border-[#D8E8FF] bg-[#EEF5FF] shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+            <div className="grid gap-10 px-6 py-8 md:grid-cols-[1.8fr_0.8fr] md:items-center md:gap-10 md:px-10 md:py-8">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-[#666666]">
-                  <span className="rounded-md border border-primary/35 bg-white px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[14px] font-medium text-[#64748B]">
+                  <span className="rounded-full border border-[#CFE0FF] bg-white px-[10px] py-[6px] text-[13px] font-bold text-[#2563EB]">
                     本周信息摘要预览
                   </span>
                   {weeklyPreview.reportDate ? (
                     <time dateTime={weeklyPreview.reportDate}>{formatSlashDateFromIso(weeklyPreview.reportDate)}</time>
                   ) : null}
-                  <span className="text-slate-300">·</span>
+                  <span className="text-[#CBD5E1]">·</span>
                   <span>阅读约 {weeklyPreview.readingMinutes} 分钟</span>
                 </div>
-                <h3 className="mt-4 line-clamp-4 font-headline text-xl font-bold leading-snug text-[#111827] [overflow-wrap:anywhere] md:text-2xl md:leading-tight">
+                <h3 className="mt-6 line-clamp-3 max-w-[900px] font-headline text-[clamp(1.75rem,4.5vw,3.5rem)] font-extrabold leading-[1.18] tracking-[-0.02em] text-[#0F172A] [overflow-wrap:anywhere]">
                   {weeklyPreview.headline}
                 </h3>
                 {weeklyPreview.summary ? (
-                  <div className="mt-4 space-y-3 text-sm leading-relaxed text-[#666666]">
+                  <div className="mt-5 max-w-[820px] space-y-0 text-base font-normal leading-[1.9] text-[#64748B]">
                     {weeklyPreview.summary
                       .split(/\n\n+/)
                       .map((para) => para.trim())
                       .filter(Boolean)
-                      .slice(0, 2)
+                      .slice(0, 1)
                       .map((para, i) => (
-                        <p key={i} className={i === 0 ? 'line-clamp-3 md:line-clamp-4' : 'line-clamp-3'}>
+                        <p key={i} className="line-clamp-3">
                           {para}
                         </p>
                       ))}
                   </div>
                 ) : weeklyPreview.boundary ? (
-                  <p className="mt-4 text-sm leading-relaxed text-[#666666] line-clamp-3">{weeklyPreview.boundary}</p>
+                  <p className="mt-5 max-w-[820px] text-base leading-[1.9] text-[#64748B] line-clamp-3">{weeklyPreview.boundary}</p>
                 ) : weeklyPreview.titles[0] ? (
-                  <p className="mt-4 text-sm leading-relaxed text-[#666666]">{weeklyPreview.titles[0]}</p>
+                  <p className="mt-5 max-w-[820px] text-base leading-[1.9] text-[#64748B]">{weeklyPreview.titles[0]}</p>
                 ) : null}
-                <Link to="/weekly/latest" className="btn-primary mt-7 inline-flex no-underline">
+                <Link
+                  to="/weekly/latest"
+                  className="mt-8 inline-flex h-12 items-center justify-center rounded-full bg-[#1463FF] px-[22px] text-base font-bold text-white no-underline transition-opacity hover:opacity-95"
+                >
                   阅读完整报告 →
                 </Link>
               </div>
@@ -309,9 +322,12 @@ export default function HomePage() {
       </section>
 
       {/* Subscribe */}
-      <section id="subscribe" className="scroll-mt-28 card-surface section-y p-5 md:p-8">
-        <h2 className="heading-section">订阅周报</h2>
-        <p className="mt-2 text-muted">
+      <section
+        id="subscribe"
+        className="scroll-mt-28 section-y rounded-2xl border border-slate-200/70 bg-slate-50/70 p-6 md:p-8"
+      >
+        <h2 className="font-headline text-2xl font-bold text-slate-800">订阅周报</h2>
+        <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
           日报浏览<strong className="font-medium text-slate-800">当日整理后的关键信息</strong>；
           周报阅读<strong className="font-medium text-slate-800">一周主题摘要与线索清单</strong>。
         </p>
