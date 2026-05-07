@@ -6,6 +6,10 @@ import { ChevronRight } from 'lucide-react';
 export const pulseRankTitleZhCls =
   'line-clamp-2 text-[15px] font-medium leading-snug text-slate-800 [overflow-wrap:anywhere]';
 
+/** 排行榜页事件主标题：偏黑体感的粗字重 */
+export const pulseRankTitleZhBoldCls =
+  'line-clamp-2 text-[15px] font-bold leading-snug text-[#0F172A] [overflow-wrap:anywhere]';
+
 export const pulseRankTitleEnCls =
   'line-clamp-2 text-xs leading-relaxed text-slate-500 [overflow-wrap:anywhere]';
 
@@ -30,14 +34,29 @@ export function PulseRankRankBadge({
   return <span className={rankBadgeCls}>{label}</span>;
 }
 
-export function PulseRankScoreCell({ score }: { score: number }) {
-  return <span className="text-lg font-semibold tabular-nums text-blue-600">{score.toFixed(1)}</span>;
+export function PulseRankScoreCell({ score, compact }: { score: number; compact?: boolean }) {
+  return (
+    <span
+      className={`font-semibold tabular-nums text-blue-600 ${compact ? 'text-base' : 'text-lg'}`}
+    >
+      {score.toFixed(1)}
+    </span>
+  );
 }
 
-export function PulseRankEventTitles({ titleZh, titleEn }: { titleZh: string; titleEn?: string }) {
+export function PulseRankEventTitles({
+  titleZh,
+  titleEn,
+  titleZhClassName = pulseRankTitleZhCls,
+}: {
+  titleZh: string;
+  titleEn?: string;
+  /** 默认中等字重；排行榜页可传入 {@link pulseRankTitleZhBoldCls} */
+  titleZhClassName?: string;
+}) {
   return (
     <div className="min-w-0 space-y-1">
-      <h3 className={pulseRankTitleZhCls}>{titleZh}</h3>
+      <h3 className={titleZhClassName}>{titleZh}</h3>
       {titleEn ? <p className={pulseRankTitleEnCls}>{titleEn}</p> : null}
     </div>
   );

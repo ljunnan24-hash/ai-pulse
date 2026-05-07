@@ -76,20 +76,39 @@ export default function RankingsPage() {
 
   return (
     <div className="page-container">
-      <header className="mb-6 flex flex-col gap-3 border-b border-[#E2E8F0] pb-6 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
-          <h1 className="font-headline text-[30px] font-extrabold leading-[1.25] tracking-[-0.02em] text-[#0F172A]">
-            {range === 'today' ? '今日 AI Pulse 信息榜单' : `AI Pulse 信息榜单 · ${rangeLabel}`}
-          </h1>
-          <p className="mt-2 max-w-[760px] text-[15px] leading-[1.7] text-[#64748B]">
-            先看清发生了什么，再对照「为什么值得看」与「对你意味着什么」。
-          </p>
+      <header className="mb-6 border-b border-[#E2E8F0] pb-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+          <div className="min-w-0 flex-1">
+            <h1 className="font-headline text-[30px] font-extrabold leading-[1.25] tracking-[-0.02em] text-[#0F172A]">
+              {range === 'today' ? '今日 AI Pulse 信息榜单' : `AI Pulse 信息榜单 · ${rangeLabel}`}
+            </h1>
+            <p className="mt-2 max-w-[760px] text-[15px] leading-[1.7] text-[#64748B]">
+              先看清发生了什么，再对照「为什么值得看」与「对你意味着什么」。
+            </p>
+            {meta ? (
+              <p className="mt-2 text-[13px] font-medium tabular-nums text-[#64748B]">
+                <time dateTime={meta.updated_at}>{formatUpdatedAtLabel(meta.updated_at)}</time>
+              </p>
+            ) : null}
+          </div>
+
+          {!err && items.length > 0 ? (
+            <div className="w-full shrink-0 lg:w-[min(100%,300px)] xl:w-[320px]">
+              <div className="rounded-[18px] border border-[#D8E2F0] bg-white px-[18px] py-5 lg:min-h-[140px]">
+                <h3 className="font-headline text-[15px] font-extrabold text-[#0F172A]">今日趋势</h3>
+                <p className="mt-1 text-[13px] leading-[1.6] text-[#64748B]">当前列表分类分布</p>
+                <ul className="mt-3 space-y-2 text-[13px] leading-[1.6] text-[#64748B]">
+                  {sidebarTrends.map((line, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#94A3B8]" aria-hidden />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
         </div>
-        {meta ? (
-          <p className="shrink-0 text-[13px] font-medium tabular-nums text-[#64748B] md:text-right">
-            <time dateTime={meta.updated_at}>{formatUpdatedAtLabel(meta.updated_at)}</time>
-          </p>
-        ) : null}
       </header>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -141,19 +160,6 @@ export default function RankingsPage() {
           </div>
 
           <aside className="space-y-4 lg:col-span-3">
-            <div className="rounded-[18px] border border-[#D8E2F0] bg-white px-[18px] py-5">
-              <h3 className="font-headline text-[15px] font-extrabold text-[#0F172A]">今日趋势</h3>
-              <p className="mt-1 text-[13px] leading-[1.6] text-[#64748B]">当前列表分类分布</p>
-              <ul className="mt-3 space-y-2 text-[13px] leading-[1.6] text-[#64748B]">
-                {sidebarTrends.map((line, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#94A3B8]" aria-hidden />
-                    <span>{line}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
             <div className="rounded-[18px] border border-[#D8E2F0] bg-white px-[18px] py-5">
               <h3 className="font-headline text-[15px] font-extrabold text-[#0F172A]">订阅周报</h3>
               <p className="mt-2 text-[13px] leading-[1.6] text-[#64748B]">

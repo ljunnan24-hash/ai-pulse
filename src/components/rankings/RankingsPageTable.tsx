@@ -5,7 +5,7 @@ import {
   pulseEventTitleZh,
   pulseWhatItMeans,
 } from '../../lib/homeRankingsDisplay';
-import { categoryLabel } from '../../lib/categoryLabels';
+import { categoryLabel, categoryPillClass } from '../../lib/categoryLabels';
 import {
   PulseRankDetailLink,
   PulseRankEventTitles,
@@ -13,14 +13,16 @@ import {
   PulseRankRankBadge,
   PulseRankScoreCell,
   pulseRankDetailBtnCls,
+  pulseRankTitleZhBoldCls,
 } from '../pulse/PulseRankItem';
 
 type Props = {
   items: RankingItem[];
 };
 
-/** 分类列夹在事件与「对你意味着什么」之间，对齐参考稿信息密度 */
-const COL_DESKTOP = '72px 88px minmax(200px, 1.2fr) 88px minmax(160px, 1fr) 112px' as const;
+/** 排名 | Score(收窄) | 事件(加宽) | 对你意味着什么 | 分类 | 操作 */
+const COL_DESKTOP =
+  '72px minmax(56px, 68px) minmax(260px, 2fr) minmax(148px, 1.05fr) minmax(72px, 92px) 112px' as const;
 
 const wrapCls =
   'overflow-hidden rounded-[22px] border border-[#D8E2F0] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.035)]';
@@ -39,8 +41,8 @@ export function RankingsPageTable({ items }: Props) {
           <span className="text-center">排名</span>
           <span>Score</span>
           <span>事件</span>
-          <span className="text-center">分类</span>
           <span>对你意味着什么</span>
+          <span className="text-center">分类</span>
           <span className="text-right">操作</span>
         </div>
         <div className="divide-y divide-[#E2E8F0]">
@@ -59,19 +61,25 @@ export function RankingsPageTable({ items }: Props) {
                 <div className="flex justify-center">
                   <PulseRankRankBadge rank={rank} />
                 </div>
-                <div className="flex items-center">
-                  <PulseRankScoreCell score={pulse} />
+                <div className="flex items-center justify-start">
+                  <PulseRankScoreCell score={pulse} compact />
                 </div>
                 <div className="min-w-0">
-                  <PulseRankEventTitles titleZh={titleZh} titleEn={titleEn} />
-                </div>
-                <div className="flex items-start justify-center pt-0.5" role="cell">
-                  <span className="inline-flex max-w-full whitespace-nowrap rounded-full bg-[#EFF6FF] px-2.5 py-0.5 text-center text-[12px] font-semibold leading-tight text-[#1463FF]">
-                    {categoryLabel(item.category)}
-                  </span>
+                  <PulseRankEventTitles
+                    titleZh={titleZh}
+                    titleEn={titleEn}
+                    titleZhClassName={pulseRankTitleZhBoldCls}
+                  />
                 </div>
                 <div className="min-w-0">
                   <PulseRankMeaningBlock text={means} />
+                </div>
+                <div className="flex items-start justify-center pt-0.5" role="cell">
+                  <span
+                    className={`inline-flex max-w-full whitespace-nowrap rounded-full px-2.5 py-0.5 text-center text-[12px] font-semibold leading-tight ${categoryPillClass(item.category)}`}
+                  >
+                    {categoryLabel(item.category)}
+                  </span>
                 </div>
                 <div className="flex justify-end">
                   <PulseRankDetailLink to={`/events/${item.id}`} />
@@ -93,18 +101,24 @@ export function RankingsPageTable({ items }: Props) {
             <li key={item.id} className="bg-white px-4 py-4">
               <div className="flex items-center justify-between gap-3">
                 <PulseRankRankBadge rank={rank} />
-                <PulseRankScoreCell score={pulse} />
+                <PulseRankScoreCell score={pulse} compact />
               </div>
               <div className="mt-3 min-w-0">
-                <PulseRankEventTitles titleZh={titleZh} titleEn={titleEn} />
-              </div>
-              <div className="mt-2 flex justify-start">
-                <span className="inline-flex rounded-full bg-[#EFF6FF] px-2.5 py-0.5 text-[12px] font-semibold text-[#1463FF]">
-                  {categoryLabel(item.category)}
-                </span>
+                <PulseRankEventTitles
+                  titleZh={titleZh}
+                  titleEn={titleEn}
+                  titleZhClassName={pulseRankTitleZhBoldCls}
+                />
               </div>
               <div className="mt-2 min-w-0">
                 <PulseRankMeaningBlock text={means} />
+              </div>
+              <div className="mt-2 flex justify-start">
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${categoryPillClass(item.category)}`}
+                >
+                  {categoryLabel(item.category)}
+                </span>
               </div>
               <PulseRankDetailLink to={`/events/${item.id}`} className={`${pulseRankDetailBtnCls} mt-4 w-full justify-center`} />
             </li>
