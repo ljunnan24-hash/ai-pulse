@@ -1,7 +1,7 @@
 import type { RankingsResponse } from '../api/public';
 
 import { firstSentences } from './insightFallback';
-import { deriveEventPageHeading, splitTitleForDisplay } from './titleDisplay';
+import { deriveEventPageHeading, hasCjkChars, splitTitleForDisplay } from './titleDisplay';
 
 export type HomeRankingItem = RankingsResponse['items'][number];
 
@@ -13,35 +13,56 @@ function looseStr(o: Record<string, unknown>, key: string): string {
 }
 
 /**
- * 榜单事件中文标题：优先客观字段（title_zh / title / what_happened 锚点），弱化「总结型」one_liner。
- * 兼容接口将来扩展字段。
+ * 榜单主标题（中文行）：
+ * 1. 后端若已有译文 / 中文：`title_zh`、`headline_zh`、`zh_title`，或含中文的 `summary_title`；
+ * 2. `title` 中含中文（含「中文｜English」合并格式）：直接用中文半句；
+ * 3. 仅有英文标题时：用「发生了什么」里抽出的中文首句作**展示用中文**（等同详情页 deriveEventPageHeading；
+ *    非机器逐句翻译；正式译文应由后端写入 `title_zh`）；
+ * 4. 兜底：英文原标题一行展示。
+ *
+ * 不使用 one_liner / why 判断句作主标题，避免与「对你意味着什么」列抢语义。
  */
 export function pulseEventTitleZh(item: HomeRankingItem): string {
   const o = item as unknown as Record<string, unknown>;
-  for (const k of ['title_zh', 'zh_title', 'headline_zh', 'summary_title']) {
+  for (const k of ['title_zh', 'headline_zh', 'zh_title']) {
     const s = looseStr(o, k);
     if (s) return s;
   }
+  const sum = looseStr(o, 'summary_title');
+  if (sum && hasCjkChars(sum)) return sum;
+
+  const split = splitTitleForDisplay(item.title ?? '');
+  if (hasCjkChars(split.primary)) return split.primary.trim();
+
   const { primary } = deriveEventPageHeading(item.title, item.what_happened);
   if (primary.trim()) return primary.trim();
-  const nt = (item.normalized_title ?? '').trim();
-  if (nt) return nt;
-  const wh = (item.what_happened ?? '').trim();
-  if (wh) return firstSentences(wh, 1, 220) || wh.slice(0, 220);
-  return chineseIntroHeadline(item);
+
+  return split.primary.trim() || (item.title ?? '').trim() || '—';
 }
 
-/** 英文 / 原文标题行；无则不应占位 */
+/** 副标题：英文原标题；与中文主行重复或同为中文时不占位 */
 export function pulseEventTitleEn(item: HomeRankingItem): string | undefined {
   const o = item as unknown as Record<string, unknown>;
   for (const k of ['title_en', 'source_title', 'original_title', 'raw_title']) {
     const s = looseStr(o, k);
     if (s) return s;
   }
-  const split = splitTitleForDisplay(item.title);
-  if (split.secondary) return split.secondary;
+  const zhLine = pulseEventTitleZh(item);
+  const split = splitTitleForDisplay(item.title ?? '');
   const raw = (item.title ?? '').trim();
-  if (raw && !/[\u4e00-\u9fff]/.test(raw)) return raw;
+
+  if (split.secondary && split.secondary.trim() !== zhLine.trim()) {
+    return split.secondary.trim();
+  }
+
+  if (raw && hasCjkChars(zhLine) && !hasCjkChars(raw) && zhLine.trim() !== raw.trim()) {
+    return raw;
+  }
+
+  if (raw && zhLine.trim() !== raw.trim() && !hasCjkChars(raw)) {
+    return raw;
+  }
+
   return undefined;
 }
 

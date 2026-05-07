@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.models import GlobalEvent, GlobalEventSource, RawItem
 from app.services.digest_builder import classify_item_section
 from app.services.event_merge_service import _canonical_url, _norm_title
+from app.services.title_translate_service import ensure_global_event_title_zh
 from app.services.url_normalize import normalize_event_source_url, source_type_trust_rank
 from app.services.ranking_score import (
     compute_ranking_score,
@@ -227,6 +228,10 @@ def merge_raw_into_global(db: Session, ge: GlobalEvent, raw: RawItem) -> None:
         if len((raw.summary or "").strip()) > len(ge.summary or ""):
             ge.summary = (raw.summary or "")[:8000]
         db.flush()
+        try:
+            ensure_global_event_title_zh(ge)
+        except Exception as exc:
+            _log.warning("ensure_global_event_title_zh after merge: %s", exc)
         return
 
     if norm_url:
@@ -290,6 +295,10 @@ def merge_raw_into_global(db: Session, ge: GlobalEvent, raw: RawItem) -> None:
     if len((raw.summary or "").strip()) > len(ge.summary or ""):
         ge.summary = (raw.summary or "")[:8000]
     db.flush()
+    try:
+        ensure_global_event_title_zh(ge)
+    except Exception as exc:
+        _log.warning("ensure_global_event_title_zh after merge: %s", exc)
 
 
 def find_or_create_global_for_raw(db: Session, raw: RawItem) -> GlobalEvent:
@@ -356,6 +365,7 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
     prev = 0.0
     ranking_insight_keep: dict[str, Any] | None = None
     one_liner_keep: str | None = None
+    title_zh_sha_keep: str | None = None
     insight_uv: float | None = None
     insight_applied = False
     try:
@@ -372,6 +382,9 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
             ol = m0.get("one_liner")
             if isinstance(ol, str) and ol.strip():
                 one_liner_keep = ol.strip()
+            tzs = m0.get("title_zh_source_sha256")
+            if isinstance(tzs, str) and tzs.strip():
+                title_zh_sha_keep = tzs.strip()
     except Exception:
         prev = 0.0
 
@@ -442,6 +455,8 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
         metrics["ranking_insight"] = ranking_insight_keep
     if one_liner_keep:
         metrics["one_liner"] = one_liner_keep
+    if title_zh_sha_keep:
+        metrics["title_zh_source_sha256"] = title_zh_sha_keep
     ge.metrics_json = json.dumps(metrics, ensure_ascii=False)
     db.flush()
 

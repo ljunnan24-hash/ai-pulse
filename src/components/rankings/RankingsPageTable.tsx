@@ -5,6 +5,7 @@ import {
   pulseEventTitleZh,
   pulseWhatItMeans,
 } from '../../lib/homeRankingsDisplay';
+import { categoryLabel } from '../../lib/categoryLabels';
 import {
   PulseRankDetailLink,
   PulseRankEventTitles,
@@ -18,7 +19,8 @@ type Props = {
   items: RankingItem[];
 };
 
-const COL_DESKTOP = '72px 88px minmax(260px, 1.45fr) minmax(180px, 1fr) 112px' as const;
+/** 分类列夹在事件与「对你意味着什么」之间，对齐参考稿信息密度 */
+const COL_DESKTOP = '72px 88px minmax(200px, 1.2fr) 88px minmax(160px, 1fr) 112px' as const;
 
 const wrapCls =
   'overflow-hidden rounded-[22px] border border-[#D8E2F0] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.035)]';
@@ -37,6 +39,7 @@ export function RankingsPageTable({ items }: Props) {
           <span className="text-center">排名</span>
           <span>Score</span>
           <span>事件</span>
+          <span className="text-center">分类</span>
           <span>对你意味着什么</span>
           <span className="text-right">操作</span>
         </div>
@@ -61,6 +64,11 @@ export function RankingsPageTable({ items }: Props) {
                 </div>
                 <div className="min-w-0">
                   <PulseRankEventTitles titleZh={titleZh} titleEn={titleEn} />
+                </div>
+                <div className="flex items-start justify-center pt-0.5" role="cell">
+                  <span className="inline-flex max-w-full whitespace-nowrap rounded-full bg-[#EFF6FF] px-2.5 py-0.5 text-center text-[12px] font-semibold leading-tight text-[#1463FF]">
+                    {categoryLabel(item.category)}
+                  </span>
                 </div>
                 <div className="min-w-0">
                   <PulseRankMeaningBlock text={means} />
@@ -89,6 +97,11 @@ export function RankingsPageTable({ items }: Props) {
               </div>
               <div className="mt-3 min-w-0">
                 <PulseRankEventTitles titleZh={titleZh} titleEn={titleEn} />
+              </div>
+              <div className="mt-2 flex justify-start">
+                <span className="inline-flex rounded-full bg-[#EFF6FF] px-2.5 py-0.5 text-[12px] font-semibold text-[#1463FF]">
+                  {categoryLabel(item.category)}
+                </span>
               </div>
               <div className="mt-2 min-w-0">
                 <PulseRankMeaningBlock text={means} />

@@ -71,6 +71,7 @@ def list_rankings(
             {
                 "id": ge.id,
                 "title": ge.canonical_title,
+                "title_zh": (ge.title_zh or "").strip(),
                 "url": ge.canonical_url,
                 "category": ge.category,
                 "source_type": ge.source_type,
@@ -140,6 +141,7 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
         {
             "id": r.id,
             "title": r.canonical_title,
+            "title_zh": (r.title_zh or "").strip(),
             "ranking_score": round(float(r.ranking_score or 0), 2),
             "category": r.category,
         }
@@ -149,6 +151,7 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
     return {
         "id": ge.id,
         "title": ge.canonical_title,
+        "title_zh": (ge.title_zh or "").strip(),
         "category": ge.category,
         "published_at": ge.published_at.isoformat() if ge.published_at else None,
         "ranking_score": round(float(ge.ranking_score or 0), 2),

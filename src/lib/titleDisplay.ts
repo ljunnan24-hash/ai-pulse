@@ -4,6 +4,11 @@ function hasCjk(s: string): boolean {
   return /[\u4e00-\u9fff]/.test(s);
 }
 
+/** 供榜单等模块判断是否为中文标题（含中日韩统一表意文字） */
+export function hasCjkChars(s: string | undefined | null): boolean {
+  return hasCjk((s ?? '').trim());
+}
+
 /** 取「发生了什么」里第一条含中文的语句，用作英文标题时的辅助主标题（完整展示在正文，此处仅作标题行） */
 function firstChineseSentenceFromBody(body: string): string {
   const t = (body || '').trim();

@@ -7,6 +7,8 @@ export type RankingsResponse = {
   items: Array<{
     id: number;
     title: string;
+    /** 后端豆包翻译或中文原标题；与 title（canonical）并存 */
+    title_zh?: string;
     url: string;
     category: string;
     source_type: string;
@@ -37,6 +39,7 @@ export type RankingsResponse = {
 export type EventDetailResponse = {
   id: number;
   title: string;
+  title_zh?: string;
   category: string;
   published_at: string | null;
   ranking_score: number;
@@ -55,7 +58,7 @@ export type EventDetailResponse = {
     raw_item_id: number;
   }>;
   score_breakdown: Record<string, number>;
-  related_events: Array<{ id: number; title: string; ranking_score: number; category: string }>;
+  related_events: Array<{ id: number; title: string; title_zh?: string; ranking_score: number; category: string }>;
 };
 
 export type WeeklyJsonResponse = {

@@ -174,6 +174,8 @@ class GlobalEvent(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     stable_key: Mapped[str] = mapped_column(String(96), unique=True, index=True)
     canonical_title: Mapped[str] = mapped_column(String(512), default="")
+    # 英文原标题的豆包译文；canonical_title 已含中文时可整段复制；列表 API 下发供前端主标题。
+    title_zh: Mapped[str] = mapped_column(String(512), default="")
     canonical_url: Mapped[str] = mapped_column(String(2048), default="")
     summary: Mapped[str] = mapped_column(Text, default="")
     category: Mapped[str] = mapped_column(String(32), default="application", index=True)

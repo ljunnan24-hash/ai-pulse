@@ -71,6 +71,16 @@ export default function EventDetailPage() {
   }
 
   const split = splitTitleForDisplay(data.title);
+  const titleZh = (data.title_zh ?? '').trim();
+  const rawTitle = (data.title ?? '').trim();
+  /** 后端 title_zh（豆包）优先作中文主标题；英文 canonical 作副标题 */
+  const headlinePrimary = titleZh || split.primary;
+  const headlineSecondary =
+    titleZh && rawTitle && titleZh !== rawTitle
+      ? rawTitle
+      : split.secondary
+        ? split.secondary
+        : undefined;
   const why = (data.why_important ?? '').trim();
   const means = (data.what_it_means_for_you ?? '').trim();
   const happenedRaw = (data.what_happened ?? '').trim();
@@ -110,10 +120,10 @@ export default function EventDetailPage() {
               <p className="text-[12px] font-medium text-[#94A3B8]">事件与简介</p>
               <div className="mt-3 border-t border-[#E5ECF5] pt-5">
                 <h1 className="text-balance font-headline text-[22px] font-extrabold leading-[1.35] tracking-tight text-[#0F172A] [overflow-wrap:anywhere] md:text-[24px]">
-                  {split.primary}
+                  {headlinePrimary}
                 </h1>
-                {split.secondary ? (
-                  <p className="mt-2 text-[13px] font-medium leading-[1.45] text-[#64748B] [overflow-wrap:anywhere]">{split.secondary}</p>
+                {headlineSecondary ? (
+                  <p className="mt-2 text-[13px] font-medium leading-[1.45] text-[#64748B] [overflow-wrap:anywhere]">{headlineSecondary}</p>
                 ) : null}
 
                 <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[#64748B]">
@@ -304,7 +314,9 @@ export default function EventDetailPage() {
                   {data.related_events.map((ev) => (
                     <li key={ev.id}>
                       <Link to={`/events/${ev.id}`} className="nav-link block rounded-lg px-2 py-1.5 text-slate-800 no-underline hover:bg-slate-50">
-                        <div className="font-medium leading-snug [overflow-wrap:anywhere]">{ev.title ?? '—'}</div>
+                        <div className="font-medium leading-snug [overflow-wrap:anywhere]">
+                          {(ev.title_zh ?? '').trim() || ev.title || '—'}
+                        </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <ScoreBadge score={ev.ranking_score} variant="subtle" />
                           <span className="break-words">{(ev.category ?? '').trim() || '—'}</span>
