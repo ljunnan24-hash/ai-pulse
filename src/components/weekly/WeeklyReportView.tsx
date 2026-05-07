@@ -22,7 +22,7 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
   const headline = (thesis?.headline ?? '').trim() || title.trim() || '本期周报';
   const summary = (thesis?.summary ?? '').trim();
 
-  const topThree = getWeeklyTopThreeJudgments(normal);
+  const topThree = getWeeklyTopThreeJudgments(payload);
 
   const capsBoundaries =
     (normal.capability_boundaries as Array<Record<string, unknown>> | undefined) || [];

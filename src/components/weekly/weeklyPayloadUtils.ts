@@ -1,5 +1,11 @@
 /** 周报 payload 解析与展示辅助（不改 API，仅前端容错） */
 
+import {
+  extractChineseEventHeadlineFromWhatHappened,
+  gatherWeeklyTopThreeCandidateRaws,
+  pickMergedWeeklyTopThree,
+} from '../../lib/weeklyTopThreeDedupe';
+
 export function fmtBoundaryField(v: unknown): string {
   if (v == null) return '';
   if (Array.isArray(v)) return v.map((x) => String(x)).filter(Boolean).join('；');
@@ -45,22 +51,110 @@ export function estimateReadingMinutes(payload: Record<string, unknown>): number
 /** 周报条目（沿用后端已有字段名，不改 API） */
 export type WeeklyLooseRow = Record<string, string>;
 
+const WEEKLY_OPTIONAL_KEYS = [
+  'title_zh',
+  'zh_title',
+  'event_title_zh',
+  'headline_zh',
+  'summary_title',
+  'title_en',
+  'source_title',
+  'original_title',
+  'raw_title',
+  'user_value',
+  'meaning_for_user',
+  'what_it_means',
+  'why_it_matters_to_you',
+  'summary',
+  'cluster_id',
+  'topic_id',
+  'event_group_id',
+  'canonical_url',
+  'source_url',
+] as const;
+
 export function normalizeWeeklyRow(raw: unknown): WeeklyLooseRow | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  const title = String(o.title ?? '').trim();
+  const title = String(o.title ?? o.headline ?? o.event_title ?? o.name ?? '').trim();
   if (!title) return null;
-  return {
+  const base: WeeklyLooseRow = {
     title: title.slice(0, 400),
     url: String(o.url ?? '').trim(),
     what_happened: String(o.what_happened ?? '').trim(),
-    why_important: String(o.why_important ?? '').trim(),
+    why_important: String(o.why_important ?? o.why_it_matters ?? '').trim(),
     what_it_means_for_you: String(o.what_it_means_for_you ?? '').trim(),
     pulse_score: String(o.pulse_score ?? ''),
     theme: String(o.theme ?? o.category ?? '').trim(),
     event_id: String(o.event_id ?? '').trim(),
     source_name: String(o.source_name ?? '').trim(),
   };
+  const su = o.source_urls;
+  if (Array.isArray(su) && su.length > 0) {
+    base.source_urls = su.map((x) => String(x).trim()).filter(Boolean).join('\n');
+  } else if (typeof su === 'string' && su.trim()) {
+    base.source_urls = su.trim();
+  }
+  for (const k of WEEKLY_OPTIONAL_KEYS) {
+    const v = o[k];
+    if (v != null && String(v).trim()) base[k] = String(v).trim();
+  }
+  const rel = o.related_event_ids;
+  if (Array.isArray(rel) && rel.length > 0) {
+    base.related_event_ids = rel.map((x) => String(x)).join(',');
+  } else if (rel != null && String(rel).trim()) {
+    base.related_event_ids = String(rel).trim();
+  }
+  return base;
+}
+
+/**
+ * 周报主标题：优先中文客观事件标题；what_happened 仅取可提炼的首句，不用全文。
+ */
+export function weeklyPulseTitleZh(row: WeeklyLooseRow): string {
+  for (const k of ['title_zh', 'zh_title', 'event_title_zh', 'headline_zh']) {
+    const v = (row[k] ?? '').trim();
+    if (v) return v;
+  }
+  const head = extractChineseEventHeadlineFromWhatHappened(row.what_happened ?? '');
+  if (head) return head;
+  for (const k of ['title', 'source_title', 'original_title']) {
+    const v = (row[k] ?? '').trim();
+    if (v) return v;
+  }
+  return '—';
+}
+
+export function weeklyPulseTitleEn(row: WeeklyLooseRow): string | undefined {
+  const te = (row.title_en ?? '').trim();
+  if (te) return te;
+  const display = weeklyPulseTitleZh(row);
+  const t = (row.title ?? '').trim();
+  if (t && display !== t && !/[\u4e00-\u9fff]/.test(t)) return t;
+  const st = (row.source_title ?? '').trim();
+  if (st && display !== st && !/[\u4e00-\u9fff]/.test(st)) return st;
+  const ot = (row.original_title ?? '').trim();
+  if (ot && display !== ot && !/[\u4e00-\u9fff]/.test(ot)) return ot;
+  const rt = (row.raw_title ?? '').trim();
+  if (rt && display !== rt && !/[\u4e00-\u9fff]/.test(rt)) return rt;
+  return undefined;
+}
+
+export function weeklyPulseMeaning(row: WeeklyLooseRow): string {
+  for (const k of [
+    'what_it_means_for_you',
+    'user_value',
+    'meaning_for_user',
+    'what_it_means',
+    'why_it_matters_to_you',
+    'summary',
+    'why_important',
+    'what_happened',
+  ]) {
+    const v = (row[k] ?? '').trim();
+    if (v) return v;
+  }
+  return '';
 }
 
 /**
@@ -103,18 +197,21 @@ export function collectWeeklyTopInformation(normal: Record<string, unknown>): We
   return out.slice(0, 5);
 }
 
-/** 本周最重要的三件事：仅取 top3_judgments，否则 legacy top3，最多 3 条 */
-export function getWeeklyTopThreeJudgments(normal: Record<string, unknown>): WeeklyLooseRow[] {
-  const t3j = (normal.top3_judgments as unknown[] | undefined) || [];
-  const leg = (normal.top3 as unknown[] | undefined) || [];
-  const primary = t3j.length > 0 ? t3j : leg;
-  const out: WeeklyLooseRow[] = [];
-  for (const row of primary) {
-    const r = normalizeWeeklyRow(row);
-    if (r) out.push(r);
-    if (out.length >= 3) break;
+/**
+ * 本周最重要的三件事：
+ * - 候选来自 top3_judgments → top3 → weekly_judgments → top5_information → sections.items → simple.lines；
+ * - 若 normal 含 deduped_events / canonical_events 等后端去重列表则优先仅用该列表；
+ * - 同簇条目合并进保留项（择优中文标题、合并摘要与来源）；独立主题最多 3 条，不足不重复补位。
+ */
+export function getWeeklyTopThreeJudgments(payload: Record<string, unknown>): WeeklyLooseRow[] {
+  const normal = (payload.normal as Record<string, unknown> | undefined) || {};
+  const raws = gatherWeeklyTopThreeCandidateRaws(payload, normal);
+  const normalized: WeeklyLooseRow[] = [];
+  for (const raw of raws) {
+    const r = normalizeWeeklyRow(raw);
+    if (r) normalized.push(r);
   }
-  return out;
+  return pickMergedWeeklyTopThree(normalized);
 }
 
 export function isAffirmativeNoise(s: string): boolean {

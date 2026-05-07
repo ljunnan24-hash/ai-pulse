@@ -2,12 +2,12 @@ import { Link } from 'react-router-dom';
 
 import type { HomeRankingItem } from '../../lib/homeRankingsDisplay';
 import {
-  chineseIntroHeadline,
   computeThreeMetrics,
   focusCardDate,
   gradeLabel,
-  originalTitleLine,
   pulseDisplayScore,
+  pulseEventTitleEn,
+  pulseEventTitleZh,
 } from '../../lib/homeRankingsDisplay';
 
 function MetricIconFreshness() {
@@ -80,12 +80,14 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
               PULSE {pulse !== null && Number.isFinite(pulse) ? pulse.toFixed(1) : '—'}
             </span>
           </div>
-          <h3 className="mt-3 line-clamp-3 font-headline text-[20px] font-extrabold leading-[1.35] text-[#0F172A] [overflow-wrap:anywhere] md:text-[21px]">
-            {chineseIntroHeadline(item)}
+          <h3 className="mt-3 line-clamp-2 text-[17px] font-medium leading-snug text-slate-800 [overflow-wrap:anywhere] md:text-[18px]">
+            {pulseEventTitleZh(item)}
           </h3>
-          <p className="mt-1.5 line-clamp-2 text-[14px] font-normal leading-[1.55] text-[#64748B] [overflow-wrap:anywhere]">
-            {originalTitleLine(item)}
-          </p>
+          {pulseEventTitleEn(item) ? (
+            <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500 [overflow-wrap:anywhere]">
+              {pulseEventTitleEn(item)}
+            </p>
+          ) : null}
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-[#E5ECF5] bg-white px-2 py-3 text-center md:min-h-[92px]">

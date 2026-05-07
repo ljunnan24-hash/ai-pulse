@@ -1,8 +1,49 @@
 import type { RankingsResponse } from '../api/public';
 
 import { firstSentences } from './insightFallback';
+import { deriveEventPageHeading, splitTitleForDisplay } from './titleDisplay';
 
 export type HomeRankingItem = RankingsResponse['items'][number];
+
+function looseStr(o: Record<string, unknown>, key: string): string {
+  const v = o[key];
+  if (v == null) return '';
+  const s = String(v).trim();
+  return s;
+}
+
+/**
+ * 榜单事件中文标题：优先客观字段（title_zh / title / what_happened 锚点），弱化「总结型」one_liner。
+ * 兼容接口将来扩展字段。
+ */
+export function pulseEventTitleZh(item: HomeRankingItem): string {
+  const o = item as unknown as Record<string, unknown>;
+  for (const k of ['title_zh', 'zh_title', 'headline_zh', 'summary_title']) {
+    const s = looseStr(o, k);
+    if (s) return s;
+  }
+  const { primary } = deriveEventPageHeading(item.title, item.what_happened);
+  if (primary.trim()) return primary.trim();
+  const nt = (item.normalized_title ?? '').trim();
+  if (nt) return nt;
+  const wh = (item.what_happened ?? '').trim();
+  if (wh) return firstSentences(wh, 1, 220) || wh.slice(0, 220);
+  return chineseIntroHeadline(item);
+}
+
+/** 英文 / 原文标题行；无则不应占位 */
+export function pulseEventTitleEn(item: HomeRankingItem): string | undefined {
+  const o = item as unknown as Record<string, unknown>;
+  for (const k of ['title_en', 'source_title', 'original_title', 'raw_title']) {
+    const s = looseStr(o, k);
+    if (s) return s;
+  }
+  const split = splitTitleForDisplay(item.title);
+  if (split.secondary) return split.secondary;
+  const raw = (item.title ?? '').trim();
+  if (raw && !/[\u4e00-\u9fff]/.test(raw)) return raw;
+  return undefined;
+}
 
 export function formatSlashDateFromIso(iso: string): string {
   const d = iso.slice(0, 10);
@@ -43,6 +84,24 @@ export function whatItMeansCell(item: HomeRankingItem): string {
   const a = (item.action_suggestion ?? '').trim();
   if (a) return a;
   return '暂无明确用户影响，可查看详情了解来源信息';
+}
+
+/** 「对你意味着什么」：按价值字段优先级，最后再用 action 建议等兜底 */
+export function pulseWhatItMeans(item: HomeRankingItem): string {
+  const o = item as unknown as Record<string, unknown>;
+  for (const k of [
+    'user_value',
+    'meaning_for_user',
+    'what_it_means',
+    'why_it_matters_to_you',
+    'what_it_means_for_you',
+  ]) {
+    const s = looseStr(o, k);
+    if (s) return s;
+  }
+  const summary = looseStr(o, 'summary');
+  if (summary) return summary;
+  return whatItMeansCell(item);
 }
 
 export function gradeLabel(score: number): string {
