@@ -132,7 +132,7 @@ function FlowConnector() {
 
 function StepBlock({ step, isFirst }: { step: Step; isFirst: boolean }) {
   return (
-    <div className={`border-t border-[#EEF2F7] pt-5 ${isFirst ? 'border-t-0 pt-0' : ''}`}>
+    <div className={`border-t border-[#E5ECF5] pt-5 ${isFirst ? 'border-t-0 pt-0' : ''}`}>
       <div className="flex gap-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#BFDBFE] bg-[#F8FAFC] text-[13px] font-bold tabular-nums text-[#2563EB]">
           {step.num}
@@ -148,12 +148,12 @@ function StepBlock({ step, isFirst }: { step: Step; isFirst: boolean }) {
 
 function QualityColumn({ column }: { column: Column }) {
   return (
-    <article className="flex min-h-0 flex-1 flex-col rounded-[24px] border border-[#E8EEF6] bg-white p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-8 lg:min-h-[540px]">
+    <article className="flex min-h-0 flex-1 flex-col rounded-[24px] border border-[#D8E2F0] bg-white p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:p-8 lg:min-h-[540px]">
       <div className="flex flex-col items-center text-center">
         <span className="rounded-full border border-[#BFDBFE] bg-[#F8FAFC] px-3 py-1.5 text-[13px] font-bold text-[#2563EB]">
           {column.pill}
         </span>
-        <div className="mt-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#E8EEF6] bg-white">
+        <div className="mt-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#E5ECF5] bg-white">
           {column.icon}
         </div>
         <h3 className="mt-5 max-w-[18rem] font-headline text-[20px] font-extrabold leading-snug text-[#0F172A] md:text-[21px]">
@@ -188,7 +188,7 @@ export function InformationQualityWorkflow() {
       </div>
 
       <div className="mt-10 flex justify-center md:mt-12">
-        <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#E8EEF6] bg-white px-4 py-2.5 text-[13px] font-medium leading-snug text-[#64748B] shadow-[0_1px_2px_rgba(15,23,42,0.03)] md:px-5 md:text-sm">
+        <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#D8E2F0] bg-white px-4 py-2.5 text-[13px] font-medium leading-snug text-[#64748B] shadow-[0_1px_2px_rgba(15,23,42,0.03)] md:px-5 md:text-sm">
           <IconFooterShield />
           <span>全流程质量把控，只为输出更值得信赖的 AI 信息。</span>
         </div>

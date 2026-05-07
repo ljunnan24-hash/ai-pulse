@@ -58,7 +58,7 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
   const m = item ? computeThreeMetrics(item) : null;
 
   return (
-    <aside className="mx-auto w-full max-w-[470px] rounded-[24px] border border-[#E5EDF8] bg-white p-[28px] shadow-[0_1px_3px_rgba(15,23,42,0.06)] lg:mx-0 lg:w-[470px] lg:max-w-none lg:shrink-0">
+    <aside className="mx-auto w-full max-w-[470px] rounded-[24px] border border-[#D8E2F0] bg-white p-[28px] shadow-[0_1px_3px_rgba(15,23,42,0.06)] lg:mx-0 lg:w-[470px] lg:max-w-none lg:shrink-0">
       <div className="flex items-start justify-between gap-2">
         <h2 className="font-headline text-[13px] font-bold leading-tight text-[#334155]">今日重点信息</h2>
         <time
@@ -88,7 +88,7 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
           </p>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
-            <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-[#E9EEF7] bg-white px-2 py-3 text-center md:min-h-[92px]">
+            <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-[#E5ECF5] bg-white px-2 py-3 text-center md:min-h-[92px]">
               <MetricIconFreshness />
               <p className="mt-1.5 text-[12px] font-medium text-[#64748B]">新鲜度</p>
               <p className="mt-0.5 font-headline text-[24px] font-extrabold leading-none tabular-nums text-[#0F172A] md:text-[25px]">
@@ -96,7 +96,7 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
               </p>
               <p className="mt-0.5 text-[11px] font-medium leading-none text-[#94A3B8]">{m ? gradeLabel(m.freshness) : ''}</p>
             </div>
-            <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-[#E9EEF7] bg-white px-2 py-3 text-center md:min-h-[92px]">
+            <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-[#E5ECF5] bg-white px-2 py-3 text-center md:min-h-[92px]">
               <MetricIconHeat />
               <p className="mt-1.5 text-[12px] font-medium text-[#64748B]">热度</p>
               <p className="mt-0.5 font-headline text-[24px] font-extrabold leading-none tabular-nums text-[#0F172A] md:text-[25px]">
@@ -104,7 +104,7 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
               </p>
               <p className="mt-0.5 text-[11px] font-medium leading-none text-[#94A3B8]">{m ? gradeLabel(m.heat) : ''}</p>
             </div>
-            <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-[#E9EEF7] bg-white px-2 py-3 text-center md:min-h-[92px]">
+            <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-[#E5ECF5] bg-white px-2 py-3 text-center md:min-h-[92px]">
               <MetricIconUserValue />
               <p className="mt-1.5 text-[12px] font-medium text-[#64748B]">用户价值</p>
               <p className="mt-0.5 font-headline text-[24px] font-extrabold leading-none tabular-nums text-[#0F172A] md:text-[25px]">
@@ -116,7 +116,7 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
 
           <Link
             to={`/events/${item.id}`}
-            className="mt-5 block border-t border-[#EEF2F7] pt-4 text-[15px] font-bold text-[#2563EB] hover:underline"
+            className="mt-5 block border-t border-[#E5ECF5] pt-4 text-[15px] font-bold text-[#2563EB] hover:underline"
           >
             查看事件详情 →
           </Link>

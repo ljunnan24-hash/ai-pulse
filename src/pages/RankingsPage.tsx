@@ -4,10 +4,10 @@ import { TrendingUp } from 'lucide-react';
 
 import { fetchRankings } from '../api/public';
 import type { RankingItem } from '../components/rankings/RankingCard';
-import { RankingsTopThree } from '../components/rankings/RankingsTopThree';
-import { RankingsInformationList } from '../components/rankings/RankingsInformationList';
+import { RankingsPageTable } from '../components/rankings/RankingsPageTable';
 import { EmptyState } from '../components/common/EmptyState';
 import { categoryLabel } from '../lib/categoryLabels';
+import { chineseIntroHeadline } from '../lib/homeRankingsDisplay';
 
 const RANGES = [
   { id: 'today', label: '今日' },
@@ -50,6 +50,18 @@ function formatUpdatedAtLabel(iso: string | undefined): string {
   return `更新于 ${y} / ${m} / ${day} ${h}:${min}`;
 }
 
+/** 紧凑摘要条：仅概括前三名焦点，不占高 */
+function RankingsSummaryStrip({ items }: { items: RankingItem[] }) {
+  if (items.length === 0) return null;
+  const preview = items.slice(0, 3).map((it) => chineseIntroHeadline(it));
+  return (
+    <div className="mb-4 rounded-xl border border-[#E5ECF5] bg-white px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.03)] md:px-4 md:py-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">本榜摘要</p>
+      <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-[#64748B]">{preview.join(' · ')}</p>
+    </div>
+  );
+}
+
 export default function RankingsPage() {
   const [range, setRange] = useState<(typeof RANGES)[number]['id']>('today');
   const [category, setCategory] = useState<(typeof CATS)[number]['id']>('all');
@@ -69,7 +81,6 @@ export default function RankingsPage() {
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
-  const restAfterTop = items.length > 3 ? items.slice(3) : [];
 
   return (
     <div className="page-container">
@@ -115,8 +126,6 @@ export default function RankingsPage() {
         ))}
       </div>
 
-      {!err && items.length > 0 ? <RankingsTopThree items={items} /> : null}
-
       {err ? (
         <div className="card-surface-muted mb-6 px-5 py-4 text-sm">
           <p className="font-headline font-semibold text-slate-900">暂时无法加载榜单</p>
@@ -127,59 +136,55 @@ export default function RankingsPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
-        <div className="lg:col-span-8">
-          {!err && restAfterTop.length > 0 ? (
-            <div className="space-y-4">
-              <h2 className="font-headline text-sm font-semibold text-slate-800">更多上榜信息</h2>
-              <RankingsInformationList items={restAfterTop} rankOffset={3} />
-              <p className="py-2 text-center text-xs text-slate-500">
-                共 {items.length} 条：前 3 名见上方 · 可调整时间范围与分类
-              </p>
-            </div>
-          ) : null}
-          {!err && items.length > 0 && items.length <= 3 ? (
-            <p className="mt-2 text-center text-sm text-slate-500">以上为当前筛选下的全部上榜条目。</p>
-          ) : null}
-          {!err && items.length === 0 ? (
-            <EmptyState
-              title="暂无匹配结果"
-              description="当前筛选条件下没有可展示的榜单事件。可切换时间范围或分类，或确认后端已运行 daily_rankings。"
-              actionLabel="返回首页"
-              actionTo="/"
-              actionVariant="secondary"
-            />
-          ) : null}
-        </div>
-
-        <aside className="space-y-6 lg:col-span-4">
-          <div className="card-surface p-5">
-            <h3 className="font-headline text-sm font-semibold text-slate-900">今日趋势</h3>
-            <p className="mt-1 text-[0.7rem] text-slate-500">当前列表分类分布</p>
-            <ul className="mt-3 space-y-2.5 text-xs leading-relaxed text-slate-600">
-              {sidebarTrends.map((line, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-                  <span>{line}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="card-surface p-5">
-            <h3 className="font-headline text-sm font-semibold text-slate-900">订阅周报</h3>
-            <p className="mt-2 text-xs leading-relaxed text-slate-600">
-              周报按主题整理信息，并附轻量价值提示，方便你决定要不要深入。
+      {!err && items.length > 0 ? (
+        <div className="grid gap-8 lg:grid-cols-12 lg:gap-8 lg:items-start">
+          <div className="min-w-0 lg:col-span-9">
+            <RankingsSummaryStrip items={items} />
+            <RankingsPageTable items={items} />
+            <p className="mt-4 text-center text-[12px] text-slate-500">
+              共 {items.length} 条 · 可调整时间范围与分类
             </p>
-            <Link
-              to="/subscribe"
-              className="btn-primary mt-4 inline-flex w-full justify-center font-headline no-underline"
-            >
-              订阅周报
-            </Link>
           </div>
-        </aside>
-      </div>
+
+          <aside className="space-y-4 lg:col-span-3">
+            <div className="rounded-xl border border-[#E5ECF5] bg-white px-3 py-3.5 text-[12px] leading-relaxed text-slate-600 md:px-4">
+              <h3 className="font-headline text-[11px] font-semibold uppercase tracking-wide text-slate-400">今日趋势</h3>
+              <p className="mt-0.5 text-[11px] text-slate-400">当前列表分类分布</p>
+              <ul className="mt-2 space-y-2 text-[12px] text-slate-600">
+                {sidebarTrends.map((line, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <TrendingUp className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" aria-hidden />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-xl border border-[#E5ECF5] bg-white px-3 py-3.5 md:px-4">
+              <h3 className="font-headline text-[11px] font-semibold uppercase tracking-wide text-slate-400">订阅周报</h3>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">
+                周报按主题整理信息，并附轻量价值提示，方便你决定要不要深入。
+              </p>
+              <Link
+                to="/subscribe"
+                className="btn-primary mt-3 inline-flex w-full justify-center px-4 py-2 text-[12px] font-semibold no-underline"
+              >
+                订阅周报
+              </Link>
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      {!err && items.length === 0 ? (
+        <EmptyState
+          title="暂无匹配结果"
+          description="当前筛选条件下没有可展示的榜单事件。可切换时间范围或分类，或确认后端已运行 daily_rankings。"
+          actionLabel="返回首页"
+          actionTo="/"
+          actionVariant="secondary"
+        />
+      ) : null}
     </div>
   );
 }

@@ -17,7 +17,7 @@ function ReportPreviewIllustration() {
     >
       <div className="relative w-[min(200px,72vw)] md:w-[200px]">
         <div className="pointer-events-none absolute -inset-6 -z-10 rounded-[40px] bg-[#E8F1FF]/35 blur-2xl" />
-        <div className="relative rounded-[15px] border border-[#E4EEFF] bg-white p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.06),0_2px_8px_rgba(37,99,235,0.06)]">
+        <div className="relative rounded-[15px] border border-[#D8E2F0] bg-white p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.06),0_2px_8px_rgba(37,99,235,0.06)]">
           <div className="pointer-events-none absolute right-0 top-0 h-10 w-10 overflow-hidden rounded-tr-[14px]">
             <div className="absolute right-0 top-0 h-14 w-14 translate-x-1/3 -translate-y-1/3 rotate-45 bg-[#EDF4FF]" />
           </div>
@@ -27,7 +27,7 @@ function ReportPreviewIllustration() {
             <div className="h-2 w-[88%] rounded-full bg-slate-50/90" />
           </div>
           <svg viewBox="0 0 132 52" className="mt-3.5 h-[52px] w-full" fill="none" aria-hidden>
-            <rect x="4" y="8" width="124" height="36" rx="6" fill="#F8FAFC" stroke="#E8EEF6" strokeWidth="1" />
+            <rect x="4" y="8" width="124" height="36" rx="6" fill="#F8FAFC" stroke="#E5ECF5" strokeWidth="1" />
             <path
               d="M16 38 L40 30 L60 34 L84 18 L108 24 L118 20"
               stroke="#2563EB"
@@ -182,7 +182,7 @@ export default function HomePage() {
             actionTo="/subscribe"
           />
         ) : (
-          <div className="overflow-hidden rounded-[24px] border border-card-border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+          <div className="overflow-hidden rounded-[24px] border border-[#D8E2F0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
             <div className="flex flex-col gap-6 px-7 py-7 md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-9 md:px-8 md:py-7 lg:grid-cols-[minmax(0,1fr)_240px] lg:px-9 lg:py-8">
               <div className="min-w-0">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">

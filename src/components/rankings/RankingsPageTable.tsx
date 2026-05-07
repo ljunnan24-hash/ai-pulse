@@ -1,10 +1,15 @@
 import { Link } from 'react-router-dom';
 
-import type { HomeRankingItem } from '../../lib/homeRankingsDisplay';
-import { chineseIntroHeadline, originalTitleLine, pulseDisplayScore, whatItMeansCell } from '../../lib/homeRankingsDisplay';
+import type { RankingItem } from './RankingCard';
+import {
+  chineseIntroHeadline,
+  originalTitleLine,
+  pulseDisplayScore,
+  whatItMeansCell,
+} from '../../lib/homeRankingsDisplay';
 
 type Props = {
-  items: HomeRankingItem[];
+  items: RankingItem[];
 };
 
 const COL_DESKTOP = '64px 84px minmax(260px,1.45fr) minmax(160px,1fr) 108px' as const;
@@ -12,15 +17,15 @@ const COL_DESKTOP = '64px 84px minmax(260px,1.45fr) minmax(160px,1fr) 108px' as 
 const wrapCls =
   'overflow-hidden rounded-[22px] border border-[#D8E2F0] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.035)]';
 
-export function HomeTopFiveTable({ items }: Props) {
+/** 榜单页专用：与首页 Top5 同列逻辑，支持 Top20；Top3 行略强调，无奖牌图形 */
+export function RankingsPageTable({ items }: Props) {
   if (items.length === 0) return null;
 
   return (
     <div className={wrapCls}>
-      {/* Desktop */}
       <div className="hidden md:block">
         <div
-          className="grid h-12 items-center gap-x-3 border-b border-[#E2E8F0] bg-white px-4 text-left text-[13px] font-bold text-[#94A3B8]"
+          className="grid h-11 items-center gap-x-3 border-b border-[#E2E8F0] bg-white px-4 text-left text-[13px] font-bold text-[#94A3B8]"
           style={{ gridTemplateColumns: COL_DESKTOP }}
         >
           <span className="text-center">排名</span>
@@ -32,6 +37,7 @@ export function HomeTopFiveTable({ items }: Props) {
         <div className="divide-y divide-[#E2E8F0]">
           {items.map((item, idx) => {
             const rank = idx + 1;
+            const top3 = rank <= 3;
             const pulse = pulseDisplayScore(item);
             const intro = chineseIntroHeadline(item);
             const rawTitle = originalTitleLine(item);
@@ -39,11 +45,13 @@ export function HomeTopFiveTable({ items }: Props) {
             return (
               <div
                 key={item.id}
-                className="grid min-h-[82px] items-center gap-x-3 px-4 py-2"
+                className={`grid min-h-[68px] items-center gap-x-3 px-4 py-1.5 ${top3 ? 'bg-[#F8FAFC]/95' : ''}`}
                 style={{ gridTemplateColumns: COL_DESKTOP }}
               >
                 <div className="flex justify-center">
-                  <span className="font-headline text-[26px] font-extrabold tabular-nums leading-none text-[#2563EB]">
+                  <span
+                    className={`font-headline font-extrabold tabular-nums leading-none text-[#2563EB] ${top3 ? 'text-[28px]' : 'text-[26px]'}`}
+                  >
                     {rank}
                   </span>
                 </div>
@@ -52,18 +60,22 @@ export function HomeTopFiveTable({ items }: Props) {
                     {pulse.toFixed(1)}
                   </span>
                 </div>
-                <div className="min-w-0 py-1">
-                  <p className="line-clamp-2 font-headline text-[16px] font-extrabold leading-[1.35] text-[#0F172A] [overflow-wrap:anywhere]">
+                <div className="min-w-0 py-0.5">
+                  <p
+                    className={`line-clamp-2 font-headline leading-[1.35] text-[#0F172A] [overflow-wrap:anywhere] ${top3 ? 'text-[16px] font-extrabold md:text-[17px]' : 'text-[15px] font-bold md:text-[16px]'}`}
+                  >
                     {intro}
                   </p>
-                  <p className="mt-1 line-clamp-2 text-[13px] leading-[1.5] text-[#64748B] [overflow-wrap:anywhere]">{rawTitle}</p>
+                  <p className="mt-0.5 line-clamp-2 text-[12px] leading-[1.45] text-[#64748B] [overflow-wrap:anywhere] md:text-[13px]">
+                    {rawTitle}
+                  </p>
                 </div>
-                <div className="min-w-0 py-1">
-                  <p className="line-clamp-3 text-[14px] font-normal leading-[1.65] text-[#475569] [overflow-wrap:anywhere]">
+                <div className="min-w-0 py-0.5">
+                  <p className="line-clamp-3 text-[13px] font-normal leading-[1.6] text-[#475569] [overflow-wrap:anywhere] md:text-[14px] md:leading-[1.65]">
                     {means}
                   </p>
                 </div>
-                <div className="flex justify-end py-1">
+                <div className="flex justify-end py-0.5">
                   <Link
                     to={`/events/${item.id}`}
                     className="inline-flex h-[34px] shrink-0 items-center justify-center rounded-full border border-[#A8C5FF] bg-white px-[14px] text-[13px] font-bold text-[#2563EB] no-underline transition-colors hover:bg-[#F8FAFF]"
@@ -77,30 +89,36 @@ export function HomeTopFiveTable({ items }: Props) {
         </div>
       </div>
 
-      {/* Mobile */}
       <ul className="divide-y divide-[#E2E8F0] md:hidden">
         {items.map((item, idx) => {
           const rank = idx + 1;
+          const top3 = rank <= 3;
           const pulse = pulseDisplayScore(item);
           const intro = chineseIntroHeadline(item);
           const rawTitle = originalTitleLine(item);
           const means = whatItMeansCell(item);
           return (
-            <li key={item.id} className="px-4 py-3">
+            <li key={item.id} className={`px-4 py-2.5 ${top3 ? 'bg-[#F8FAFC]/90' : ''}`}>
               <div className="flex items-center justify-between gap-3">
-                <span className="font-headline text-[24px] font-extrabold tabular-nums leading-none text-[#2563EB]">{rank}</span>
+                <span
+                  className={`font-headline font-extrabold tabular-nums leading-none text-[#2563EB] ${top3 ? 'text-[26px]' : 'text-[24px]'}`}
+                >
+                  {rank}
+                </span>
                 <span className="font-headline text-[18px] font-extrabold tabular-nums leading-none text-[#2563EB]">
                   {pulse.toFixed(1)}
                 </span>
               </div>
-              <p className="mt-2 line-clamp-2 font-headline text-[15px] font-extrabold leading-snug text-[#0F172A] [overflow-wrap:anywhere]">
+              <p
+                className={`mt-1.5 line-clamp-2 font-headline leading-snug text-[#0F172A] [overflow-wrap:anywhere] ${top3 ? 'text-[15px] font-extrabold' : 'text-[14px] font-bold'}`}
+              >
                 {intro}
               </p>
-              <p className="mt-1 line-clamp-2 text-[12px] leading-[1.5] text-[#64748B] [overflow-wrap:anywhere]">{rawTitle}</p>
-              <p className="mt-2 line-clamp-3 text-[13px] leading-[1.65] text-[#475569] [overflow-wrap:anywhere]">{means}</p>
+              <p className="mt-0.5 line-clamp-2 text-[12px] leading-[1.5] text-[#64748B] [overflow-wrap:anywhere]">{rawTitle}</p>
+              <p className="mt-1.5 line-clamp-3 text-[12px] leading-[1.65] text-[#475569] [overflow-wrap:anywhere]">{means}</p>
               <Link
                 to={`/events/${item.id}`}
-                className="mt-3 inline-flex h-[34px] items-center justify-center rounded-full border border-[#A8C5FF] bg-white px-[14px] text-[13px] font-bold text-[#2563EB] no-underline"
+                className="mt-2.5 inline-flex h-[34px] items-center justify-center rounded-full border border-[#A8C5FF] bg-white px-[14px] text-[13px] font-bold text-[#2563EB] no-underline"
               >
                 查看详情
               </Link>
