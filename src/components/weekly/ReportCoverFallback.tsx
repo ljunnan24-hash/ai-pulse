@@ -5,10 +5,9 @@ import { Link } from 'react-router-dom';
 type Props = {
   readingMinutes: number;
   topJudgmentCount: number;
-  noiseFilteredCount: number;
 };
 
-export function ReportCoverFallback({ readingMinutes, topJudgmentCount, noiseFilteredCount }: Props) {
+export function ReportCoverFallback({ readingMinutes, topJudgmentCount }: Props) {
   return (
     <section id="weekly-thesis" className="mb-8 scroll-mt-28 md:mb-10">
       <div className="card-surface p-5 md:p-6">
@@ -16,7 +15,7 @@ export function ReportCoverFallback({ readingMinutes, topJudgmentCount, noiseFil
           本周信息整理
         </span>
         <p className="mt-4 text-sm leading-relaxed text-slate-700">
-          下方按「事实 → 价值提示 → 分类与噪音」展开；先看信息，再对照辅助判断。
+          下方按事实与价值提示展开，再看分类回顾与术语；先看信息，再对照辅助判断。
         </p>
         <div className="mt-4 flex flex-wrap gap-1.5">
           <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] font-medium text-slate-600">
@@ -24,9 +23,6 @@ export function ReportCoverFallback({ readingMinutes, topJudgmentCount, noiseFil
           </span>
           <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] text-slate-600">
             精选条目 {topJudgmentCount} 条
-          </span>
-          <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[0.65rem] text-slate-600">
-            噪音过滤 {noiseFilteredCount} 条
           </span>
           <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[0.65rem] text-slate-600">
             阅读约 {readingMinutes} 分钟

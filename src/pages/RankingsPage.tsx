@@ -7,7 +7,6 @@ import type { RankingItem } from '../components/rankings/RankingCard';
 import { RankingsPageTable } from '../components/rankings/RankingsPageTable';
 import { EmptyState } from '../components/common/EmptyState';
 import { categoryLabel } from '../lib/categoryLabels';
-import { chineseIntroHeadline } from '../lib/homeRankingsDisplay';
 
 const RANGES = [
   { id: 'today', label: '今日' },
@@ -23,6 +22,11 @@ const CATS = [
   { id: 'open_source', label: '开源' },
   { id: 'application', label: '应用' },
 ] as const;
+
+const chipBase =
+  'inline-flex h-9 shrink-0 items-center rounded-full border px-[14px] text-[14px] transition-colors';
+const chipInactive = `${chipBase} border-[#D8E2F0] bg-white font-semibold text-[#475569]`;
+const chipActive = `${chipBase} border-[#1463FF] bg-[#1463FF] font-bold text-white`;
 
 function trendHints(items: RankingItem[]): string[] {
   const counts: Record<string, number> = {};
@@ -50,18 +54,6 @@ function formatUpdatedAtLabel(iso: string | undefined): string {
   return `更新于 ${y} / ${m} / ${day} ${h}:${min}`;
 }
 
-/** 紧凑摘要条：仅概括前三名焦点，不占高 */
-function RankingsSummaryStrip({ items }: { items: RankingItem[] }) {
-  if (items.length === 0) return null;
-  const preview = items.slice(0, 3).map((it) => chineseIntroHeadline(it));
-  return (
-    <div className="mb-4 rounded-xl border border-[#E5ECF5] bg-white px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.03)] md:px-4 md:py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">本榜摘要</p>
-      <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-[#64748B]">{preview.join(' · ')}</p>
-    </div>
-  );
-}
-
 export default function RankingsPage() {
   const [range, setRange] = useState<(typeof RANGES)[number]['id']>('today');
   const [category, setCategory] = useState<(typeof CATS)[number]['id']>('all');
@@ -84,17 +76,17 @@ export default function RankingsPage() {
 
   return (
     <div className="page-container">
-      <header className="mb-6 flex flex-col gap-3 border-b border-slate-200/90 pb-6 md:flex-row md:items-end md:justify-between">
+      <header className="mb-6 flex flex-col gap-3 border-b border-[#E2E8F0] pb-6 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
-          <h1 className="heading-page">
+          <h1 className="font-headline text-[30px] font-extrabold leading-[1.25] tracking-[-0.02em] text-[#0F172A]">
             {range === 'today' ? '今日 AI Pulse 信息榜单' : `AI Pulse 信息榜单 · ${rangeLabel}`}
           </h1>
-          <p className="mt-2 max-w-2xl text-muted">
-            先看清发生了什么，再对照「为什么值得看」与「对你意味着什么」。Pulse Score 仅辅助排序，不代表结论。
+          <p className="mt-2 max-w-[760px] text-[15px] leading-[1.7] text-[#64748B]">
+            先看清发生了什么，再对照「为什么值得看」与「对你意味着什么」。
           </p>
         </div>
         {meta ? (
-          <p className="shrink-0 text-xs tabular-nums text-slate-500 md:text-right">
+          <p className="shrink-0 text-[13px] font-medium tabular-nums text-[#64748B] md:text-right">
             <time dateTime={meta.updated_at}>{formatUpdatedAtLabel(meta.updated_at)}</time>
           </p>
         ) : null}
@@ -106,20 +98,20 @@ export default function RankingsPage() {
             key={r.id}
             type="button"
             onClick={() => setRange(r.id)}
-            className={`filter-chip ${range === r.id ? 'filter-chip-active' : 'filter-chip-inactive'}`}
+            className={range === r.id ? chipActive : chipInactive}
           >
             {r.label}
           </button>
         ))}
       </div>
 
-      <div className="mb-8 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap gap-2">
         {CATS.map((c) => (
           <button
             key={c.id}
             type="button"
             onClick={() => setCategory(c.id)}
-            className={`filter-chip ${category === c.id ? 'filter-chip-active' : 'filter-chip-inactive'}`}
+            className={category === c.id ? chipActive : chipInactive}
           >
             {c.label}
           </button>
@@ -139,35 +131,37 @@ export default function RankingsPage() {
       {!err && items.length > 0 ? (
         <div className="grid gap-8 lg:grid-cols-12 lg:gap-8 lg:items-start">
           <div className="min-w-0 lg:col-span-9">
-            <RankingsSummaryStrip items={items} />
             <RankingsPageTable items={items} />
-            <p className="mt-4 text-center text-[12px] text-slate-500">
+            <p className="mt-4 text-center text-[13px] text-[#64748B]">
               共 {items.length} 条 · 可调整时间范围与分类
+            </p>
+            <p className="mt-3 text-[13px] leading-relaxed text-[#64748B] md:text-center">
+              Pulse Score 仅用于辅助排序，不代表投资、职业或商业决策建议。
             </p>
           </div>
 
           <aside className="space-y-4 lg:col-span-3">
-            <div className="rounded-xl border border-[#E5ECF5] bg-white px-3 py-3.5 text-[12px] leading-relaxed text-slate-600 md:px-4">
-              <h3 className="font-headline text-[11px] font-semibold uppercase tracking-wide text-slate-400">今日趋势</h3>
-              <p className="mt-0.5 text-[11px] text-slate-400">当前列表分类分布</p>
-              <ul className="mt-2 space-y-2 text-[12px] text-slate-600">
+            <div className="rounded-[18px] border border-[#D8E2F0] bg-white px-[18px] py-5">
+              <h3 className="font-headline text-[15px] font-extrabold text-[#0F172A]">今日趋势</h3>
+              <p className="mt-1 text-[13px] leading-[1.6] text-[#64748B]">当前列表分类分布</p>
+              <ul className="mt-3 space-y-2 text-[13px] leading-[1.6] text-[#64748B]">
                 {sidebarTrends.map((line, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <TrendingUp className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" aria-hidden />
+                    <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#94A3B8]" aria-hidden />
                     <span>{line}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            <div className="rounded-xl border border-[#E5ECF5] bg-white px-3 py-3.5 md:px-4">
-              <h3 className="font-headline text-[11px] font-semibold uppercase tracking-wide text-slate-400">订阅周报</h3>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-slate-600">
+            <div className="rounded-[18px] border border-[#D8E2F0] bg-white px-[18px] py-5">
+              <h3 className="font-headline text-[15px] font-extrabold text-[#0F172A]">订阅周报</h3>
+              <p className="mt-2 text-[13px] leading-[1.6] text-[#64748B]">
                 周报按主题整理信息，并附轻量价值提示，方便你决定要不要深入。
               </p>
               <Link
                 to="/subscribe"
-                className="btn-primary mt-3 inline-flex w-full justify-center px-4 py-2 text-[12px] font-semibold no-underline"
+                className="btn-primary mt-4 inline-flex h-10 w-full items-center justify-center px-4 text-[14px] font-bold no-underline"
               >
                 订阅周报
               </Link>

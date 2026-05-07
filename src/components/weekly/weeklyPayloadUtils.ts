@@ -45,7 +45,7 @@ export function estimateReadingMinutes(payload: Record<string, unknown>): number
 /** 周报条目（沿用后端已有字段名，不改 API） */
 export type WeeklyLooseRow = Record<string, string>;
 
-function normalizeWeeklyRow(raw: unknown): WeeklyLooseRow | null {
+export function normalizeWeeklyRow(raw: unknown): WeeklyLooseRow | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const title = String(o.title ?? '').trim();
@@ -101,6 +101,20 @@ export function collectWeeklyTopInformation(normal: Record<string, unknown>): We
   }
 
   return out.slice(0, 5);
+}
+
+/** 本周最重要的三件事：仅取 top3_judgments，否则 legacy top3，最多 3 条 */
+export function getWeeklyTopThreeJudgments(normal: Record<string, unknown>): WeeklyLooseRow[] {
+  const t3j = (normal.top3_judgments as unknown[] | undefined) || [];
+  const leg = (normal.top3 as unknown[] | undefined) || [];
+  const primary = t3j.length > 0 ? t3j : leg;
+  const out: WeeklyLooseRow[] = [];
+  for (const row of primary) {
+    const r = normalizeWeeklyRow(row);
+    if (r) out.push(r);
+    if (out.length >= 3) break;
+  }
+  return out;
 }
 
 export function isAffirmativeNoise(s: string): boolean {

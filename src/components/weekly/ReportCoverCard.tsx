@@ -8,13 +8,11 @@ type Props = {
   readingMinutes: number;
   /** 本期要点条目数（展示用） */
   topJudgmentCount: number;
-  /** 噪音过滤条数 */
-  noiseFilteredCount: number;
 };
 
 const PILLAR_ICONS = [Zap, TrendingUp, Layers];
 
-export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount, noiseFilteredCount }: Props) {
+export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount }: Props) {
   const lines = Array.isArray(thesis.trend_lines) ? thesis.trend_lines.filter(Boolean) : [];
   const pillars = lines.slice(0, 3);
 
@@ -63,7 +61,7 @@ export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount, nois
             ) : null}
 
             <p className="mt-5 text-xs text-slate-500">
-              阅读约 {readingMinutes} 分钟 · 精选信息 {topJudgmentCount} 条 · 噪音过滤 {noiseFilteredCount} 条
+              阅读约 {readingMinutes} 分钟 · 精选信息 {topJudgmentCount} 条
             </p>
 
             <div className="mt-5">
