@@ -47,7 +47,7 @@ export function WeeklyToc({ items }: Props) {
       <div className="mt-4 border-t border-slate-100 pt-4">
         <p className="text-[0.65rem] font-medium text-slate-500">邮件订阅</p>
         <Link
-          to="/#subscribe"
+          to="/subscribe"
           className="btn-secondary mt-2 inline-flex w-full justify-center py-2 text-xs font-semibold no-underline md:text-sm"
         >
           订阅周报

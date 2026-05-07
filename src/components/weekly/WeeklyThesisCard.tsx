@@ -46,7 +46,7 @@ export function WeeklyThesisCard({ thesis }: Props) {
 
         <div className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-end">
           <Link
-            to="/#subscribe"
+            to="/subscribe"
             className="inline-flex justify-center rounded-full bg-[#005bc1] px-6 py-3 text-center font-headline text-sm font-bold text-white shadow-md hover:bg-[#004a9e]"
           >
             订阅每周判断报告

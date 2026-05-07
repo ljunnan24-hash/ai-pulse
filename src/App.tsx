@@ -8,6 +8,7 @@ import HomePage from './pages/HomePage';
 import RankingsPage from './pages/RankingsPage';
 import WeeklyLatestPage from './pages/WeeklyLatestPage';
 import WeeklyReportPage from './pages/WeeklyReportPage';
+import SubscribePage from './pages/SubscribePage';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/weekly/:date" element={<WeeklyReportPage />} />
           <Route path="/archive" element={<ArchivePage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/subscribe" element={<SubscribePage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

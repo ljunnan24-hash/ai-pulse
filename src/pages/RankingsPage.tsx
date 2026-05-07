@@ -172,7 +172,7 @@ export default function RankingsPage() {
               周报按主题整理信息，并附轻量价值提示，方便你决定要不要深入。
             </p>
             <Link
-              to="/#subscribe"
+              to="/subscribe"
               className="btn-primary mt-4 inline-flex w-full justify-center font-headline no-underline"
             >
               订阅周报

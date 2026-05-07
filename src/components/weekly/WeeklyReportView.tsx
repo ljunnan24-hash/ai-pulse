@@ -345,7 +345,7 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
               每周一封，30 分钟把握 AI 世界的关键信号。
             </p>
-            <Link to="/#subscribe" className="btn-primary mt-5 inline-flex no-underline">
+            <Link to="/subscribe" className="btn-primary mt-5 inline-flex no-underline">
               订阅周报
             </Link>
             <p className="mt-3 text-xs text-slate-500">已订阅用户将自动收到最新报告（若后端已启用投递）。</p>

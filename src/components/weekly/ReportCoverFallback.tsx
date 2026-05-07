@@ -32,7 +32,7 @@ export function ReportCoverFallback({ readingMinutes, topJudgmentCount, noiseFil
             阅读约 {readingMinutes} 分钟
           </span>
         </div>
-        <Link to="/#subscribe" className="btn-secondary mt-5 inline-flex px-4 py-2 text-xs font-semibold no-underline md:text-sm">
+        <Link to="/subscribe" className="btn-secondary mt-5 inline-flex px-4 py-2 text-xs font-semibold no-underline md:text-sm">
           订阅周报
         </Link>
       </div>

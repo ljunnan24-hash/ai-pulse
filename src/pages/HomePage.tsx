@@ -1,7 +1,6 @@
-import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronRight, X } from 'lucide-react';
-import { apiBase } from '../config';
+import { ChevronRight } from 'lucide-react';
 import { fetchRankings, fetchWeeklyLatest } from '../api/public';
 import { HomeTopFiveTable } from '../components/home/HomeTopFiveTable';
 import { TodayFocusCard } from '../components/home/TodayFocusCard';
@@ -12,11 +11,11 @@ import { formatSlashDateFromIso } from '../lib/homeRankingsDisplay';
 function ReportPreviewIllustration() {
   return (
     <div
-      className="hidden shrink-0 md:flex h-[220px] w-[220px] items-center justify-center rounded-[28px] border border-[#C7DCFF] bg-[#DCEBFF]"
+      className="hidden shrink-0 md:flex h-[190px] w-[190px] items-center justify-center rounded-[28px] border border-[#C7DCFF] bg-[#DCEBFF]"
       aria-hidden
     >
-      <div className="flex h-24 w-24 items-center justify-center rounded-[20px] bg-[#C9DCFF]">
-        <svg viewBox="0 0 120 120" className="h-[72px] w-[72px] text-[#3B82F6]" fill="none">
+      <div className="flex h-[88px] w-[88px] items-center justify-center rounded-[20px] bg-[#C9DCFF]">
+        <svg viewBox="0 0 120 120" className="h-12 w-12 text-[#3B82F6]" fill="none">
           <rect x="22" y="14" width="76" height="92" rx="14" fill="currentColor" opacity="0.14" />
           <path
             d="M38 44h44M38 62h36M38 82l14-12 12 9 20-22"
@@ -69,12 +68,6 @@ function StepIconWeekly() {
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'simple' | 'normal'>('normal');
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
   const [top5, setTop5] = useState<Awaited<ReturnType<typeof fetchRankings>>['items']>([]);
   const [rankUpdatedAt, setRankUpdatedAt] = useState<string | null>(null);
   const [topErr, setTopErr] = useState<string | null>(null);
@@ -88,7 +81,6 @@ export default function HomePage() {
     boundary?: string;
   } | null>(null);
   const [weeklyErr, setWeeklyErr] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchRankings({ range: 'today', category: 'all', limit: 5 })
@@ -141,42 +133,30 @@ export default function HomePage() {
     }
   }, [navigate]);
 
-  const handleAddKeyword = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && inputValue.trim() && keywords.length < 3) {
-      if (!keywords.includes(inputValue.trim())) setKeywords([...keywords, inputValue.trim()]);
-      setInputValue('');
-    }
-  };
-
-  const removeKeyword = (tag: string) => {
-    setKeywords(keywords.filter((k) => k !== tag));
-    inputRef.current?.focus();
-  };
-
   return (
-    <div className="page-container">
+    <div className="mx-auto w-full max-w-[1180px] px-4 pb-16 pt-6 md:px-6 md:pb-20 md:pt-8">
       {/* Hero */}
-      <section className="section-y">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,26.25rem)] lg:items-start lg:gap-12">
+      <section className="mb-[88px]">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_480px] lg:items-start lg:gap-[88px]">
           <div className="min-w-0">
-            <h1 className="max-w-[520px] font-headline text-[40px] font-extrabold leading-[1.12] tracking-[-0.03em] text-[#0F172A] md:text-[64px]">
+            <h1 className="max-w-[560px] font-headline text-[38px] font-extrabold leading-[1.15] tracking-[-0.03em] text-[#0F172A] md:text-[56px] md:leading-[1.12]">
               每天看 AI 信号，
               <br className="hidden sm:block" />
-              每周读 AI 信息摘要
+              每周读 AI 判断
             </h1>
-            <p className="mt-5 max-w-[560px] text-[18px] font-normal leading-[1.85] text-[#64748B]">
+            <p className="mt-5 max-w-[560px] text-[16px] font-normal leading-[1.85] text-[#64748B]">
               AI Pulse 每日追踪全球 AI 产品、模型、工具与行业动态，基于多源数据与 Pulse Score 筛出最值得看的信息，并在每周摘要中整理关键变化。
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/rankings"
-                className="inline-flex h-12 items-center justify-center rounded-full bg-[#1463FF] px-6 text-base font-semibold text-white no-underline transition-opacity hover:opacity-95"
+                className="inline-flex h-[46px] items-center justify-center rounded-full bg-[#1463FF] px-[22px] text-[15px] font-bold text-white no-underline transition-opacity hover:opacity-95"
               >
                 查看今日榜单
               </Link>
               <Link
-                to="/#subscribe"
-                className="inline-flex h-12 items-center justify-center rounded-full border border-[#BFD3FF] bg-white px-6 text-base font-semibold text-[#1463FF] no-underline transition-colors hover:bg-[#F8FAFF]"
+                to="/subscribe"
+                className="inline-flex h-[46px] items-center justify-center rounded-full border border-[#BFD3FF] bg-white px-[22px] text-[15px] font-bold text-[#1463FF] no-underline transition-colors hover:bg-[#F8FAFF]"
               >
                 订阅周报
               </Link>
@@ -187,15 +167,15 @@ export default function HomePage() {
       </section>
 
       {/* Top 5 table */}
-      <section className="section-y">
+      <section className="mb-[72px]">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="font-headline text-[40px] font-extrabold leading-[1.2] text-[#0F172A]">今日 AI Pulse Top 5</h2>
-            <p className="mt-2 max-w-2xl text-base leading-[1.7] text-[#64748B]">
+            <h2 className="font-headline text-[30px] font-extrabold leading-[1.2] text-[#0F172A]">今日 AI Pulse Top 5</h2>
+            <p className="mt-2 max-w-2xl text-[15px] leading-[1.7] text-[#64748B]">
               基于多源信息与 Pulse Score，筛出今日最值得关注的 5 条 AI 动态。
             </p>
           </div>
-          <Link to="/rankings" className="shrink-0 text-base font-bold text-[#2563EB] hover:underline">
+          <Link to="/rankings" className="shrink-0 text-[15px] font-bold text-[#2563EB] hover:underline">
             查看完整榜单 →
           </Link>
         </div>
@@ -210,9 +190,9 @@ export default function HomePage() {
       </section>
 
       {/* How it works */}
-      <section className="section-y">
-        <h2 className="font-headline text-[40px] font-extrabold text-[#0F172A]">AI Pulse 如何工作</h2>
-        <p className="mb-8 mt-2 max-w-2xl text-base text-[#64748B]">
+      <section className="mb-[72px]">
+        <h2 className="font-headline text-[30px] font-extrabold leading-[1.2] text-[#0F172A]">AI Pulse 如何工作</h2>
+        <p className="mb-8 mt-2 max-w-2xl text-[15px] text-[#64748B]">
           从海量 AI 动态中提炼信息，用结构化摘要帮助你更快理解变化。
         </p>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
@@ -245,13 +225,13 @@ export default function HomePage() {
             const Icon = step.icon;
             return (
               <Fragment key={step.n}>
-                <div className="flex min-h-[168px] flex-1 flex-col rounded-[20px] border border-[#E9EEF6] bg-white p-6">
+                <div className="flex min-h-[148px] flex-1 flex-col rounded-[18px] border border-[#E9EEF6] bg-white p-[22px]">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#2563EB]/20 bg-white text-[#2563EB]">
                     <Icon />
                   </div>
-                  <p className="mt-4 text-[14px] font-bold text-[#2563EB]">{step.n}</p>
-                  <h3 className="mt-1 font-headline text-[18px] font-bold leading-snug text-[#0F172A]">{step.t}</h3>
-                  <p className="mt-2 flex-1 text-[14px] leading-[1.75] text-[#64748B]">{step.d}</p>
+                  <p className="mt-3 text-[14px] font-bold text-[#2563EB]">{step.n}</p>
+                  <h3 className="mt-1 font-headline text-[16px] font-bold leading-snug text-[#0F172A]">{step.t}</h3>
+                  <p className="mt-2 flex-1 text-[14px] leading-[1.7] text-[#64748B]">{step.d}</p>
                 </div>
                 {i < arr.length - 1 ? (
                   <ChevronRight className="hidden h-6 w-6 shrink-0 self-center text-slate-300 lg:block" aria-hidden />
@@ -263,19 +243,19 @@ export default function HomePage() {
       </section>
 
       {/* Weekly preview */}
-      <section className="section-y">
-        <h2 className="font-headline text-[40px] font-extrabold leading-[1.2] text-[#0F172A]">本周信息摘要预览</h2>
-        <p className="mb-6 mt-2 text-base leading-[1.7] text-[#64748B]">最新一期周报的结构化整理。</p>
+      <section>
+        <h2 className="font-headline text-[30px] font-extrabold leading-[1.2] text-[#0F172A]">本周信息摘要预览</h2>
+        <p className="mb-6 mt-2 text-[15px] leading-[1.7] text-[#64748B]">最新一期周报的结构化整理。</p>
         {weeklyErr || !weeklyPreview?.headline ? (
           <EmptyState
             title="暂无已发布周报"
             description="订阅后，我们将在每期周报就绪时推送摘要；你也可以稍后在「周报」页查看。"
             actionLabel="订阅周报"
-            actionTo="/#subscribe"
+            actionTo="/subscribe"
           />
         ) : (
-          <div className="min-h-[280px] overflow-hidden rounded-[24px] border border-[#D8E8FF] bg-[#EEF5FF] shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-            <div className="grid gap-10 px-6 py-8 md:grid-cols-[1.8fr_0.8fr] md:items-center md:gap-10 md:px-10 md:py-8">
+          <div className="min-h-[270px] overflow-hidden rounded-[24px] border border-[#D8E8FF] bg-[#EEF5FF]">
+            <div className="grid gap-10 px-8 py-8 md:grid-cols-[minmax(0,1fr)_220px] md:items-center md:gap-10 md:px-9">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[14px] font-medium text-[#64748B]">
                   <span className="rounded-full border border-[#CFE0FF] bg-white px-[10px] py-[6px] text-[13px] font-bold text-[#2563EB]">
@@ -287,11 +267,11 @@ export default function HomePage() {
                   <span className="text-[#CBD5E1]">·</span>
                   <span>阅读约 {weeklyPreview.readingMinutes} 分钟</span>
                 </div>
-                <h3 className="mt-6 line-clamp-3 max-w-[900px] font-headline text-[clamp(1.75rem,4.5vw,3.5rem)] font-extrabold leading-[1.18] tracking-[-0.02em] text-[#0F172A] [overflow-wrap:anywhere]">
+                <h3 className="mt-5 line-clamp-3 max-w-[760px] font-headline text-[30px] font-extrabold leading-[1.28] tracking-[-0.02em] text-[#0F172A] [overflow-wrap:anywhere]">
                   {weeklyPreview.headline}
                 </h3>
                 {weeklyPreview.summary ? (
-                  <div className="mt-5 max-w-[820px] space-y-0 text-base font-normal leading-[1.9] text-[#64748B]">
+                  <div className="mt-4 max-w-[760px] text-[15px] font-normal leading-[1.85] text-[#64748B]">
                     {weeklyPreview.summary
                       .split(/\n\n+/)
                       .map((para) => para.trim())
@@ -304,13 +284,13 @@ export default function HomePage() {
                       ))}
                   </div>
                 ) : weeklyPreview.boundary ? (
-                  <p className="mt-5 max-w-[820px] text-base leading-[1.9] text-[#64748B] line-clamp-3">{weeklyPreview.boundary}</p>
+                  <p className="mt-4 max-w-[760px] text-[15px] leading-[1.85] text-[#64748B] line-clamp-3">{weeklyPreview.boundary}</p>
                 ) : weeklyPreview.titles[0] ? (
-                  <p className="mt-5 max-w-[820px] text-base leading-[1.9] text-[#64748B]">{weeklyPreview.titles[0]}</p>
+                  <p className="mt-4 max-w-[760px] text-[15px] leading-[1.85] text-[#64748B]">{weeklyPreview.titles[0]}</p>
                 ) : null}
                 <Link
                   to="/weekly/latest"
-                  className="mt-8 inline-flex h-12 items-center justify-center rounded-full bg-[#1463FF] px-[22px] text-base font-bold text-white no-underline transition-opacity hover:opacity-95"
+                  className="mt-7 inline-flex h-11 items-center justify-center rounded-full bg-[#1463FF] px-5 text-[15px] font-bold text-white no-underline transition-opacity hover:opacity-95"
                 >
                   阅读完整报告 →
                 </Link>
@@ -319,123 +299,6 @@ export default function HomePage() {
             </div>
           </div>
         )}
-      </section>
-
-      {/* Subscribe */}
-      <section
-        id="subscribe"
-        className="scroll-mt-28 section-y rounded-2xl border border-slate-200/70 bg-slate-50/70 p-6 md:p-8"
-      >
-        <h2 className="font-headline text-2xl font-bold text-slate-800">订阅周报</h2>
-        <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
-          日报浏览<strong className="font-medium text-slate-800">当日整理后的关键信息</strong>；
-          周报阅读<strong className="font-medium text-slate-800">一周主题摘要与线索清单</strong>。
-        </p>
-
-        <div className="mt-5 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode('simple')}
-            className={`filter-chip ${mode === 'simple' ? 'filter-chip-active' : 'filter-chip-inactive'}`}
-          >
-            简洁
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('normal')}
-            className={`filter-chip ${mode === 'normal' ? 'filter-chip-active' : 'filter-chip-inactive'}`}
-          >
-            标准
-          </button>
-        </div>
-
-        <form
-          className="mt-6 space-y-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-          }}
-        >
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-600" htmlFor="email">
-              邮箱
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-surface px-3 py-2.5 text-sm text-slate-900 outline-none ring-primary/20 focus:ring-2"
-              placeholder="you@company.com"
-              autoCapitalize="none"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-600">关键词（最多 3 个）</label>
-            <div
-              className="flex min-h-[44px] flex-wrap gap-2 rounded-lg border border-slate-200 bg-surface px-2 py-2"
-              onClick={() => inputRef.current?.focus()}
-            >
-              {keywords.map((tag) => (
-                <span
-                  key={tag}
-                  className="flex items-center gap-1.5 rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-xs font-medium text-primary"
-                >
-                  {tag}
-                  <X className="h-3 w-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeKeyword(tag); }} />
-                </span>
-              ))}
-              <input
-                ref={inputRef}
-                className="min-w-[120px] flex-1 border-none bg-transparent py-1.5 px-2 text-sm outline-none"
-                placeholder={keywords.length === 0 ? '输入后按 Enter' : ''}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleAddKeyword}
-              />
-            </div>
-          </div>
-
-          <button
-            type="button"
-            disabled={loading}
-            onClick={async () => {
-              setFormError(null);
-              if (!email.trim()) {
-                setFormError('请输入有效邮箱。');
-                return;
-              }
-              setLoading(true);
-              try {
-                const res = await fetch(`${apiBase()}/api/subscribe`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ email: email.trim(), mode, keywords }),
-                });
-                const data = res.ok ? null : await res.json().catch(() => null);
-                if (!res.ok) {
-                  let msg = `请求失败 (${res.status})`;
-                  if (data && typeof data === 'object' && 'detail' in data) {
-                    const d = (data as { detail: unknown }).detail;
-                    msg = typeof d === 'string' ? d : JSON.stringify(d);
-                  }
-                  setFormError(msg);
-                  return;
-                }
-                window.sessionStorage.setItem('aipulse_last_subscribe_email', email.trim());
-                navigate('/?pending=1');
-              } catch {
-                setFormError('网络错误，请确认 API 可用。');
-              } finally {
-                setLoading(false);
-              }
-            }}
-            className="btn-primary w-full disabled:opacity-60 md:w-auto md:min-w-[12rem]"
-          >
-            {loading ? '发送中…' : '确认订阅'}
-          </button>
-          {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
-        </form>
       </section>
     </div>
   );

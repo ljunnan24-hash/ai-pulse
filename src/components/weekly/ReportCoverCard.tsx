@@ -67,7 +67,7 @@ export function ReportCoverCard({ thesis, readingMinutes, topJudgmentCount, nois
             </p>
 
             <div className="mt-5">
-              <Link to="/#subscribe" className="btn-primary inline-flex px-5 py-2 text-sm font-semibold no-underline">
+              <Link to="/subscribe" className="btn-primary inline-flex px-5 py-2 text-sm font-semibold no-underline">
                 订阅周报
               </Link>
             </div>
