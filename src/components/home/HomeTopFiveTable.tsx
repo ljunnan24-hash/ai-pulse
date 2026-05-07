@@ -24,7 +24,7 @@ export function HomeTopFiveTable({ items }: Props) {
           style={{ gridTemplateColumns: COL_DESKTOP }}
         >
           <span className="text-center">排名</span>
-          <span>Pulse</span>
+          <span>Score</span>
           <span>事件与简介</span>
           <span>对你意味着什么</span>
           <span className="text-right">操作</span>
@@ -48,21 +48,18 @@ export function HomeTopFiveTable({ items }: Props) {
                   </span>
                 </div>
                 <div className="flex items-center">
-                  <span className="font-headline text-[24px] font-extrabold tabular-nums leading-none text-[#2563EB]">
+                  <span className="font-headline text-[22px] font-extrabold tabular-nums leading-none text-[#2563EB]">
                     {pulse.toFixed(1)}
                   </span>
                 </div>
                 <div className="min-w-0 py-1">
-                  <p className="line-clamp-1 font-headline text-[16px] font-extrabold leading-[1.35] text-[#0F172A] [overflow-wrap:anywhere]">
+                  <p className="line-clamp-2 font-headline text-[16px] font-extrabold leading-[1.35] text-[#0F172A] [overflow-wrap:anywhere]">
                     {intro}
                   </p>
-                  <p className="mt-0.5 line-clamp-1 text-[13px] leading-[1.5] text-[#64748B] [overflow-wrap:anywhere]">
-                    <span className="text-[#94A3B8]">原文标题：</span>
-                    {rawTitle}
-                  </p>
+                  <p className="mt-1 line-clamp-2 text-[13px] leading-[1.5] text-[#64748B] [overflow-wrap:anywhere]">{rawTitle}</p>
                 </div>
                 <div className="min-w-0 py-1">
-                  <p className="line-clamp-2 text-[14px] font-normal leading-[1.65] text-[#475569] [overflow-wrap:anywhere]">
+                  <p className="line-clamp-3 text-[14px] font-normal leading-[1.65] text-[#475569] [overflow-wrap:anywhere]">
                     {means}
                   </p>
                 </div>
@@ -91,19 +88,16 @@ export function HomeTopFiveTable({ items }: Props) {
           return (
             <li key={item.id} className="px-4 py-3">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-headline text-[24px] font-extrabold tabular-nums text-[#2563EB]">{rank}</span>
-                <span className="font-headline text-[22px] font-extrabold tabular-nums text-[#2563EB]">
+                <span className="font-headline text-[24px] font-extrabold tabular-nums leading-none text-[#2563EB]">{rank}</span>
+                <span className="font-headline text-[20px] font-extrabold tabular-nums leading-none text-[#2563EB]">
                   {pulse.toFixed(1)}
                 </span>
               </div>
               <p className="mt-2 line-clamp-2 font-headline text-[15px] font-extrabold leading-snug text-[#0F172A] [overflow-wrap:anywhere]">
                 {intro}
               </p>
-              <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-[#64748B] [overflow-wrap:anywhere]">
-                <span className="text-[#94A3B8]">原文标题：</span>
-                {rawTitle}
-              </p>
-              <p className="mt-2 line-clamp-2 text-[13px] leading-[1.65] text-[#475569] [overflow-wrap:anywhere]">{means}</p>
+              <p className="mt-1 line-clamp-2 text-[12px] leading-[1.5] text-[#64748B] [overflow-wrap:anywhere]">{rawTitle}</p>
+              <p className="mt-2 line-clamp-3 text-[13px] leading-[1.65] text-[#475569] [overflow-wrap:anywhere]">{means}</p>
               <Link
                 to={`/events/${item.id}`}
                 className="mt-3 inline-flex h-[34px] items-center justify-center rounded-full border border-[#A8C5FF] bg-white px-[14px] text-[13px] font-bold text-[#2563EB] no-underline"
