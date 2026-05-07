@@ -4,6 +4,10 @@
 @theme {
   --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
   --font-headline: "Manrope", sans-serif;
+
+  /* 全站页面画布：极浅蓝；卡片白底 + 轻蓝灰描边（浮在画布上） */
+  --color-page-canvas: #f7fbff;
+  --color-card-border: #dce8f8;
   
   --color-surface: #f5f7fa;
   --color-surface-container-low: #eef1f4;
@@ -32,7 +36,7 @@
 
 @layer base {
   body {
-    @apply bg-white text-on-surface font-sans antialiased;
+    @apply bg-page-canvas text-on-surface font-sans antialiased;
   }
 }
 
@@ -123,17 +127,17 @@
     @apply mb-10 md:mb-12;
   }
 
-  /* 卡片：白底、细边框、极轻阴影 */
+  /* 卡片：白底、轻蓝灰描边、极轻阴影（铺在 page-canvas 上） */
   .card-surface {
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-card);
-    @apply border border-slate-200/90 bg-white;
+    @apply border border-card-border bg-white;
   }
 
   .card-surface-muted {
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-card);
-    @apply border border-slate-200/80 bg-slate-50/80;
+    @apply border border-card-border bg-slate-50/85;
   }
 
   /* 按钮 */

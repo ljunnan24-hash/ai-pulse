@@ -170,7 +170,7 @@ export default function HomePage() {
         </p>
       </section>
 
-      {/* Weekly preview — Top5 间距约 72px（section mb-[72px]） */}
+      {/* Weekly preview：画布色见 body/layout；内层白卡 border-card-border */}
       <section className="mb-[80px]">
         <h2 className="font-headline text-[30px] font-extrabold leading-[1.2] text-[#0F172A]">本周 AI 信号简报预览</h2>
         <p className="mb-5 mt-2 text-[14px] leading-relaxed text-[#94A3B8]">最新一期周报的结构化整理。</p>
@@ -182,7 +182,7 @@ export default function HomePage() {
             actionTo="/subscribe"
           />
         ) : (
-          <div className="overflow-hidden rounded-[24px] border border-[#D9E8FF] bg-[#FAFCFF] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="overflow-hidden rounded-[24px] border border-card-border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
             <div className="flex flex-col gap-6 px-7 py-7 md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-9 md:px-8 md:py-7 lg:grid-cols-[minmax(0,1fr)_240px] lg:px-9 lg:py-8">
               <div className="min-w-0">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">

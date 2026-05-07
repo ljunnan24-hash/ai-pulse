@@ -339,7 +339,7 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
 
           <section
             id="weekly-bottom-cta"
-            className="mt-10 scroll-mt-28 rounded-[var(--radius-card)] border border-[#D6E8FF] bg-[#F0F7FF] px-5 py-7 shadow-[var(--shadow-card)] md:mt-12 md:px-8 md:py-8"
+            className="mt-10 scroll-mt-28 rounded-[var(--radius-card)] border border-card-border bg-white px-5 py-7 shadow-[var(--shadow-card)] md:mt-12 md:px-8 md:py-8"
           >
             <p className="font-headline text-base font-semibold text-slate-900 md:text-lg">订阅 AI Pulse 周报，每周洞见不缺席。</p>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">

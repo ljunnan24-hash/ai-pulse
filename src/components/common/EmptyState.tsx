@@ -22,7 +22,7 @@ export function EmptyState({
   const btnClass = actionVariant === 'secondary' ? 'btn-secondary' : 'btn-primary';
 
   return (
-    <div className="card-surface-muted px-5 py-10 text-center md:px-8 md:py-12">
+    <div className="card-surface px-5 py-10 text-center md:px-8 md:py-12">
       <div className="mx-auto max-w-md">
         <p className="font-headline text-base font-semibold text-slate-900">{title}</p>
         {description ? <p className="mt-2 text-sm leading-relaxed text-slate-600">{description}</p> : null}

@@ -72,7 +72,7 @@ export default function RankingsPage() {
   const restAfterTop = items.length > 3 ? items.slice(3) : [];
 
   return (
-    <div className="page-container bg-slate-50">
+    <div className="page-container">
       <header className="mb-6 flex flex-col gap-3 border-b border-slate-200/90 pb-6 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <h1 className="heading-page">

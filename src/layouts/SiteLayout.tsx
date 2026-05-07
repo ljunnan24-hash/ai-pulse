@@ -20,7 +20,7 @@ function NavLink({ to, children }: { to: string; children: string }) {
 
 export function SiteLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-white selection:bg-primary-container selection:text-on-primary-container">
+    <div className="flex min-h-screen flex-col bg-page-canvas selection:bg-primary-container selection:text-on-primary-container">
       <nav className="fixed top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between gap-3 px-4 md:gap-4 md:px-6">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 md:gap-x-6">
