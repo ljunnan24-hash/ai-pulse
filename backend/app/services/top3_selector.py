@@ -523,15 +523,32 @@ def _dedupe_ids_ordered(primary: str | None, extras: list[str], *, max_n: int = 
     return out[:max_n]
 
 
+def _finalize_top3_public_identity(row: dict[str, Any]) -> None:
+    """
+    幂等：保留顶层 event_id；related_event_ids = [event_id, ...其余] 去重；
+    source_urls = [url, ...其余] 主 URL 在前。
+    """
+    eid = str(row.get("event_id") or "").strip()
+    rel_in = row.get("related_event_ids") if isinstance(row.get("related_event_ids"), list) else []
+    extras_r = [str(x).strip() for x in rel_in if str(x).strip()]
+    row["related_event_ids"] = _dedupe_ids_ordered(eid or None, extras_r, max_n=12)
+
+    primary_u = str(row.get("url") or "").strip()
+    su_in = row.get("source_urls") if isinstance(row.get("source_urls"), list) else []
+    extras_u = [str(x).strip() for x in su_in if str(x).strip()]
+    row["source_urls"] = _dedupe_urls_ordered(primary_u or None, extras_u, max_n=8)
+
+
 def materialize_top3_public_fields(row: dict[str, Any]) -> None:
     """
     将 merge_top3_duplicate_into 写入的内部字段转为稳定 payload 字段，并移除 _top3_merged_*。
-    幂等：已存在 source_urls 且无待合并内部字段时跳过。
+    幂等：已存在 source_urls 且无待合并内部字段时仍会做 identity 收口（主 id / 主 URL 在首位）。
     """
     has_pending_merge = any(
         k in row for k in ("_top3_merged_urls", "_top3_merged_event_ids", "_top3_merged_stable_keys")
     )
     if not has_pending_merge and "source_urls" in row:
+        _finalize_top3_public_identity(row)
         return
 
     merged_urls = row.pop("_top3_merged_urls", None)
@@ -562,6 +579,8 @@ def materialize_top3_public_fields(row: dict[str, Any]) -> None:
     row["related_stable_keys"] = _dedupe_ids_ordered(
         psk or None, [str(x) for x in merged_sks], max_n=12
     )
+
+    _finalize_top3_public_identity(row)
 
 
 def resolve_top3_display_title_vs_locked(old: dict[str, Any], lk: dict[str, Any]) -> str:
@@ -1262,6 +1281,7 @@ def apply_locked_top3_merge(payload: dict[str, Any], locked: list[dict[str, Any]
         old = old_t3[i] if i < len(old_t3) and isinstance(old_t3[i], dict) else {}
         att = attention_level_to_digit(str(lk.get("attention_level") or ""))
         materialize_top3_public_fields(lk)
+        leid = str(lk.get("event_id") or "").strip()
         row: dict[str, Any] = {
             "title": resolve_top3_display_title_vs_locked(old, lk),
             "url": str(lk.get("url") or old.get("url") or "")[:2048],
@@ -1269,6 +1289,7 @@ def apply_locked_top3_merge(payload: dict[str, Any], locked: list[dict[str, Any]
             "why_important": str(old.get("why_important") or "")[:800],
             "what_it_means_for_you": str(old.get("what_it_means_for_you") or lk.get("action") or "")[:800],
             "attention_level": att,
+            "event_id": leid,
             "source_urls": list(lk.get("source_urls") or []),
             "related_event_ids": list(lk.get("related_event_ids") or []),
             "related_stable_keys": list(lk.get("related_stable_keys") or []),

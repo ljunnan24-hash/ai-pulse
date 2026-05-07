@@ -342,6 +342,38 @@ function mergeUrlLines(...chunks: (string | undefined)[]): string {
   return out.join('\n');
 }
 
+/** 用于合并时比较两条候选谁的 Pulse/排序分更高（字段与前端 weeklyPulseDisplayScore 对齐） */
+function rowPickScore(r: Record<string, string>): number {
+  const keys = ['pulse_score', 'ranking_score', 'score_total', '_score_total'] as const;
+  for (const k of keys) {
+    const raw = (r[k] ?? '').trim();
+    if (!raw) continue;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) continue;
+    const v = n >= 0 && n <= 1 ? n * 100 : n;
+    return Math.round(Math.min(100, Math.max(0, v)) * 10) / 10;
+  }
+  return -1;
+}
+
+/**
+ * 同簇两条合并时保留哪个 event_id：两边都有 id 时取**分数更高**一侧；只有一侧有 id 则用该侧；
+ * 都无分数或分数相同则保留 primary（先入簇者），与原先 `pe || se` 在「仅一侧有 id」时行为一致。
+ */
+function pickMergedEventId(p: Record<string, string>, s: Record<string, string>): string {
+  const pe = (p.event_id ?? '').trim();
+  const se = (s.event_id ?? '').trim();
+  if (!pe) return se;
+  if (!se) return pe;
+  const sp = rowPickScore(p);
+  const ss = rowPickScore(s);
+  if (sp < 0 && ss < 0) return pe;
+  if (sp < 0) return se;
+  if (ss < 0) return pe;
+  if (ss !== sp) return ss > sp ? se : pe;
+  return pe;
+}
+
 function mergeIdLines(...chunks: (string | undefined)[]): string {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -382,8 +414,16 @@ export function mergeWeeklyClusterItems<T extends Row>(primary: T, secondary: T)
 
   const pe = (p.event_id ?? '').trim();
   const se = (s.event_id ?? '').trim();
-  out.event_id = pe || se;
+  out.event_id = pickMergedEventId(p, s);
   out.related_event_ids = mergeIdLines(p.related_event_ids, s.related_event_ids, pe, se);
+
+  const pc = (p.category ?? p.theme ?? '').trim();
+  const sc = (s.category ?? s.theme ?? '').trim();
+  const cat = pc || sc;
+  if (cat) {
+    out.category = cat;
+    out.theme = cat;
+  }
 
   return out as T;
 }

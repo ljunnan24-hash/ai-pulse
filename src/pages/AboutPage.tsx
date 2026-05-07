@@ -16,11 +16,13 @@ function MiniIcon({ children }: { children: ReactNode }) {
 export default function AboutPage() {
   return (
     <div className="page-container pb-16 md:pb-20">
-      {/* 一、Hero */}
-      <header className="mb-8 md:mb-10">
-        <div className="max-w-3xl">
-          <h1 className="heading-page">AI Pulse 是什么</h1>
-          <p className="mt-4 text-[15px] leading-[1.75] text-slate-600 md:text-base md:leading-relaxed">
+      <div className="space-y-8 md:space-y-10">
+        {/* 一、Hero — 与其它章节同一白卡样式 */}
+        <section className={cardPlain} aria-labelledby="about-what">
+          <h1 id="about-what" className="heading-section text-slate-900">
+            AI Pulse 是什么
+          </h1>
+          <p className="mt-4 text-sm leading-relaxed text-slate-600 md:text-[15px] md:leading-[1.75]">
             AI Pulse 是一款 AI 信息整理产品。我们持续追踪公开来源中的 AI 行业动态，先去重、整理和结构化信息，再帮助用户快速理解「发生了什么」「为什么值得看」「对你意味着什么」。
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
@@ -29,10 +31,8 @@ export default function AboutPage() {
             <span className={tagCls}>价值判断</span>
             <span className={tagCls}>周报归档</span>
           </div>
-        </div>
-      </header>
+        </section>
 
-      <div className="space-y-8 md:space-y-10">
         {/* 二、我们为什么做这个产品 */}
         <section className={cardPlain} aria-labelledby="about-why">
           <h2 id="about-why" className="heading-section text-slate-900">

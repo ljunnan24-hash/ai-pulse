@@ -78,15 +78,23 @@ export function normalizeWeeklyRow(raw: unknown): WeeklyLooseRow | null {
   const o = raw as Record<string, unknown>;
   const title = String(o.title ?? o.headline ?? o.event_title ?? o.name ?? '').trim();
   if (!title) return null;
+  const cat = String(o.category ?? o.theme ?? '').trim();
   const base: WeeklyLooseRow = {
     title: title.slice(0, 400),
-    url: String(o.url ?? '').trim(),
+    url: String(o.url ?? (o as { link?: unknown }).link ?? '').trim(),
     what_happened: String(o.what_happened ?? '').trim(),
     why_important: String(o.why_important ?? o.why_it_matters ?? '').trim(),
     what_it_means_for_you: String(o.what_it_means_for_you ?? '').trim(),
-    pulse_score: String(o.pulse_score ?? ''),
-    theme: String(o.theme ?? o.category ?? '').trim(),
-    event_id: String(o.event_id ?? '').trim(),
+    pulse_score: String(
+      o.pulse_score ??
+        o.score_total ??
+        o.ranking_score ??
+        (o as { _score_total?: unknown })._score_total ??
+        '',
+    ),
+    category: cat,
+    theme: String(o.theme ?? o.category ?? '').trim() || cat,
+    event_id: String(o.event_id ?? (o as { global_event_id?: unknown }).global_event_id ?? '').trim(),
     source_name: String(o.source_name ?? '').trim(),
   };
   const su = o.source_urls;
@@ -157,9 +165,10 @@ export function weeklyPulseMeaning(row: WeeklyLooseRow): string {
   return '';
 }
 
-/** Top3 表格 Score 列：与首页榜单 pulseDisplayScore 口径一致 */
+/** Top3 表格 Score 列：兼容 pulse_score / ranking_score / score_total（后端 orchestrator 常用） */
 export function weeklyPulseDisplayScore(row: WeeklyLooseRow): number {
-  const raw = (row.pulse_score ?? row.ranking_score ?? '').trim();
+  const r = row as Record<string, string>;
+  const raw = (row.pulse_score ?? row.ranking_score ?? r.score_total ?? r._score_total ?? '').trim();
   if (!raw) return 0;
   const p = Number(raw);
   if (!Number.isFinite(p)) return 0;
@@ -167,11 +176,15 @@ export function weeklyPulseDisplayScore(row: WeeklyLooseRow): number {
   return Math.round(Math.min(100, Math.max(0, v)) * 10) / 10;
 }
 
-/** 分类 slug：normalize 写入 theme，兼容直接 category */
+/** 分类 slug：normalize 写入 category/theme；兼容仅返回其一的条目 */
 export function weeklyRowCategorySlug(row: WeeklyLooseRow): string {
+  const r = row as Record<string, string>;
   const a = (row.category ?? '').trim().toLowerCase();
   if (a) return a;
-  return (row.theme ?? '').trim().toLowerCase();
+  const b = (row.theme ?? '').trim().toLowerCase();
+  if (b) return b;
+  const c = (r.segment ?? r.topic_category ?? '').trim().toLowerCase();
+  return c;
 }
 
 /**

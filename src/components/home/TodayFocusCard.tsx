@@ -60,7 +60,8 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
   return (
     <aside className="mx-auto w-full max-w-[470px] rounded-[24px] border border-[#D8E2F0] bg-white p-[28px] shadow-[0_1px_3px_rgba(15,23,42,0.06)] lg:mx-0 lg:w-[470px] lg:max-w-none lg:shrink-0">
       <div className="flex items-start justify-between gap-2">
-        <h2 className="font-headline text-[15px] font-extrabold leading-tight tracking-[-0.02em] text-[#0F172A]">
+        {/* 与榜单主标题同级黑体感：Manrope 800 + 略大字号，避免被浏览器默认变细 */}
+        <h2 className="font-headline text-lg font-extrabold leading-snug tracking-[-0.02em] text-[#0F172A]">
           今日重点信息
         </h2>
         <time

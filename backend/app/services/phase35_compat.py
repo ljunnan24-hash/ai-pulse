@@ -140,6 +140,12 @@ def resolve_top3_judgment_display_title(j: dict[str, Any], lk: dict[str, Any]) -
 
 def apply_locked_top3_merge_judgments(normal: dict[str, Any], locked: list[dict[str, Any]]) -> None:
     """将算法锁定的标题/URL/event 合并进 top3_judgments（保留模型生成的判断正文与中文标题）。"""
+    from app.services.top3_selector import (
+        _dedupe_ids_ordered,
+        _finalize_top3_public_identity,
+        materialize_top3_public_fields,
+    )
+
     jlist = normal.get("top3_judgments")
     if not isinstance(jlist, list) or not locked:
         return
@@ -150,13 +156,28 @@ def apply_locked_top3_merge_judgments(normal: dict[str, Any], locked: list[dict[
         if not isinstance(j, dict):
             continue
 
+        materialize_top3_public_fields(lk)
+        leid = str(lk.get("event_id") or "").strip()
+
         title = resolve_top3_judgment_display_title(j, lk)
         if title:
             j["title"] = title[:200]
 
         j["source_urls"] = merge_top3_source_urls_judgment_locked(j, lk, max_n=8)
-        j["related_event_ids"] = merge_top3_related_strings(j, lk, "related_event_ids", max_n=12)
+
+        merged_rel = merge_top3_related_strings(j, lk, "related_event_ids", max_n=12)
+        j["related_event_ids"] = _dedupe_ids_ordered(
+            leid or None,
+            [str(x).strip() for x in merged_rel if str(x).strip()],
+            max_n=12,
+        )
+
         j["related_stable_keys"] = merge_top3_related_strings(j, lk, "related_stable_keys", max_n=12)
+
+        # locked 为主事件：与 Composer judgment 的 event_id 不一致时以 locked 为准
+        j["event_id"] = leid if leid else str(j.get("event_id") or "").strip()
+
+        _finalize_top3_public_identity(j)
 
 
 def sync_legacy_top3_from_judgments(normal: dict[str, Any]) -> None:
@@ -186,6 +207,14 @@ def sync_legacy_top3_from_judgments(normal: dict[str, Any]) -> None:
         al = str(j.get("action_level") or "").strip()
         if al in _ACTION_LEVEL_TO_ATT:
             t["attention_level"] = _ACTION_LEVEL_TO_ATT[al]
+
+        jeid = str(j.get("event_id") or "").strip()
+        if jeid:
+            t["event_id"] = jeid
+        for fld in ("source_urls", "related_event_ids", "related_stable_keys"):
+            v = j.get(fld)
+            if isinstance(v, list) and v:
+                t[fld] = list(v)
 
 
 def _list_join(lines: Any, sep: str = "；") -> str:
@@ -466,6 +495,8 @@ def extract_clean_phase35_normal(raw_normal: dict[str, Any] | None) -> dict[str,
 
     tj = raw_normal.get("top3_judgments")
     if isinstance(tj, list):
+        from app.services.top3_selector import _dedupe_ids_ordered
+
         clean_j: list[dict[str, Any]] = []
         for j in tj:
             if not isinstance(j, dict):
@@ -473,8 +504,10 @@ def extract_clean_phase35_normal(raw_normal: dict[str, Any] | None) -> dict[str,
             tit = str(j.get("title") or "").strip()
             if not tit:
                 continue
+            eid_j = str(j.get("event_id") or "").strip()
             rel = j.get("related_event_ids")
-            ids = [str(x).strip() for x in rel][:16] if isinstance(rel, list) else []
+            ids_raw = [str(x).strip() for x in rel] if isinstance(rel, list) else []
+            ids = list(_dedupe_ids_ordered(eid_j or None, [x for x in ids_raw if x], max_n=16))
             rsk = j.get("related_stable_keys")
             rsk_l = [str(x).strip() for x in rsk][:12] if isinstance(rsk, list) else []
             su = j.get("source_urls")
@@ -484,8 +517,7 @@ def extract_clean_phase35_normal(raw_normal: dict[str, Any] | None) -> dict[str,
                 ps = int(pulse) if pulse is not None else 0
             except Exception:
                 ps = 0
-            clean_j.append(
-                {
+            row_j = {
                     "title": tit[:200],
                     "related_event_ids": ids,
                     "related_stable_keys": rsk_l,
@@ -497,7 +529,9 @@ def extract_clean_phase35_normal(raw_normal: dict[str, Any] | None) -> dict[str,
                     "pulse_score": ps,
                     "source_urls": surl,
                 }
-            )
+            if eid_j:
+                row_j["event_id"] = eid_j
+            clean_j.append(row_j)
         if clean_j:
             out["top3_judgments"] = clean_j[:5]
 

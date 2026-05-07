@@ -9,7 +9,8 @@ import {
 import { PulseRankingsTableLayout, type PulseRankingsTableRow } from '../pulse/PulseRankingsTableLayout';
 
 /**
- * 周报「本周最重要三件事」：与排行榜 / 首页 Top5 同一表格栅格与样式。
+ * 周报「本周最重要三件事」：**与排行榜页同一组件、同一栅格与样式**（{@link PulseRankingsTableLayout}）。
+ * 数据：`getWeeklyTopThreeJudgments` → 归并候选 → `pickMergedWeeklyTopThree` 最多 3 条。
  */
 export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
   if (rows.length === 0) {
@@ -17,14 +18,21 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
   }
 
   const pulseRows: PulseRankingsTableRow[] = rows.map((row, i) => {
-    const eid = row.event_id ? Number(row.event_id) : NaN;
+    let eid = row.event_id ? Number(row.event_id) : NaN;
+    if (!Number.isFinite(eid) || eid <= 0) {
+      const rel = (row.related_event_ids ?? '').trim();
+      if (rel) {
+        const first = rel.split(/[,，]/).map((x) => x.trim()).find(Boolean);
+        const n = first ? Number(first) : NaN;
+        if (Number.isFinite(n) && n > 0) eid = n;
+      }
+    }
     const hasEvent = Number.isFinite(eid) && eid > 0;
     const urlStr = (row.url ?? '').trim();
 
     return {
       key: `${row.title}-${i}`,
       rank: i + 1,
-      rankPaddedTwoDigits: true,
       score: weeklyPulseDisplayScore(row),
       titleZh: weeklyPulseTitleZh(row),
       titleEn: weeklyPulseTitleEn(row),

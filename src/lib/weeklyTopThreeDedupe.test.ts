@@ -76,6 +76,23 @@ describe('weekly Top3 簇内合并与去重', () => {
     warn.mockRestore();
   });
 
+  it('mergeWeeklyClusterItems 同簇两边都有 event_id 时保留分数更高一侧', () => {
+    const low = normalizeWeeklyRow({
+      title: 'Low score row',
+      url: 'https://a.example/',
+      event_id: '10',
+      pulse_score: '60',
+    })!;
+    const high = normalizeWeeklyRow({
+      title: 'High score row',
+      url: 'https://b.example/',
+      event_id: '99',
+      pulse_score: '92',
+    })!;
+    const m = mergeWeeklyClusterItems(low, high);
+    expect(m.event_id).toBe('99');
+  });
+
   it('mergeWeeklyClusterItems 合并来源 URL 去重', () => {
     const a = normalizeWeeklyRow({
       title: 'A',

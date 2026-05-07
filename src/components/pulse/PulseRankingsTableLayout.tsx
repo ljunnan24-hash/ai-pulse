@@ -34,6 +34,8 @@ export type PulseRankingsTableRow = {
   detailTo?: string;
   /** 外链（与 detailTo 互斥，优先 detailTo） */
   externalUrl?: string;
+  /** 覆盖「对你意味着什么」段落样式（周报等可不截断全文） */
+  meaningClassName?: string;
 };
 
 function PulseRankingsActionCell({
@@ -102,7 +104,7 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
                 />
               </div>
               <div className="min-w-0">
-                <PulseRankMeaningBlock text={r.meaning} />
+                <PulseRankMeaningBlock text={r.meaning} className={r.meaningClassName} />
               </div>
               <div className="flex items-start justify-center pt-0.5" role="cell">
                 <span
@@ -134,7 +136,7 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
               />
             </div>
             <div className="mt-2 min-w-0">
-              <PulseRankMeaningBlock text={r.meaning} />
+              <PulseRankMeaningBlock text={r.meaning} className={r.meaningClassName} />
             </div>
             <div className="mt-2 flex justify-start">
               <span

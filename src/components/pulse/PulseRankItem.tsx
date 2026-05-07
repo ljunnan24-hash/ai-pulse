@@ -62,8 +62,15 @@ export function PulseRankEventTitles({
   );
 }
 
-export function PulseRankMeaningBlock({ text }: { text: string }) {
-  return <p className={pulseRankMeaningCls}>{text}</p>;
+export function PulseRankMeaningBlock({
+  text,
+  className,
+}: {
+  text: string;
+  /** 默认三行截断；传入则可自定义（如周报展示全文） */
+  className?: string;
+}) {
+  return <p className={className ?? pulseRankMeaningCls}>{text}</p>;
 }
 
 export function PulseRankDetailLink({

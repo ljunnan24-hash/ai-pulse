@@ -77,6 +77,9 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
     normal = raw.get("normal")
     if not isinstance(normal, dict):
         normal = {}
+    # 延迟导入：避免 payload_schema ↔ top3_selector ↔ digest_builder 循环依赖
+    from app.services.top3_selector import _dedupe_ids_ordered, _dedupe_urls_ordered
+
     top3_in = normal.get("top3") if isinstance(normal.get("top3"), list) else []
     clean_top3: list[dict[str, Any]] = []
     for t in top3_in:
@@ -94,12 +97,17 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
             "what_it_means_for_you": str(t.get("what_it_means_for_you") or "")[:800],
             "attention_level": str(t.get("attention_level") or "3")[:8],
         }
+        eid_top = str(t.get("event_id") or "").strip()
+        if eid_top:
+            row["event_id"] = eid_top
         su = t.get("source_urls")
         if isinstance(su, list):
-            row["source_urls"] = [str(x).strip()[:2048] for x in su if str(x).strip()][:8]
+            extras_u = [str(x).strip() for x in su if str(x).strip()]
+            row["source_urls"] = _dedupe_urls_ordered(url or None, extras_u, max_n=8)
         rel = t.get("related_event_ids")
         if isinstance(rel, list):
-            row["related_event_ids"] = [str(x).strip() for x in rel if str(x).strip()][:12]
+            rel_list = [str(x).strip() for x in rel if str(x).strip()]
+            row["related_event_ids"] = list(_dedupe_ids_ordered(eid_top or None, rel_list, max_n=12))
         rsk = t.get("related_stable_keys")
         if isinstance(rsk, list):
             row["related_stable_keys"] = [str(x).strip() for x in rsk if str(x).strip()][:12]

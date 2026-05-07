@@ -21,6 +21,28 @@ from app.services.phase35_compat import (  # noqa: E402
 from app.services.top3_selector import apply_locked_top3_merge, select_top3  # noqa: E402
 
 
+def _assert_related_first_equals_event_id(label: str, row: dict, *, idx: int | None = None) -> None:
+    """有 related_event_ids 时必须有 event_id，且 [0] == event_id。"""
+    rel = row.get("related_event_ids")
+    if not isinstance(rel, list) or len(rel) == 0:
+        return
+    eid = str(row.get("event_id") or "").strip()
+    suffix = f"[{idx}]" if idx is not None else ""
+    assert eid, f"{label}{suffix}: 存在 related_event_ids 时必须同时有 event_id"
+    assert str(rel[0]).strip() == eid, f"{label}{suffix}: related_event_ids[0]={rel[0]!r} 应等于 event_id={eid!r}"
+
+
+def _assert_no_phantom_event_link(row: dict, *, label: str, idx: int | None = None) -> None:
+    """无 event_id 时不应出现可误解为站内的 undefined / 空 id。"""
+    eid = str(row.get("event_id") or "").strip()
+    if eid:
+        assert "undefined" not in eid.lower(), f"{label}: event_id 非法: {eid!r}"
+        assert eid != "NaN", f"{label}: event_id 非法"
+    suffix = f"[{idx}]" if idx is not None else ""
+    blob = json.dumps(row, ensure_ascii=False)
+    assert "undefined" not in blob.lower(), f"{label}{suffix}: payload 片段不应含 undefined（避免前端拼 /events/undefined）"
+
+
 def _ev(
     *,
     eid: str,
@@ -156,7 +178,9 @@ def main() -> None:
     sync_legacy_top3_from_judgments(norm)
 
     fin = finalize_payload_v3(payload)
-    tj = fin.get("normal", {}).get("top3_judgments") or []
+    norm_fin = fin.get("normal") or {}
+    tj = norm_fin.get("top3_judgments") or []
+    top3_fin = norm_fin.get("top3") or []
 
     print("=== normal.top3_judgments（前 3 条完整节选）===")
     for i, row in enumerate(tj[:3]):
@@ -172,6 +196,39 @@ def main() -> None:
     assert len(su) >= 3, "合并稿应有多来源 URL"
     re = j0.get("related_event_ids") or []
     assert len(re) >= 2, "应包含合并进来的 event_id"
+
+    # —— Top3 站内跳转协议（event_id / related_event_ids / source_urls）——
+    eid_j0 = str(j0.get("event_id") or "").strip()
+    assert eid_j0, "normal.top3_judgments[0].event_id 必须存在（finalize 后）"
+    assert isinstance(re, list) and len(re) >= 1, "normal.top3_judgments[0].related_event_ids 不能为空"
+    assert str(re[0]).strip() == eid_j0, "normal.top3_judgments[0].related_event_ids[0] 必须等于 event_id"
+
+    primary_url_top = str(top3_fin[0].get("url") or "").strip() if top3_fin else ""
+    assert primary_url_top, "normal.top3[0].url 为主链接，用于校验 source_urls[0]"
+    assert isinstance(su, list) and len(su) >= 1
+    assert str(su[0]).strip() == primary_url_top, (
+        "normal.top3_judgments[0].source_urls[0] 必须等于 normal.top3[0].url（主 URL 在前）"
+    )
+
+    eid_t0 = str(top3_fin[0].get("event_id") or "").strip()
+    assert eid_t0, "normal.top3[0].event_id 必须存在"
+    rel_t0 = top3_fin[0].get("related_event_ids") or []
+    assert isinstance(rel_t0, list) and len(rel_t0) >= 1
+    assert str(rel_t0[0]).strip() == eid_t0, "normal.top3[0].related_event_ids[0] 必须等于 event_id"
+
+    for i, row in enumerate(tj):
+        _assert_related_first_equals_event_id("top3_judgments", row, idx=i)
+        _assert_no_phantom_event_link(row, label="top3_judgments", idx=i)
+    for i, row in enumerate(top3_fin):
+        _assert_related_first_equals_event_id("normal.top3", row, idx=i)
+        _assert_no_phantom_event_link(row, label="normal.top3", idx=i)
+
+    print("\n=== Top3 跳转协议抽样 ===")
+    print(f"top3_judgments[0].event_id = {j0.get('event_id')!r}")
+    print(f"top3_judgments[0].related_event_ids[:4] = {(j0.get('related_event_ids') or [])[:4]!r}")
+    print(f"top3_judgments[0].source_urls[:3] = {(j0.get('source_urls') or [])[:3]!r}")
+    print(f"normal.top3[0].event_id = {top3_fin[0].get('event_id')!r}")
+    print(f"normal.top3[0].url = {primary_url_top!r}")
 
 
 if __name__ == "__main__":
