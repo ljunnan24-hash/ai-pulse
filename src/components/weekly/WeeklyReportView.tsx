@@ -6,7 +6,11 @@ import { WeeklyJudgmentCard } from './WeeklyJudgmentCard';
 import { WeeklyTopThreeList } from './WeeklyTopThreeList';
 import { WeeklyBoundaryPairSection, weeklyBoundaryHasContent } from './WeeklyBoundaryPairSection';
 import { GlossaryGrid } from './GlossaryGrid';
-import { getWeeklyTopThreeJudgments, normalizeGlossary } from './weeklyPayloadUtils';
+import {
+  enrichWeeklyTopThreeWithLegacyTop3,
+  getWeeklyTopThreeJudgments,
+  normalizeGlossary,
+} from './weeklyPayloadUtils';
 
 export type WeeklyReportViewProps = {
   title: string;
@@ -22,7 +26,8 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
   const headline = (thesis?.headline ?? '').trim() || title.trim() || '本期周报';
   const summary = (thesis?.summary ?? '').trim();
 
-  const topThree = getWeeklyTopThreeJudgments(payload);
+  const topThreeRaw = getWeeklyTopThreeJudgments(payload);
+  const topThree = enrichWeeklyTopThreeWithLegacyTop3(topThreeRaw, normal.top3);
 
   const capsBoundaries =
     (normal.capability_boundaries as Array<Record<string, unknown>> | undefined) || [];
@@ -48,7 +53,7 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
   return (
     <div className="bg-[#F8FAFC] pb-20 pt-8 md:pt-10">
       <div className="page-container">
-        <div className="mx-auto max-w-3xl">
+        <div className="mx-auto max-w-5xl px-1 sm:px-0">
           <WeeklyReportHeader reportDate={reportDate} title={title} />
 
           {/* 1. 本周判断 */}

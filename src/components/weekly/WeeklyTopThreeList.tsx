@@ -1,23 +1,38 @@
+import { resolveWeeklyCategoryDisplay } from '../../lib/weeklyCategoryDisplay';
+import {
+  pulseRankMeaningWeeklyFullCls,
+  pulseRankTitleEnWeeklyCls,
+  pulseRankTitleWeeklyZhCls,
+} from '../pulse/PulseRankItem';
 import type { WeeklyLooseRow } from './weeklyPayloadUtils';
 import {
+  pickWeeklyCategoryRaw,
   weeklyPulseDisplayScore,
   weeklyPulseMeaning,
   weeklyPulseTitleEn,
   weeklyPulseTitleZh,
-  weeklyRowCategorySlug,
 } from './weeklyPayloadUtils';
 import { PulseRankingsTableLayout, type PulseRankingsTableRow } from '../pulse/PulseRankingsTableLayout';
 
-/** 站内 `/events/:id` 仅支持数字 GlobalEvent id；从 event_id 或 related_event_ids 中取首个正整数 */
+function resolveWeeklyExternalUrl(row: WeeklyLooseRow): string {
+  const u = (row.url ?? '').trim();
+  if (u) return u;
+  return (
+    (row.source_urls ?? '')
+      .split(/\n/)
+      .map((x) => x.trim())
+      .find(Boolean) ?? ''
+  );
+}
+
+/** 站内 `/events/:id` 仅接受正整数 GlobalEvent.id；禁止 `/events/undefined`、字符串占位 id */
 function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null {
   const tryParse = (raw: string | undefined): number | null => {
     const s = (raw ?? '').trim();
     if (!s) return null;
-    if (/^\d+$/.test(s)) {
-      const n = Number(s);
-      return Number.isFinite(n) && n > 0 ? n : null;
-    }
-    return null;
+    if (!/^\d+$/.test(s)) return null;
+    const n = Number(s);
+    return Number.isFinite(n) && n > 0 ? n : null;
   };
 
   const direct = tryParse(row.event_id);
@@ -33,8 +48,7 @@ function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null {
 }
 
 /**
- * 周报「本周最重要三件事」：**与排行榜页同一组件、同一栅格与样式**（{@link PulseRankingsTableLayout}）。
- * 数据：`getWeeklyTopThreeJudgments` → 归并候选 → `pickMergedWeeklyTopThree` 最多 3 条。
+ * 周报「本周最重要三件事」：与排行榜共用 {@link PulseRankingsTableLayout}，周报专用分类解析与操作文案。
  */
 export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
   if (rows.length === 0) {
@@ -43,8 +57,13 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
 
   const pulseRows: PulseRankingsTableRow[] = rows.map((row, i) => {
     const eid = resolveWeeklyNumericEventId(row);
-    const hasEvent = eid !== null;
-    const urlStr = (row.url ?? '').trim();
+    const extUrl = resolveWeeklyExternalUrl(row);
+
+    const detailTo = eid !== null ? `/events/${eid}` : undefined;
+    const externalUrl = detailTo ? undefined : extUrl || undefined;
+
+    const catRaw = pickWeeklyCategoryRaw(row).trim();
+    const weeklyCategoryResolved = catRaw ? resolveWeeklyCategoryDisplay(catRaw) : null;
 
     return {
       key: `${row.title}-${i}`,
@@ -53,9 +72,15 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
       titleZh: weeklyPulseTitleZh(row),
       titleEn: weeklyPulseTitleEn(row),
       meaning: weeklyPulseMeaning(row),
-      categorySlug: weeklyRowCategorySlug(row),
-      detailTo: eid !== null ? `/events/${eid}` : undefined,
-      externalUrl: !hasEvent && urlStr ? urlStr : undefined,
+      categorySlug: '',
+      weeklyCategoryResolved,
+      weeklyUi: true,
+      titleZhClassName: pulseRankTitleWeeklyZhCls,
+      titleEnClassName: pulseRankTitleEnWeeklyCls,
+      meaningClassName: pulseRankMeaningWeeklyFullCls,
+      overflowHints: true,
+      detailTo,
+      externalUrl,
     };
   });
 

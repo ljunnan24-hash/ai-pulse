@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 
@@ -10,11 +11,27 @@ export const pulseRankTitleZhCls =
 export const pulseRankTitleZhBoldCls =
   'line-clamp-2 text-[15px] font-bold leading-snug text-[#0F172A] [overflow-wrap:anywhere]';
 
+/** 周报等：不截断标题，便于在同一表格内阅读全文 */
+export const pulseRankTitleZhBoldFullCls =
+  'text-[15px] font-bold leading-snug text-[#0F172A] [overflow-wrap:anywhere]';
+
+/** 周报 Top3：主标题 semibold，不换行截断 */
+export const pulseRankTitleWeeklyZhCls =
+  'text-[15px] font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]';
+
 export const pulseRankTitleEnCls =
   'line-clamp-2 text-xs leading-relaxed text-slate-500 [overflow-wrap:anywhere]';
 
+/** 周报英文副标题：最多两行，略小字号 */
+export const pulseRankTitleEnWeeklyCls =
+  'line-clamp-2 text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere] md:text-xs';
+
 export const pulseRankMeaningCls =
   'line-clamp-3 text-sm leading-relaxed text-slate-600 [overflow-wrap:anywhere]';
+
+/** 周报「对你意味着什么」：全文 + 舒适行距 */
+export const pulseRankMeaningWeeklyFullCls =
+  'text-sm leading-[1.65] text-slate-600 [overflow-wrap:anywhere]';
 
 export const pulseRankDetailBtnCls =
   'inline-flex h-[34px] shrink-0 items-center justify-center rounded-full border border-sky-200 bg-white px-[14px] text-[13px] font-medium text-blue-600 no-underline transition-colors hover:border-sky-300 hover:bg-sky-50';
@@ -48,16 +65,28 @@ export function PulseRankEventTitles({
   titleZh,
   titleEn,
   titleZhClassName = pulseRankTitleZhCls,
+  titleEnClassName = pulseRankTitleEnCls,
+  hintOverflowTitle,
 }: {
   titleZh: string;
   titleEn?: string;
   /** 默认中等字重；排行榜页可传入 {@link pulseRankTitleZhBoldCls} */
   titleZhClassName?: string;
+  /** 英文副标题样式（周报可 {@link pulseRankTitleEnWeeklyCls}） */
+  titleEnClassName?: string;
+  /** 悬停显示完整标题（截断样式下辅助阅读） */
+  hintOverflowTitle?: boolean;
 }) {
   return (
     <div className="min-w-0 space-y-1">
-      <h3 className={titleZhClassName}>{titleZh}</h3>
-      {titleEn ? <p className={pulseRankTitleEnCls}>{titleEn}</p> : null}
+      <h3 className={titleZhClassName} title={hintOverflowTitle ? titleZh : undefined}>
+        {titleZh}
+      </h3>
+      {titleEn ? (
+        <p className={titleEnClassName} title={hintOverflowTitle ? titleEn : undefined}>
+          {titleEn}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -65,24 +94,32 @@ export function PulseRankEventTitles({
 export function PulseRankMeaningBlock({
   text,
   className,
+  hintOverflowText,
 }: {
   text: string;
   /** 默认三行截断；传入则可自定义（如周报展示全文） */
   className?: string;
+  hintOverflowText?: boolean;
 }) {
-  return <p className={className ?? pulseRankMeaningCls}>{text}</p>;
+  return (
+    <p className={className ?? pulseRankMeaningCls} title={hintOverflowText ? text : undefined}>
+      {text}
+    </p>
+  );
 }
 
 export function PulseRankDetailLink({
   to,
   className,
+  children = '查看详情',
 }: {
   to: string;
   className?: string;
+  children?: ReactNode;
 }) {
   return (
     <Link to={to} className={className ?? pulseRankDetailBtnCls}>
-      查看详情
+      {children}
     </Link>
   );
 }

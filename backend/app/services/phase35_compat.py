@@ -44,6 +44,33 @@ def _clip(s: str, n: int) -> str:
     return t[: n - 1] + "…"
 
 
+def pick_category_fields(obj: dict[str, Any]) -> str:
+    """分类取值优先级：category_slug → category → theme → tag → type。"""
+    for key in ("category_slug", "category", "theme", "tag", "type"):
+        v = str(obj.get(key) or "").strip()
+        if v:
+            return v[:64]
+    return ""
+
+
+def backfill_top3_judgments_category_from_top3(normal: dict[str, Any]) -> None:
+    """top3_judgments 缺 category 时，从同序 legacy normal.top3 补（不覆盖已有）。"""
+    jlist = normal.get("top3_judgments")
+    top3 = normal.get("top3")
+    if not isinstance(jlist, list) or not isinstance(top3, list):
+        return
+    for i in range(min(len(jlist), len(top3))):
+        j = jlist[i]
+        t = top3[i]
+        if not isinstance(j, dict) or not isinstance(t, dict):
+            continue
+        if pick_category_fields(j):
+            continue
+        cat = pick_category_fields(t)
+        if cat:
+            j["category"] = cat
+
+
 def merge_top3_source_urls_judgment_locked(
     j: dict[str, Any],
     lk: dict[str, Any],
@@ -177,6 +204,11 @@ def apply_locked_top3_merge_judgments(normal: dict[str, Any], locked: list[dict[
         # locked 为主事件：与 Composer judgment 的 event_id 不一致时以 locked 为准
         j["event_id"] = leid if leid else str(j.get("event_id") or "").strip()
 
+        if not pick_category_fields(j):
+            lc = pick_category_fields(lk)
+            if lc:
+                j["category"] = lc
+
         _finalize_top3_public_identity(j)
 
 
@@ -211,7 +243,7 @@ def sync_legacy_top3_from_judgments(normal: dict[str, Any]) -> None:
         jeid = str(j.get("event_id") or "").strip()
         if jeid:
             t["event_id"] = jeid
-        jc = str(j.get("category") or "").strip()
+        jc = pick_category_fields(j)
         if jc:
             t["category"] = jc[:64]
         for fld in ("source_urls", "related_event_ids", "related_stable_keys"):
@@ -354,7 +386,7 @@ def map_top3_judgments_to_top3(jlist: list[Any]) -> list[dict[str, str]]:
                 "what_it_means_for_you": str(j.get("what_to_do_now") or "")[:800],
                 "attention_level": att,
             }
-        jc = str(j.get("category") or "").strip()
+        jc = pick_category_fields(j)
         if jc:
             row_t["category"] = jc[:64]
         jeid = str(j.get("event_id") or "").strip()
@@ -525,7 +557,7 @@ def extract_clean_phase35_normal(raw_normal: dict[str, Any] | None) -> dict[str,
                 ps = int(pulse) if pulse is not None else 0
             except Exception:
                 ps = 0
-            cat_j = str(j.get("category") or "").strip()
+            cat_j = pick_category_fields(j)
             url_j = str(j.get("url") or "").strip()
             if not url_j and surl:
                 url_j = str(surl[0]).strip()

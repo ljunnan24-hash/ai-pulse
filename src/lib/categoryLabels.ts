@@ -7,8 +7,10 @@ export function categoryPillClass(cat: string | undefined | null): string {
   const map: Record<string, string> = {
     model: 'bg-violet-50 text-violet-900 ring-1 ring-violet-200/90',
     model_update: 'bg-violet-50 text-violet-900 ring-1 ring-violet-200/90',
+    product: 'bg-fuchsia-50 text-fuchsia-900 ring-1 ring-fuchsia-200/90',
     tool: 'bg-amber-50 text-amber-950 ring-1 ring-amber-200/90',
     tool_product: 'bg-amber-50 text-amber-950 ring-1 ring-amber-200/90',
+    developer: 'bg-cyan-50 text-cyan-950 ring-1 ring-cyan-200/90',
     industry: 'bg-rose-50 text-rose-900 ring-1 ring-rose-200/90',
     open_source: 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/90',
     application: 'bg-fuchsia-50 text-fuchsia-900 ring-1 ring-fuchsia-200/90',
@@ -25,8 +27,10 @@ export function categoryLabel(cat: string | undefined | null): string {
   const map: Record<string, string> = {
     model: '模型',
     model_update: '模型',
+    product: '产品',
     tool: '工具',
     tool_product: '工具/产品',
+    developer: '开发',
     industry: '行业',
     open_source: '开源',
     application: '应用',

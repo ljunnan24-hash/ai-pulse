@@ -72,14 +72,36 @@ const WEEKLY_OPTIONAL_KEYS = [
   'event_group_id',
   'canonical_url',
   'source_url',
+  'category_slug',
+  'tag',
+  'type',
 ] as const;
+
+/** 分类取值优先级（与后端补全一致） */
+export function pickCategoryFromRawObject(o: Record<string, unknown>): string {
+  for (const k of ['category_slug', 'category', 'theme', 'tag', 'type'] as const) {
+    const v = String(o[k] ?? '').trim();
+    if (v) return v;
+  }
+  return '';
+}
+
+/** 归一化行上的分类原始串（用于解析 pill） */
+export function pickWeeklyCategoryRaw(row: WeeklyLooseRow): string {
+  const r = row as Record<string, string>;
+  for (const k of ['category_slug', 'category', 'theme', 'tag', 'type']) {
+    const v = (r[k] ?? '').trim();
+    if (v) return v;
+  }
+  return '';
+}
 
 export function normalizeWeeklyRow(raw: unknown): WeeklyLooseRow | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const title = String(o.title ?? o.headline ?? o.event_title ?? o.name ?? '').trim();
   if (!title) return null;
-  const cat = String(o.category ?? o.theme ?? '').trim();
+  const cat = pickCategoryFromRawObject(o);
   const base: WeeklyLooseRow = {
     title: title.slice(0, 400),
     url: String(o.url ?? (o as { link?: unknown }).link ?? '').trim(),
@@ -178,15 +200,10 @@ export function weeklyPulseDisplayScore(row: WeeklyLooseRow): number {
   return Math.round(Math.min(100, Math.max(0, v)) * 10) / 10;
 }
 
-/** 分类 slug：normalize 写入 category/theme；兼容仅返回其一的条目 */
+/** 分类原始串（小写）用于旧逻辑；周报展示请用 {@link pickWeeklyCategoryRaw} + resolveWeeklyCategoryDisplay */
 export function weeklyRowCategorySlug(row: WeeklyLooseRow): string {
-  const r = row as Record<string, string>;
-  const a = (row.category ?? '').trim().toLowerCase();
-  if (a) return a;
-  const b = (row.theme ?? '').trim().toLowerCase();
-  if (b) return b;
-  const c = (r.segment ?? r.topic_category ?? '').trim().toLowerCase();
-  return c;
+  const raw = pickWeeklyCategoryRaw(row);
+  return raw.toLowerCase();
 }
 
 /**
@@ -227,6 +244,63 @@ export function collectWeeklyTopInformation(normal: Record<string, unknown>): We
   }
 
   return out.slice(0, 5);
+}
+
+/**
+ * `top3_judgments` 往往不带 category/url；同序的 legacy `normal.top3` 已由后端合并选题信息时常带有分类与链接。
+ * 仅在 judgment 侧对应字段为空时写入，不覆盖已有值。
+ */
+export function enrichWeeklyTopThreeWithLegacyTop3(rows: WeeklyLooseRow[], legacyTop3: unknown): WeeklyLooseRow[] {
+  if (!Array.isArray(legacyTop3) || legacyTop3.length === 0) return rows;
+  return rows.map((row, i) => {
+    const leg = legacyTop3[i];
+    if (!leg || typeof leg !== 'object') return row;
+    const o = leg as Record<string, unknown>;
+    const out: WeeklyLooseRow = { ...row };
+
+    if (!pickWeeklyCategoryRaw(out)) {
+      const cat = pickCategoryFromRawObject(o);
+      if (cat) {
+        out.category = cat;
+        out.theme = cat;
+      }
+    }
+
+    if (!(out.event_id ?? '').trim()) {
+      const eid = String(o.event_id ?? '').trim();
+      if (eid) out.event_id = eid;
+    }
+
+    if (!(out.url ?? '').trim()) {
+      const u = String(o.url ?? '').trim();
+      if (u) out.url = u;
+      else {
+        const su = o.source_urls;
+        if (Array.isArray(su) && su.length > 0) {
+          const first = String(su[0] ?? '').trim();
+          if (first) out.url = first;
+        }
+      }
+    }
+
+    if (!(out.source_urls ?? '').trim()) {
+      const su = o.source_urls;
+      if (Array.isArray(su) && su.length > 0) {
+        out.source_urls = su.map((x) => String(x).trim()).filter(Boolean).join('\n');
+      } else if (typeof su === 'string' && su.trim()) {
+        out.source_urls = su.trim();
+      }
+    }
+
+    if (!(out.related_event_ids ?? '').trim()) {
+      const rel = o.related_event_ids;
+      if (Array.isArray(rel) && rel.length > 0) {
+        out.related_event_ids = rel.map((x) => String(x)).join(',');
+      }
+    }
+
+    return out;
+  });
 }
 
 /**

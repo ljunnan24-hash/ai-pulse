@@ -5,7 +5,9 @@ from typing import Any, Final, Iterable
 
 from app.services.phase35_compat import (
     apply_backward_compat_from_phase35,
+    backfill_top3_judgments_category_from_top3,
     extract_clean_phase35_normal,
+    pick_category_fields,
 )
 
 # PRD v3 分类（与 prd.md 4.2.2 一致，无 emoji 键名便于 JSON）
@@ -97,7 +99,7 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
             "what_it_means_for_you": str(t.get("what_it_means_for_you") or "")[:800],
             "attention_level": str(t.get("attention_level") or "3")[:8],
         }
-        cat_top = str(t.get("category") or "").strip()
+        cat_top = pick_category_fields(t if isinstance(t, dict) else {})
         if cat_top:
             row["category"] = cat_top[:64]
         eid_top = str(t.get("event_id") or "").strip()
@@ -373,6 +375,7 @@ def finalize_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
         gloss.append({"term": "上下文窗口", "explain": "模型一次能读入的最大文本长度，越长越能处理长文档。"})
     p["glossary"] = gloss[:12]
     p["normal"] = norm
+    backfill_top3_judgments_category_from_top3(norm)
     apply_backward_compat_from_phase35(norm)
     return p
 

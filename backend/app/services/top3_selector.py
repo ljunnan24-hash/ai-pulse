@@ -1267,6 +1267,8 @@ def attention_level_to_digit(att: str | None) -> str:
 
 def apply_locked_top3_merge(payload: dict[str, Any], locked: list[dict[str, Any]]) -> None:
     """将算法选定的 Top3 固定到 payload.normal.top3（保留 Composer 已生成的中文段落字段）。"""
+    from app.services.phase35_compat import pick_category_fields
+
     if not isinstance(payload, dict):
         return
     normal = payload.get("normal")
@@ -1297,6 +1299,9 @@ def apply_locked_top3_merge(payload: dict[str, Any], locked: list[dict[str, Any]
         pu = str(row.get("url") or "").strip()
         if pu and (not row["source_urls"]):
             row["source_urls"] = _dedupe_urls_ordered(pu, [])
+        cat_fin = pick_category_fields(lk) or pick_category_fields(old if isinstance(old, dict) else {})
+        if cat_fin:
+            row["category"] = cat_fin[:64]
         new_t3.append(row)
     if new_t3:
         normal["top3"] = new_t3

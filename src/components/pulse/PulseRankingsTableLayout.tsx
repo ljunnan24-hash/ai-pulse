@@ -2,6 +2,7 @@
  * 排行榜 / 首页 Top5 / 周报 Top3 共用：同一套栅格、字重与分类 pill。
  */
 
+import type { WeeklyCategoryResolved } from '../../lib/weeklyCategoryDisplay';
 import { categoryLabel, categoryPillClass } from '../../lib/categoryLabels';
 import {
   PulseRankDetailLink,
@@ -15,7 +16,7 @@ import {
 
 /** 排名 | Score | 事件 | 对你意味着什么 | 分类 | 操作 */
 export const PULSE_RANKINGS_TABLE_GRID_COLUMNS =
-  '72px minmax(56px, 68px) minmax(280px, 2.2fr) minmax(180px, 1.25fr) minmax(72px, 92px) 112px' as const;
+  '72px minmax(56px, 68px) minmax(260px, 2fr) minmax(200px, 1.35fr) minmax(80px, 100px) 108px' as const;
 
 export const pulseRankingsTableWrapCls =
   'overflow-hidden rounded-[22px] border border-[#D8E2F0] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.035)]';
@@ -34,18 +35,60 @@ export type PulseRankingsTableRow = {
   detailTo?: string;
   /** 外链（与 detailTo 互斥，优先 detailTo） */
   externalUrl?: string;
+  /** 覆盖中文标题样式（默认 {@link pulseRankTitleZhBoldCls}） */
+  titleZhClassName?: string;
+  /** 覆盖英文副标题样式 */
+  titleEnClassName?: string;
   /** 覆盖「对你意味着什么」段落样式（周报等可不截断全文） */
   meaningClassName?: string;
+  /** 为标题/摘要设置原生 title 悬停提示（窄屏截断时备用） */
+  overflowHints?: boolean;
+  /**
+   * 周报专用：传入则覆盖默认 categorySlug/categoryLabel（含「未分类」占位，不用「—」）。
+   * `undefined` = 走排行榜默认逻辑。
+   */
+  weeklyCategoryResolved?: WeeklyCategoryResolved | null;
+  /** 周报操作列文案：查看来源 / 暂无详情 */
+  weeklyUi?: boolean;
 };
+
+function RankingsCategoryCell({ row }: { row: PulseRankingsTableRow }) {
+  if (row.weeklyCategoryResolved !== undefined) {
+    if (row.weeklyCategoryResolved === null) {
+      return (
+        <span className="inline-flex max-w-full whitespace-nowrap rounded-full bg-slate-50 px-2 py-0.5 text-center text-[11px] font-medium leading-tight text-slate-400 ring-1 ring-slate-200/90">
+          未分类
+        </span>
+      );
+    }
+    const { slug, label } = row.weeklyCategoryResolved;
+    return (
+      <span
+        className={`inline-flex max-w-full whitespace-nowrap rounded-full px-2.5 py-0.5 text-center text-[12px] font-semibold leading-tight ${categoryPillClass(slug)}`}
+      >
+        {label}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`inline-flex max-w-full whitespace-nowrap rounded-full px-2.5 py-0.5 text-center text-[12px] font-semibold leading-tight ${categoryPillClass(row.categorySlug)}`}
+    >
+      {categoryLabel(row.categorySlug)}
+    </span>
+  );
+}
 
 function PulseRankingsActionCell({
   detailTo,
   externalUrl,
   mobileFullWidth,
+  weeklyUi,
 }: {
   detailTo?: string;
   externalUrl?: string;
   mobileFullWidth?: boolean;
+  weeklyUi?: boolean;
 }) {
   const mobileCls = mobileFullWidth ? `${pulseRankDetailBtnCls} mt-4 w-full justify-center` : pulseRankDetailBtnCls;
 
@@ -55,13 +98,13 @@ function PulseRankingsActionCell({
   if (externalUrl) {
     return (
       <a href={externalUrl} target="_blank" rel="noreferrer" className={`${pulseRankDetailBtnCls} no-underline ${mobileCls}`}>
-        查看详情
+        {weeklyUi ? '查看来源' : '查看详情'}
       </a>
     );
   }
   return (
-    <span className={`${pulseRankDetailBtnCls} cursor-default opacity-45 ${mobileCls}`} aria-disabled>
-      查看详情
+    <span className={`${pulseRankDetailBtnCls} cursor-not-allowed opacity-50 ${mobileCls}`} aria-disabled>
+      {weeklyUi ? '暂无详情' : '查看详情'}
     </span>
   );
 }
@@ -69,11 +112,13 @@ function PulseRankingsActionCell({
 export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow[] }) {
   if (rows.length === 0) return null;
 
+  const stickyActionWrap = 'sticky right-0 z-[2] -mr-px bg-white pl-2 shadow-[-12px_0_14px_-10px_rgba(15,23,42,0.1)]';
+
   return (
-    <div className={pulseRankingsTableWrapCls}>
-      <div className="hidden md:block">
+    <div className={`${pulseRankingsTableWrapCls} max-w-full overflow-x-auto`}>
+      <div className="hidden md:block min-w-[860px]">
         <div
-          className="grid h-12 items-center gap-x-3 border-b border-[#E2E8F0] bg-white px-4 text-left text-[13px] font-semibold text-slate-500"
+          className="grid h-12 items-center gap-x-2 border-b border-[#E2E8F0] bg-white px-3 text-left text-[13px] font-semibold text-slate-500 lg:min-w-0 lg:px-4"
           style={{ gridTemplateColumns: PULSE_RANKINGS_TABLE_GRID_COLUMNS }}
         >
           <span className="text-center">排名</span>
@@ -81,40 +126,46 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
           <span>事件</span>
           <span>对你意味着什么</span>
           <span className="text-center">分类</span>
-          <span className="text-right">操作</span>
+          <span className={`text-right ${stickyActionWrap}`}>操作</span>
         </div>
         <div className="divide-y divide-[#E2E8F0]">
           {rows.map((r) => (
             <div
               key={r.key}
-              className="grid items-center gap-x-3 bg-white px-4 py-4 md:py-5"
+              className="grid items-start gap-x-2 bg-white px-3 py-4 lg:min-w-0 lg:items-center lg:px-4 lg:py-5"
               style={{ gridTemplateColumns: PULSE_RANKINGS_TABLE_GRID_COLUMNS }}
             >
-              <div className="flex justify-center">
+              <div className="flex justify-center pt-0.5 lg:pt-0">
                 <PulseRankRankBadge rank={r.rank} paddedTwoDigits={r.rankPaddedTwoDigits} />
               </div>
-              <div className="flex items-center justify-start">
+              <div className="flex items-center justify-start pt-0.5 lg:pt-0">
                 <PulseRankScoreCell score={r.score} compact />
               </div>
               <div className="min-w-0">
                 <PulseRankEventTitles
                   titleZh={r.titleZh}
                   titleEn={r.titleEn}
-                  titleZhClassName={pulseRankTitleZhBoldCls}
+                  titleZhClassName={r.titleZhClassName ?? pulseRankTitleZhBoldCls}
+                  titleEnClassName={r.titleEnClassName}
+                  hintOverflowTitle={r.overflowHints}
                 />
               </div>
               <div className="min-w-0">
-                <PulseRankMeaningBlock text={r.meaning} className={r.meaningClassName} />
+                <PulseRankMeaningBlock
+                  text={r.meaning}
+                  className={r.meaningClassName}
+                  hintOverflowText={r.overflowHints}
+                />
               </div>
               <div className="flex items-start justify-center pt-0.5" role="cell">
-                <span
-                  className={`inline-flex max-w-full whitespace-nowrap rounded-full px-2.5 py-0.5 text-center text-[12px] font-semibold leading-tight ${categoryPillClass(r.categorySlug)}`}
-                >
-                  {categoryLabel(r.categorySlug)}
-                </span>
+                <RankingsCategoryCell row={r} />
               </div>
-              <div className="flex justify-end">
-                <PulseRankingsActionCell detailTo={r.detailTo} externalUrl={r.externalUrl} />
+              <div className={`flex justify-end pt-0.5 lg:pt-0 ${stickyActionWrap}`}>
+                <PulseRankingsActionCell
+                  detailTo={r.detailTo}
+                  externalUrl={r.externalUrl}
+                  weeklyUi={r.weeklyUi}
+                />
               </div>
             </div>
           ))}
@@ -132,20 +183,27 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
               <PulseRankEventTitles
                 titleZh={r.titleZh}
                 titleEn={r.titleEn}
-                titleZhClassName={pulseRankTitleZhBoldCls}
+                titleZhClassName={r.titleZhClassName ?? pulseRankTitleZhBoldCls}
+                titleEnClassName={r.titleEnClassName}
+                hintOverflowTitle={r.overflowHints}
               />
             </div>
             <div className="mt-2 min-w-0">
-              <PulseRankMeaningBlock text={r.meaning} className={r.meaningClassName} />
+              <PulseRankMeaningBlock
+                text={r.meaning}
+                className={r.meaningClassName}
+                hintOverflowText={r.overflowHints}
+              />
             </div>
             <div className="mt-2 flex justify-start">
-              <span
-                className={`inline-flex rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${categoryPillClass(r.categorySlug)}`}
-              >
-                {categoryLabel(r.categorySlug)}
-              </span>
+              <RankingsCategoryCell row={r} />
             </div>
-            <PulseRankingsActionCell detailTo={r.detailTo} externalUrl={r.externalUrl} mobileFullWidth />
+            <PulseRankingsActionCell
+              detailTo={r.detailTo}
+              externalUrl={r.externalUrl}
+              mobileFullWidth
+              weeklyUi={r.weeklyUi}
+            />
           </li>
         ))}
       </ul>
