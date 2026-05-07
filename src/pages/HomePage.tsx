@@ -8,24 +8,40 @@ import { EmptyState } from '../components/common/EmptyState';
 import { estimateReadingMinutes } from '../components/weekly/weeklyPayloadUtils';
 import { formatSlashDateFromIso } from '../lib/homeRankingsDisplay';
 
+/** 周报预览右侧：文档式轻立体插画（极简、非占位大块） */
 function ReportPreviewIllustration() {
   return (
     <div
-      className="hidden shrink-0 md:flex h-[190px] w-[190px] items-center justify-center rounded-[28px] border border-[#C7DCFF] bg-[#DCEBFF]"
+      className="flex w-full shrink-0 justify-center md:w-[220px] md:max-w-[220px] md:justify-end lg:w-[240px] lg:max-w-[240px]"
       aria-hidden
     >
-      <div className="flex h-[88px] w-[88px] items-center justify-center rounded-[20px] bg-[#C9DCFF]">
-        <svg viewBox="0 0 120 120" className="h-12 w-12 text-[#3B82F6]" fill="none">
-          <rect x="22" y="14" width="76" height="92" rx="14" fill="currentColor" opacity="0.14" />
-          <path
-            d="M38 44h44M38 62h36M38 82l14-12 12 9 20-22"
-            stroke="currentColor"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="85" cy="36" r="6" fill="currentColor" opacity="0.35" />
-        </svg>
+      <div className="relative w-[min(200px,72vw)] md:w-[200px]">
+        <div className="pointer-events-none absolute -inset-6 -z-10 rounded-[40px] bg-[#E8F1FF]/35 blur-2xl" />
+        <div className="relative rounded-[15px] border border-[#E4EEFF] bg-white p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.06),0_2px_8px_rgba(37,99,235,0.06)]">
+          <div className="pointer-events-none absolute right-0 top-0 h-10 w-10 overflow-hidden rounded-tr-[14px]">
+            <div className="absolute right-0 top-0 h-14 w-14 translate-x-1/3 -translate-y-1/3 rotate-45 bg-[#EDF4FF]" />
+          </div>
+          <div className="relative space-y-2 pt-0.5">
+            <div className="h-2 w-[72%] rounded-full bg-slate-100" />
+            <div className="h-2 w-full rounded-full bg-slate-50" />
+            <div className="h-2 w-[88%] rounded-full bg-slate-50/90" />
+          </div>
+          <svg viewBox="0 0 132 52" className="mt-3.5 h-[52px] w-full" fill="none" aria-hidden>
+            <rect x="4" y="8" width="124" height="36" rx="6" fill="#F8FAFC" stroke="#E8EEF6" strokeWidth="1" />
+            <path
+              d="M16 38 L40 30 L60 34 L84 18 L108 24 L118 20"
+              stroke="#2563EB"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="84" cy="18" r="3" fill="#2563EB" opacity="0.35" />
+          </svg>
+          <div className="mt-2 flex gap-1.5">
+            <span className="h-1.5 flex-1 rounded-full bg-[#DBEAFE]" />
+            <span className="h-1.5 w-8 rounded-full bg-[#EFF6FF]" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -104,15 +120,15 @@ export default function HomePage() {
       <section className="mb-16 pb-10 md:mb-20 md:pb-12">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_470px] lg:items-start lg:gap-16">
           <div className="min-w-0">
-            <h1 className="max-w-[520px] font-headline text-[40px] font-extrabold leading-[1.12] tracking-[-0.03em] text-[#0F172A] md:text-[64px] md:leading-[1.1]">
+            <h1 className="max-w-[460px] font-headline text-[38px] font-extrabold leading-[1.12] tracking-[-0.03em] text-[#0F172A] md:text-[48px] md:leading-[1.08] xl:text-[52px]">
               每天看 AI 信号，
               <br className="hidden sm:block" />
               每周读 AI 简报
             </h1>
-            <p className="mt-4 max-w-[540px] text-[16px] font-normal leading-[1.8] text-[#64748B] md:mt-5">
-              AI Pulse 持续追踪全球 AI 产品、模型、工具与行业动态，基于多源数据筛选重要信息，用 Pulse Score 作为排序参考，并在每周 AI 信号简报中整理关键变化、工具线索与背景解释。
+            <p className="mt-[22px] max-w-[420px] text-[16px] font-normal leading-[1.8] text-[#64748B]">
+              追踪全球 AI 动态，筛出值得看的信息，每周整理成 AI 信号简报。
             </p>
-            <div className="mt-6 flex flex-wrap gap-4 md:mt-7">
+            <div className="mt-7 flex flex-wrap gap-4">
               <Link
                 to="/rankings"
                 className="inline-flex h-[46px] items-center justify-center rounded-full bg-[#1463FF] px-5 text-[15px] font-bold text-white no-underline transition-opacity hover:opacity-95"
@@ -154,12 +170,10 @@ export default function HomePage() {
         </p>
       </section>
 
-      <InformationQualityWorkflow />
-
-      {/* Weekly preview */}
-      <section>
-        <h2 className="font-headline text-[30px] font-extrabold leading-[1.2] text-[#0F172A]">本周信息摘要预览</h2>
-        <p className="mb-6 mt-2 text-[15px] leading-[1.7] text-[#64748B]">最新一期周报的结构化整理。</p>
+      {/* Weekly preview — Top5 间距约 72px（section mb-[72px]） */}
+      <section className="mb-[80px]">
+        <h2 className="font-headline text-[30px] font-extrabold leading-[1.2] text-[#0F172A]">本周 AI 信号简报预览</h2>
+        <p className="mb-5 mt-2 text-[14px] leading-relaxed text-[#94A3B8]">最新一期周报的结构化整理。</p>
         {weeklyErr || !weeklyPreview?.headline ? (
           <EmptyState
             title="暂无已发布周报"
@@ -168,24 +182,26 @@ export default function HomePage() {
             actionTo="/subscribe"
           />
         ) : (
-          <div className="min-h-[270px] overflow-hidden rounded-[24px] border border-[#D8E8FF] bg-[#EEF5FF]">
-            <div className="grid gap-10 px-8 py-8 md:grid-cols-[minmax(0,1fr)_220px] md:items-center md:gap-10 md:px-9">
+          <div className="overflow-hidden rounded-[24px] border border-[#D9E8FF] bg-[#FAFCFF] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <div className="flex flex-col gap-6 px-7 py-7 md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-9 md:px-8 md:py-7 lg:grid-cols-[minmax(0,1fr)_240px] lg:px-9 lg:py-8">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[14px] font-medium text-[#64748B]">
-                  <span className="rounded-full border border-[#CFE0FF] bg-white px-[10px] py-[6px] text-[13px] font-bold text-[#2563EB]">
-                    本周信息摘要预览
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                  <span className="inline-flex w-fit shrink-0 rounded-full border border-[#C9DCF5] bg-white px-2.5 py-1 text-[12px] font-bold leading-none text-[#2563EB]">
+                    本周信号简报预览
                   </span>
-                  {weeklyPreview.reportDate ? (
-                    <time dateTime={weeklyPreview.reportDate}>{formatSlashDateFromIso(weeklyPreview.reportDate)}</time>
-                  ) : null}
-                  <span className="text-[#CBD5E1]">·</span>
-                  <span>阅读约 {weeklyPreview.readingMinutes} 分钟</span>
+                  <div className="flex flex-wrap items-center gap-x-2 text-[13px] leading-none text-[#94A3B8] sm:justify-end">
+                    {weeklyPreview.reportDate ? (
+                      <time dateTime={weeklyPreview.reportDate}>{formatSlashDateFromIso(weeklyPreview.reportDate)}</time>
+                    ) : null}
+                    {weeklyPreview.reportDate ? <span className="text-[#CBD5E1]">·</span> : null}
+                    <span>阅读约 {weeklyPreview.readingMinutes} 分钟</span>
+                  </div>
                 </div>
-                <h3 className="mt-5 line-clamp-3 max-w-[760px] font-headline text-[30px] font-extrabold leading-[1.28] tracking-[-0.02em] text-[#0F172A] [overflow-wrap:anywhere]">
+                <h3 className="mt-4 line-clamp-2 max-w-[640px] font-headline text-[24px] font-extrabold leading-[1.3] tracking-[-0.015em] text-[#0F172A] [overflow-wrap:anywhere] md:text-[26px] md:leading-[1.28] xl:text-[28px] xl:leading-[1.32]">
                   {weeklyPreview.headline}
                 </h3>
                 {weeklyPreview.summary ? (
-                  <div className="mt-4 max-w-[760px] text-[15px] font-normal leading-[1.85] text-[#64748B]">
+                  <div className="mt-3 max-w-[580px] text-[15px] font-normal leading-[1.8] text-[#64748B]">
                     {weeklyPreview.summary
                       .split(/\n\n+/)
                       .map((para) => para.trim())
@@ -198,13 +214,13 @@ export default function HomePage() {
                       ))}
                   </div>
                 ) : weeklyPreview.boundary ? (
-                  <p className="mt-4 max-w-[760px] text-[15px] leading-[1.85] text-[#64748B] line-clamp-3">{weeklyPreview.boundary}</p>
+                  <p className="mt-3 max-w-[580px] text-[15px] leading-[1.8] text-[#64748B] line-clamp-3">{weeklyPreview.boundary}</p>
                 ) : weeklyPreview.titles[0] ? (
-                  <p className="mt-4 max-w-[760px] text-[15px] leading-[1.85] text-[#64748B]">{weeklyPreview.titles[0]}</p>
+                  <p className="mt-3 max-w-[580px] text-[15px] leading-[1.8] text-[#64748B] line-clamp-3">{weeklyPreview.titles[0]}</p>
                 ) : null}
                 <Link
                   to="/weekly/latest"
-                  className="mt-7 inline-flex h-11 items-center justify-center rounded-full bg-[#1463FF] px-5 text-[15px] font-bold text-white no-underline transition-opacity hover:opacity-95"
+                  className="mt-5 inline-flex h-[42px] items-center justify-center rounded-full bg-[#1463FF] px-[20px] text-[15px] font-bold text-white no-underline transition-opacity hover:opacity-95 md:h-11 md:px-[22px]"
                 >
                   阅读完整报告 →
                 </Link>
@@ -214,6 +230,9 @@ export default function HomePage() {
           </div>
         )}
       </section>
+
+      {/* 信息质量说明 — 紧随周报，间距约 80px（见上周报 section mb） */}
+      <InformationQualityWorkflow />
     </div>
   );
 }
