@@ -9,6 +9,8 @@ import RankingsPage from './pages/RankingsPage';
 import WeeklyLatestPage from './pages/WeeklyLatestPage';
 import WeeklyReportPage from './pages/WeeklyReportPage';
 import SubscribePage from './pages/SubscribePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
 
 export default function App() {
   return (
@@ -24,6 +26,8 @@ export default function App() {
           <Route path="/weekly/:date" element={<WeeklyReportPage />} />
           <Route path="/archive" element={<ArchivePage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/subscribe" element={<SubscribePage />} />
         </Route>
 

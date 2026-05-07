@@ -13,14 +13,14 @@ export function Footer() {
         </div>
         <div className="flex flex-wrap gap-x-8 gap-y-2 md:justify-end">
           <Link className="text-slate-500 transition hover:text-primary" to="/subscribe">
-            Email Subscription
+            订阅周报
           </Link>
-          <span className="cursor-default text-slate-400" title="Coming soon">
-            Privacy Policy
-          </span>
-          <span className="cursor-default text-slate-400" title="Coming soon">
-            Terms
-          </span>
+          <Link className="text-slate-500 transition hover:text-primary" to="/privacy">
+            隐私政策
+          </Link>
+          <Link className="text-slate-500 transition hover:text-primary" to="/terms">
+            服务条款
+          </Link>
         </div>
       </div>
     </footer>

@@ -157,6 +157,23 @@ export function weeklyPulseMeaning(row: WeeklyLooseRow): string {
   return '';
 }
 
+/** Top3 表格 Score 列：与首页榜单 pulseDisplayScore 口径一致 */
+export function weeklyPulseDisplayScore(row: WeeklyLooseRow): number {
+  const raw = (row.pulse_score ?? row.ranking_score ?? '').trim();
+  if (!raw) return 0;
+  const p = Number(raw);
+  if (!Number.isFinite(p)) return 0;
+  const v = p >= 0 && p <= 1 ? p * 100 : p;
+  return Math.round(Math.min(100, Math.max(0, v)) * 10) / 10;
+}
+
+/** 分类 slug：normalize 写入 theme，兼容直接 category */
+export function weeklyRowCategorySlug(row: WeeklyLooseRow): string {
+  const a = (row.category ?? '').trim().toLowerCase();
+  if (a) return a;
+  return (row.theme ?? '').trim().toLowerCase();
+}
+
 /**
  * 组装「本周最重要的若干条信息」（最多 5 条）：优先显式 top5_information；否则合并 top3 与分类条目补足。
  */

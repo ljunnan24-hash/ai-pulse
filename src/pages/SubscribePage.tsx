@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { apiBase } from '../config';
 
@@ -141,6 +141,17 @@ export default function SubscribePage() {
             {loading ? '发送中…' : '确认订阅'}
           </button>
           {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
+          <p className="border-t border-slate-100 pt-5 text-xs leading-relaxed text-slate-500">
+            提交订阅即表示您已阅读并同意
+            <Link to="/privacy" className="mx-1 font-medium text-[#2563EB] underline-offset-2 hover:underline">
+              《隐私政策》
+            </Link>
+            与
+            <Link to="/terms" className="mx-1 font-medium text-[#2563EB] underline-offset-2 hover:underline">
+              《服务条款》
+            </Link>
+            中对个人信息处理与邮件服务的约定。
+          </p>
         </form>
       </div>
     </div>

@@ -148,31 +148,14 @@ export default function RankingsPage() {
       ) : null}
 
       {!err && items.length > 0 ? (
-        <div className="grid gap-8 lg:grid-cols-12 lg:gap-8 lg:items-start">
-          <div className="min-w-0 lg:col-span-9">
-            <RankingsPageTable items={items} />
-            <p className="mt-4 text-center text-[13px] text-[#64748B]">
-              共 {items.length} 条 · 可调整时间范围与分类
-            </p>
-            <p className="mt-3 text-[13px] leading-relaxed text-[#64748B] md:text-center">
-              Pulse Score 仅用于辅助排序，不代表投资、职业或商业决策建议。
-            </p>
-          </div>
-
-          <aside className="space-y-4 lg:col-span-3">
-            <div className="rounded-[18px] border border-[#D8E2F0] bg-white px-[18px] py-5">
-              <h3 className="font-headline text-[15px] font-extrabold text-[#0F172A]">订阅周报</h3>
-              <p className="mt-2 text-[13px] leading-[1.6] text-[#64748B]">
-                周报按主题整理信息，并附轻量价值提示，方便你决定要不要深入。
-              </p>
-              <Link
-                to="/subscribe"
-                className="btn-primary mt-4 inline-flex h-10 w-full items-center justify-center px-4 text-[14px] font-bold no-underline"
-              >
-                订阅周报
-              </Link>
-            </div>
-          </aside>
+        <div className="min-w-0">
+          <RankingsPageTable items={items} />
+          <p className="mt-4 text-center text-[13px] text-[#64748B]">
+            共 {items.length} 条 · 可调整时间范围与分类
+          </p>
+          <p className="mt-3 text-[13px] leading-relaxed text-[#64748B] md:text-center">
+            Pulse Score 仅用于辅助排序，不代表投资、职业或商业决策建议。
+          </p>
         </div>
       ) : null}
 
