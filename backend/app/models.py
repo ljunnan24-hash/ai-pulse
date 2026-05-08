@@ -264,3 +264,36 @@ class AdminUser(Base):
     is_active: Mapped[int] = mapped_column(Integer, default=1, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AnalyticsPageView(Base):
+    """站内页面浏览埋点（匿名 visitor_id + ip_hash）。"""
+
+    __tablename__ = "analytics_page_views"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    visitor_id: Mapped[str] = mapped_column(String(40), index=True)
+    session_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    path: Mapped[str] = mapped_column(String(512), index=True)
+    referrer: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    ip_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class UserFeedback(Base):
+    """关于页等入口的用户建议反馈。"""
+
+    __tablename__ = "user_feedback"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    content: Mapped[str] = mapped_column(Text)
+    contact: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_page: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="new", index=True)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    ip_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    visitor_id: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -97,3 +97,69 @@ export async function adminResendLatestWeekly(id: number) {
   return await http<{ ok: boolean }>(`/admin/subscribers/by-id/${id}/resend-latest-weekly`, { method: 'POST' });
 }
 
+export type AdminAnalyticsSummary = {
+  timezone_note?: string;
+  today: { pv: number; uv: number };
+  last_7_days: { pv: number; uv: number };
+  last_30_days: { pv: number; uv: number };
+  top_pages: Array<{ path: string; pv: number; uv: number }>;
+};
+
+export async function adminAnalyticsSummary(): Promise<AdminAnalyticsSummary> {
+  return await http<AdminAnalyticsSummary>('/api/admin/analytics/summary');
+}
+
+export type AdminPageviewRow = {
+  id: number;
+  visitor_id: string;
+  session_id: string | null;
+  path: string;
+  referrer: string | null;
+  user_agent: string | null;
+  ip_hash: string | null;
+  created_at: string | null;
+};
+
+export async function adminAnalyticsPageviews(limit = 100): Promise<{ items: AdminPageviewRow[] }> {
+  return await http<{ items: AdminPageviewRow[] }>(`/api/admin/analytics/pageviews?limit=${limit}`);
+}
+
+export type AdminFeedbackRow = {
+  id: number;
+  content: string;
+  contact: string | null;
+  source_page: string | null;
+  status: string;
+  admin_note: string | null;
+  user_agent: string | null;
+  ip_hash: string | null;
+  visitor_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export async function adminFeedbackList(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: AdminFeedbackRow[]; total_returned: number }> {
+  const usp = new URLSearchParams();
+  if (params?.status) usp.set('status', params.status);
+  if (params?.limit != null) usp.set('limit', String(params.limit));
+  if (params?.offset != null) usp.set('offset', String(params.offset));
+  const qs = usp.toString();
+  return await http<{ items: AdminFeedbackRow[]; total_returned: number }>(
+    `/api/admin/feedback${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export async function adminFeedbackPatch(
+  id: number,
+  body: { status?: string; admin_note?: string | null },
+): Promise<{ id: number; status: string; admin_note: string | null; updated_at: string | null }> {
+  return await http(`/api/admin/feedback/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+

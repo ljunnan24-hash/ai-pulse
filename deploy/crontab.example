@@ -1,15 +1,24 @@
-# AI Pulse — example crontab (Asia/Shanghai).
-# Ensure the server timezone is `timedatectl set-timezone Asia/Shanghai`, or prefix jobs with TZ.
-# flock 避免任务重叠（尤其 generate_weekly 与多实例 cron）。
+# AI Pulse — example crontab（优先 Asia/Shanghai；服务器可用 timedatectl set-timezone Asia/Shanghai）
+# flock：同一任务不重叠；日志路径请按部署修改。
 #
-# Monday 00:30 — crawl + summarize + mark issue ready
-30 0 * * 1 flock -n /var/lock/aipulse-generate.lock -c 'cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.generate_weekly' >> /var/log/aipulse-generate.log 2>&1
+# 北京时间深夜跑重任务，减轻白天访问高峰 CPU / IO。
+# 若在 UTC 主机上仅用 TZ=Asia/Shanghai，下列「分钟/小时」仍为北京时间语义。
+
+TZ=Asia/Shanghai
+
+# flock 锁文件可用 /tmp（兼容性好）或 /var/lock（部分发行版需权限）；-n 表示拿不到锁则跳过本次，防并发写库。
 #
-# Monday 09:00 — send weekly emails to all subscribers (no --test; 手动测试: ... send_weekly --test)
-0 9 * * 1 flock -n /var/lock/aipulse-send.lock -c 'cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.send_weekly' >> /var/log/aipulse-send.log 2>&1
-#
-# Daily rankings — global_events（北京时间每天 8:00 一次）
-0 8 * * * flock -n /var/lock/aipulse-daily.lock -c 'cd /opt/ai-pulse/backend && /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.daily_rankings' >> /var/log/aipulse-daily.log 2>&1
-#
-# API (FastAPI) should run under systemd or supervisor, e.g.:
+# 02:10 — 每日爬虫 + raw_items + global_events / 排行榜
+10 2 * * * cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_daily_rankings.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.daily_rankings >> /var/log/aipulse-daily.log 2>&1
+
+# 02:40 — Ranking Insight 文案 enrich（依赖 .env RANKING_INSIGHT_ENABLED；可按需注释）
+40 2 * * * cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_enrich_rankings.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.enrich_rankings --limit 80 >> /var/log/aipulse-enrich.log 2>&1
+
+# 周一 03:10 — 周报生成（generate_weekly；内部可含抓取逻辑）
+10 3 * * 1 cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_generate_weekly.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.generate_weekly >> /var/log/aipulse-generate.log 2>&1
+
+# 周一 04:00 — 向订阅用户发送周报邮件
+0 4 * * 1 cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_send_weekly.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.send_weekly >> /var/log/aipulse-send.log 2>&1
+
+# FastAPI 建议 systemd / supervisor，例如：
 #   uvicorn app.main:app --host 0.0.0.0 --port 8000

@@ -1,5 +1,6 @@
 """
 仅重跑 Ranking Insight（不调爬虫、不写 raw_items）。
+可选每日 cron，接在 daily_rankings 之后（见 deploy/crontab.example，默认 02:40）。
 
 用法：
   cd backend && python -m app.jobs.enrich_rankings --limit 50

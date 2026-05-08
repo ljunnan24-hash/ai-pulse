@@ -26,6 +26,7 @@ export default defineConfig(({mode}) => {
         '/admin/auth': { target: 'http://127.0.0.1:8000', changeOrigin: true },
         '/admin/metrics': { target: 'http://127.0.0.1:8000', changeOrigin: true },
         '/admin/subscribers': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+        // 运营统计 / 反馈 API 已迁至 /api/admin/*，由 /api 代理统一转发，勿再单独代理 /admin/analytics
         '/manage': { target: 'http://127.0.0.1:8000', changeOrigin: true },
         '/health': { target: 'http://127.0.0.1:8000', changeOrigin: true },
       },

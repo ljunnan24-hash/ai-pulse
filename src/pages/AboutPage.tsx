@@ -1,6 +1,10 @@
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Archive, CalendarDays, FileText, Layers2 } from 'lucide-react';
+
+import { apiBase } from '../config';
+import { getVisitorId } from '../lib/analytics';
 
 /** 关于页统一：白卡、细边框、轻阴影（与全站浅灰蓝画布一致） */
 const cardPlain =
@@ -14,6 +18,49 @@ function MiniIcon({ children }: { children: ReactNode }) {
 }
 
 export default function AboutPage() {
+  const [content, setContent] = useState('');
+  const [contact, setContact] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  async function onSubmitSuggest(e: FormEvent) {
+    e.preventDefault();
+    const c = content.trim();
+    if (c.length < 5) {
+      setMsg({ kind: 'err', text: '请至少填写 5 个字的建议内容。' });
+      return;
+    }
+    setSubmitting(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`${apiBase()}/api/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          content: c,
+          contact: contact.trim() || undefined,
+          source_page: '/about',
+          visitor_id: getVisitorId(),
+        }),
+      });
+      if (res.status === 429) {
+        setMsg({ kind: 'err', text: '提交过于频繁，请稍后再试。' });
+        return;
+      }
+      if (!res.ok) {
+        const t = await res.text().catch(() => '');
+        throw new Error(t || `HTTP ${res.status}`);
+      }
+      setMsg({ kind: 'ok', text: '感谢你的反馈，我们会认真查看。' });
+      setContent('');
+      setContact('');
+    } catch {
+      setMsg({ kind: 'err', text: '提交失败，请稍后再试。' });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="page-container pb-16 md:pb-20">
       <div className="space-y-8 md:space-y-10">
@@ -222,7 +269,62 @@ export default function AboutPage() {
           </p>
         </section>
 
-        {/* 八、底部 CTA */}
+        {/* 八、给 AI Pulse 提建议 */}
+        <section className={cardPlain} aria-labelledby="about-suggest">
+          <h2 id="about-suggest" className="heading-section text-slate-900">
+            给 AI Pulse 提建议
+          </h2>
+          <p className="mt-4 text-sm leading-relaxed text-slate-600 md:text-[15px] md:leading-relaxed">
+            如果你有产品建议、信息源推荐、错误反馈或合作想法，欢迎告诉我们。
+          </p>
+          <form onSubmit={onSubmitSuggest} className="mt-5 space-y-4">
+            <div>
+              <label htmlFor="suggest-content" className="block text-sm font-medium text-slate-700">
+                建议内容 <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                id="suggest-content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={5}
+                maxLength={1000}
+                placeholder="至少 5 个字，最多 1000 字"
+                className="mt-2 w-full rounded-xl border border-[#D8E2F0] bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-offset-2 focus:border-[#94A3B8] focus:ring-2 focus:ring-[#1463FF]/20"
+              />
+            </div>
+            <div>
+              <label htmlFor="suggest-contact" className="block text-sm font-medium text-slate-700">
+                联系方式（选填）
+              </label>
+              <input
+                id="suggest-contact"
+                type="text"
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+                maxLength={120}
+                placeholder="邮箱或微信号，便于我们必要时回复"
+                className="mt-2 w-full rounded-xl border border-[#D8E2F0] bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-[#94A3B8] focus:ring-2 focus:ring-[#1463FF]/20"
+              />
+            </div>
+            {msg ? (
+              <p
+                className={`text-sm ${msg.kind === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}
+                role="status"
+              >
+                {msg.text}
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary-lg px-6 py-2.5 text-sm font-semibold disabled:opacity-60"
+            >
+              {submitting ? '提交中…' : '提交建议'}
+            </button>
+          </form>
+        </section>
+
+        {/* 九、底部 CTA */}
         <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap">
           <Link to="/rankings" className="btn-primary-lg px-6 text-center no-underline md:px-8">
             查看今日榜单

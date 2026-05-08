@@ -11,12 +11,14 @@ import WeeklyReportPage from './pages/WeeklyReportPage';
 import SubscribePage from './pages/SubscribePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
+import { AnalyticsTracker } from './components/AnalyticsTracker';
 import { ScrollToTop } from './components/ScrollToTop';
 
 export default function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <AnalyticsTracker />
       <Routes>
         <Route path="/admin/*" element={<AdminApp />} />
 

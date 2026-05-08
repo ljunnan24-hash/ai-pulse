@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { clearAdminToken } from '../auth/adminToken';
-import { LayoutDashboard, LogOut, RefreshCw, Users } from 'lucide-react';
+import { BarChart3, LayoutDashboard, LogOut, MessageSquare, RefreshCw, Users } from 'lucide-react';
 
 const linkBase =
   'flex items-center gap-3 px-3 py-2 rounded-xl transition-colors font-medium';
@@ -40,6 +40,24 @@ export function AdminLayout() {
             >
               <Users className="w-5 h-5" />
               Subscribers
+            </NavLink>
+            <NavLink
+              to="/admin/analytics"
+              className={({ isActive }) =>
+                `${linkBase} ${isActive ? 'bg-primary-container/40 text-primary' : 'text-on-surface-variant hover:bg-surface-container-low'}`
+              }
+            >
+              <BarChart3 className="w-5 h-5" />
+              访问统计
+            </NavLink>
+            <NavLink
+              to="/admin/feedback"
+              className={({ isActive }) =>
+                `${linkBase} ${isActive ? 'bg-primary-container/40 text-primary' : 'text-on-surface-variant hover:bg-surface-container-low'}`
+              }
+            >
+              <MessageSquare className="w-5 h-5" />
+              用户反馈
             </NavLink>
           </nav>
 

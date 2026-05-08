@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # RDS 开启 SSL 时：阿里云下载的 ApsaraDB-CA-Chain.pem 绝对路径（与 mysql --ssl-ca 一致）
     database_ssl_ca: str = ""
 
+    # 匿名埋点 / 反馈：IP 哈希盐（可选；默认回退 admin_jwt_secret）
+    analytics_ip_pepper: str = ""
+
     public_app_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
     # 对外周报页与邮件 main_link 使用的站点根（须含协议与域名），如 https://aipulse.asia

@@ -1,7 +1,7 @@
 """
 每日抓取 → raw_items（issue_id NULL）→ global_events 合并与评分。
 用法：cd backend && .venv/bin/python -m app.jobs.daily_rankings
-Cron 示例见 deploy/crontab.example
+Cron：建议北京时间深夜执行（见 deploy/crontab.example，默认 02:10）。
 """
 
 from __future__ import annotations
