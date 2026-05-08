@@ -14,11 +14,11 @@ TZ=Asia/Shanghai
 # 02:40 — Ranking Insight 文案 enrich（依赖 .env RANKING_INSIGHT_ENABLED；可按需注释）
 40 2 * * * cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_enrich_rankings.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.enrich_rankings --limit 80 >> /var/log/aipulse-enrich.log 2>&1
 
-# 周一 03:10 — 周报生成（generate_weekly；内部可含抓取逻辑）
-10 3 * * 1 cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_generate_weekly.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.generate_weekly >> /var/log/aipulse-generate.log 2>&1
+# 周一 04:10 — 周报生成（generate_weekly；晚于每日 02:10 日报，避免数据未就绪）
+10 4 * * 1 cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_generate_weekly.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.generate_weekly >> /var/log/aipulse-generate.log 2>&1
 
-# 周一 04:00 — 向订阅用户发送周报邮件
-0 4 * * 1 cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_send_weekly.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.send_weekly >> /var/log/aipulse-send.log 2>&1
+# 周一 05:00 — 向订阅用户发送周报邮件（须晚于上一行生成任务）
+0 5 * * 1 cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_send_weekly.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.send_weekly >> /var/log/aipulse-send.log 2>&1
 
 # FastAPI 建议 systemd / supervisor，例如：
 #   uvicorn app.main:app --host 0.0.0.0 --port 8000

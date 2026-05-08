@@ -6,8 +6,8 @@
 |------|-----------|----------|------|------|------------|---------------------|
 | 每日排行榜 / 抓取合并 | `python -m app.jobs.daily_rankings` | RSS/GitHub 等抓取 | 是（raw_items、global_events） | 否 | 每日 08:00 | **02:10** |
 | Ranking Insight | `python -m app.jobs.enrich_rankings` | LLM（若开启） | 是（metrics_json 等） | 否 | （未统一） | **02:40** |
-| 周报生成 | `python -m app.jobs.generate_weekly` | 抓取 + LLM | 是 | 否 | 周一 00:30 | **周一 03:10** |
-| 周报发送 | `python -m app.jobs.send_weekly` | SMTP | 是（send_logs） | **是** | 周一 09:00 | **周一 04:00** |
+| 周报生成 | `python -m app.jobs.generate_weekly` | 抓取 + LLM | 是 | 否 | 周一 00:30 | **周一 04:10**（晚于每日 02:10 抓取） |
+| 周报发送 | `python -m app.jobs.send_weekly` | SMTP | 是（send_logs） | **是** | 周一 09:00 | **周一 05:00**（须晚于周报生成） |
 
 其它脚本（按需手工执行，默认不进 crontab）：`build_weekly_multi_agent`、`backfill_title_zh`、`dedupe_event_sources` 等。
 

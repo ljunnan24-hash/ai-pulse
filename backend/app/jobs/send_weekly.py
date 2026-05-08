@@ -1,5 +1,5 @@
 """
-周一凌晨由 cron 调用（推荐北京时间 04:00，见 deploy/crontab.example）：
+周一凌晨由 cron 调用（推荐北京时间 05:00，须晚于 generate_weekly，见 deploy/crontab.example）：
   cd backend && python -m app.jobs.send_weekly
 
 测试只发固定收件人（默认 2089128910@qq.com），无需改 .env：

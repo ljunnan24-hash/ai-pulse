@@ -1,5 +1,5 @@
 """
-周一凌晨由 cron 调用（推荐北京时间 03:10，见 deploy/crontab.example）：
+周一凌晨由 cron 调用（推荐北京时间 04:10，见 deploy/crontab.example）：
   cd backend && python -m app.jobs.generate_weekly
 
 默认多 Agent（Cleaner→Verifier→Impact→…→Composer）。
