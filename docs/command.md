@@ -35,11 +35,18 @@ sudo nginx -t && sudo systemctl reload nginx
 grep -o 'assets/index-[^"]*\.js' /var/www/aipulse/index.html
 curl -sS https://aipulse.asia/ | grep -o 'assets/index-[^"]*\.js'
 
-## Crontab：每日榜单（建议每天早 8 点一条）
+## Crontab（与仓库 `deploy/crontab.example` 一致）
 
-示例见仓库 **`deploy/crontab.example`**（北京时间 **`0 8 * * *`** 跑 **`daily_rankings`**）。
+服务器建议 **`TZ=Asia/Shanghai`**（开头一行或 `timedatectl set-timezone Asia/Shanghai`）。
 
-服务器若仍为每日三趟（8/14/21），可 **`sudo crontab -e`** 删掉 14 点、21 点两行，只保留 **8:00** 那一行，保存后 **`sudo crontab -l`** 核对。
+| 时间（北京时间） | 任务 |
+|------------------|------|
+| 每日 **02:10** | `daily_rankings`（爬虫 + raw_items + global_events） |
+| 每日 **02:40** | `enrich_rankings`（依赖 `.env` `RANKING_INSIGHT_ENABLED`，可注释掉） |
+| 周一 **04:10** | `generate_weekly`（须晚于当日日报流水线） |
+| 周一 **05:00** | `send_weekly`（须晚于上一行生成） |
+
+完整可复制片段（含 `flock`、日志路径）见 **`deploy/crontab.example`**。编辑后 **`sudo crontab -l`**（若用 root 跑 cron）核对。
 
 ---
 
