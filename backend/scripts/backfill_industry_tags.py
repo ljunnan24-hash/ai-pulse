@@ -1,9 +1,9 @@
 """
 回填 GlobalEvent.metrics_json.industry_tags（仅 category=industry）。
 
-用法：
-  cd backend && .venv/bin/python -m scripts.backfill_industry_tags
-  cd backend && .venv/bin/python -m scripts.backfill_industry_tags --dry-run
+用法（必须用项目 venv，不要用系统 python —— CentOS 默认可能是 Python 3.6）：
+  cd /opt/ai-pulse/backend && .venv/bin/python -m scripts.backfill_industry_tags --dry-run
+  cd /opt/ai-pulse/backend && .venv/bin/python -m scripts.backfill_industry_tags
 """
 
 from __future__ import annotations
