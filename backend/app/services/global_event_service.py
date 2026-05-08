@@ -459,7 +459,7 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
     if title_zh_sha_keep:
         metrics["title_zh_source_sha256"] = title_zh_sha_keep
 
-    # 行业细分标签（仅 category=industry；规则匹配；不写 LLM）
+    # 领域/场景标签（全大类；metrics_json.industry_tags；规则匹配；不写 LLM；不影响评分字段）
     metrics["industry_tags"] = infer_industry_tags_for_global_event(ge, metrics)
 
     ge.metrics_json = json.dumps(metrics, ensure_ascii=False)

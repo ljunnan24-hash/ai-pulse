@@ -50,11 +50,11 @@ export type PulseRankingsTableRow = {
   weeklyCategoryResolved?: WeeklyCategoryResolved | null;
   /** 周报操作列文案：查看来源 / 暂无详情 */
   weeklyUi?: boolean;
-  /** 行业细分小标签（排行榜专用，最多展示由调用方 slice） */
+  /** 领域/场景补充标签（API 仍为 industry_tags；最多展示 2 个由组件内 slice） */
   industryTags?: Array<{ slug: string; label: string }>;
 };
 
-/** 行业细分标签：通常叠放在「分类」大类 pill 下方；`className` 可控制对齐与外边距 */
+/** 大类 pill 下的补充说明（比大类 pill 更轻）；叠放在「分类」列纵向第二行 */
 export function IndustryTagPills({
   tags,
   className = '',
@@ -64,11 +64,11 @@ export function IndustryTagPills({
 }) {
   if (!tags.length) return null;
   return (
-    <div className={`flex flex-wrap gap-1.5 ${className}`.trim()}>
+    <div className={`flex flex-wrap gap-1 ${className}`.trim()}>
       {tags.slice(0, 2).map((t) => (
         <span
           key={t.slug}
-          className="inline-flex max-w-[10rem] truncate rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[11px] font-semibold leading-none text-slate-700 ring-1 ring-slate-300/95"
+          className="inline-flex max-w-[min(10rem,100%)] truncate rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-slate-500 ring-1 ring-slate-200/90"
         >
           {t.label}
         </span>
