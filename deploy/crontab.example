@@ -1,8 +1,13 @@
-# AI Pulse — example crontab（优先 Asia/Shanghai；服务器可用 timedatectl set-timezone Asia/Shanghai）
-# flock：同一任务不重叠；日志路径请按部署修改。
+# AI Pulse — example crontab
 #
-# 北京时间深夜跑重任务，减轻白天访问高峰 CPU / IO。
-# 若在 UTC 主机上仅用 TZ=Asia/Shanghai，下列「分钟/小时」仍为北京时间语义。
+# 【时区 — 统一上海时间】
+# 必须保留 TZ= 一行：其后的每一条「分 时 日 月 周」定时任务，均按该时区解析（上海 = Asia/Shanghai）。
+# TZ=Asia/Shanghai = 中国东部时间（上海），与「北京时间」同一时刻（UTC+8）。
+# 若服务器系统时区已是 Asia/Shanghai，仍建议保留本行，避免与 crontab 其它条目冲突。
+# 亦可执行：timedatectl set-timezone Asia/Shanghai
+#
+# flock：同一任务不重叠；日志路径请按部署修改。
+# 深夜跑重任务，减轻白天访问高峰 CPU / IO。
 
 TZ=Asia/Shanghai
 

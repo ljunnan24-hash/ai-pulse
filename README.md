@@ -10,7 +10,7 @@ English marketing SPA (Vite + React) plus a **Python (FastAPI)** backend: RSS in
 | `src/` | Frontend: subscription UI, demo Simple/Normal views |
 | `backend/` | API + cron jobs (`generate_weekly`, `send_weekly`) |
 | `sql/schema.sql` | MySQL DDL |
-| `deploy/crontab.example` | Beijing-time cron samples |
+| `deploy/crontab.example` | Cron samples (`TZ=Asia/Shanghai`，上海/北京 UTC+8） |
 | `docs/SCORING_V1.md` | Event scoring spec (v1) |
 | `docs/SOCIAL_SOURCES.md` | Social sources whitelist (v1) |
 | `docs/MULTI_AGENT_V1.md` | Multi-agent newsletter workflow (v1) |

@@ -37,9 +37,9 @@ curl -sS https://aipulse.asia/ | grep -o 'assets/index-[^"]*\.js'
 
 ## Crontab（与仓库 `deploy/crontab.example` 一致）
 
-服务器建议 **`TZ=Asia/Shanghai`**（开头一行或 `timedatectl set-timezone Asia/Shanghai`）。
+**所有示例时间均为中国东部时间**：在 crontab 顶部写 **`TZ=Asia/Shanghai`**（上海），与「北京时间」相同；或把服务器系统时区设为 `Asia/Shanghai`。
 
-| 时间（北京时间） | 任务 |
+| 时间（上海 / 北京，UTC+8） | 任务 |
 |------------------|------|
 | 每日 **02:10** | `daily_rankings`（爬虫 + raw_items + global_events） |
 | 每日 **02:40** | `enrich_rankings`（依赖 `.env` `RANKING_INSIGHT_ENABLED`，可注释掉） |

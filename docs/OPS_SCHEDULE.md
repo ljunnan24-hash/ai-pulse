@@ -2,7 +2,7 @@
 
 以下为仓库内 **job 入口** 与 **推荐 crontab**（详见 `deploy/crontab.example`）。实际命令与路径以部署环境为准。
 
-| 任务 | 模块入口 | 外部依赖 | 写库 | 邮件 | 原示例时间 | 现推荐（北京时间） |
+| 任务 | 模块入口 | 外部依赖 | 写库 | 邮件 | 原示例时间 | 现推荐（上海 Asia/Shanghai，同北京 UTC+8） |
 |------|-----------|----------|------|------|------------|---------------------|
 | 每日排行榜 / 抓取合并 | `python -m app.jobs.daily_rankings` | RSS/GitHub 等抓取 | 是（raw_items、global_events） | 否 | 每日 08:00 | **02:10** |
 | Ranking Insight | `python -m app.jobs.enrich_rankings` | LLM（若开启） | 是（metrics_json 等） | 否 | （未统一） | **02:40** |
@@ -18,9 +18,10 @@
 - **爬虫**：采集逻辑应在服务层带超时/重试（见 `crawler_service`）；job 层捕获异常并退出非零便于监控。
 - **事务**：ORM `commit` 由现有 service 控制；job 内异常时 `rollback`。
 
-### 时区
+### 时区（统一上海时间）
 
-推荐服务器系统时区或为 crontab 设置 **`TZ=Asia/Shanghai`**，与上表「北京时间」一致。若主机为 UTC，亦可仅用 `TZ=Asia/Shanghai` 前缀运行上述 cron 行。
+推荐在 **`deploy/crontab.example` 首段保留 `TZ=Asia/Shanghai`**：其后各行的「分 / 时」均按**上海（中国东部）**解释，与日常说的「北京时间」一致。  
+亦可 `timedatectl set-timezone Asia/Shanghai` 设系统时区；若主机为 UTC，仅靠 crontab 内 **`TZ=Asia/Shanghai`** 一行即可，无需改系统时钟。
 
 ### 生产反代与路由（避免 /admin 冲突）
 
