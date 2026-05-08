@@ -54,14 +54,15 @@ export type PulseRankingsTableRow = {
   industryTags?: Array<{ slug: string; label: string }>;
 };
 
-function IndustryTagPills({ tags }: { tags: Array<{ slug: string; label: string }> }) {
+/** 行业细分标签（榜单 / 首页共用）；略大于正文辅助字以保证可读性 */
+export function IndustryTagPills({ tags }: { tags: Array<{ slug: string; label: string }> }) {
   if (!tags.length) return null;
   return (
-    <div className="mt-1.5 flex flex-wrap gap-1">
+    <div className="mt-2 flex flex-wrap gap-1.5">
       {tags.slice(0, 2).map((t) => (
         <span
           key={t.slug}
-          className="inline-flex max-w-[8rem] truncate rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium leading-tight text-slate-600 ring-1 ring-slate-200/90"
+          className="inline-flex max-w-[10rem] truncate rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[11px] font-semibold leading-none text-slate-700 ring-1 ring-slate-300/95"
         >
           {t.label}
         </span>

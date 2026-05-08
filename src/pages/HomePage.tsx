@@ -116,8 +116,8 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-4 pb-16 pt-5 md:px-6 md:pb-20 md:pt-7">
-      {/* Hero */}
-      <section className="mb-16 pb-10 md:mb-20 md:pb-12">
+      {/* Hero：底部留白略收紧，避免与 Top5 之间视觉断层过大 */}
+      <section className="mb-8 pb-5 md:mb-10 md:pb-7">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_470px] lg:items-start lg:gap-16">
           <div className="min-w-0">
             <h1 className="max-w-[460px] font-headline text-[38px] font-extrabold leading-[1.12] tracking-[-0.03em] text-[#0F172A] md:text-[48px] md:leading-[1.08] xl:text-[52px]">
@@ -148,8 +148,8 @@ export default function HomePage() {
       </section>
 
       {/* Top 5 table */}
-      <section className="mb-[72px]">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <section className="mb-14 md:mb-16">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="font-headline text-[30px] font-extrabold leading-[1.2] text-[#0F172A]">今日 AI Pulse Top 5</h2>
             <p className="mt-2 max-w-2xl text-[15px] leading-[1.7] text-[#64748B]">

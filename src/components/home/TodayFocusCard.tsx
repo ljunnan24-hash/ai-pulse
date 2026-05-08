@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 
+import { IndustryTagPills } from '../pulse/PulseRankingsTableLayout';
 import type { HomeRankingItem } from '../../lib/homeRankingsDisplay';
 import {
   computeThreeMetrics,
@@ -90,6 +91,9 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
             <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500 [overflow-wrap:anywhere]">
               {pulseEventTitleEn(item)}
             </p>
+          ) : null}
+          {item.industry_tags && item.industry_tags.length > 0 ? (
+            <IndustryTagPills tags={item.industry_tags.slice(0, 2)} />
           ) : null}
 
           <div className="mt-5 grid grid-cols-3 gap-2">
