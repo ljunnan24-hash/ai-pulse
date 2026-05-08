@@ -144,39 +144,40 @@ export default function RankingsPage() {
         ))}
       </div>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-1 lg:grid-cols-[1fr_minmax(0,28rem)] lg:items-center lg:gap-6">
-        <div className="min-h-[1.5rem] text-sm text-[#475569]">
-          {debouncedQ ? (
-            <span>
-              搜索「{debouncedQ}」的相关事件 · 共 {items.length} 条
-              <button
-                type="button"
-                className="ml-3 font-semibold text-[#1463FF] underline-offset-2 hover:underline"
-                onClick={() => {
-                  setSearchInput('');
-                  setDebouncedQ('');
-                }}
-              >
-                清空搜索
-              </button>
-            </span>
-          ) : null}
-        </div>
-        <div className="relative w-full lg:justify-self-end">
+      {/* 搜索：与时间/分类筛选同一左缘，宽与主内容一致 */}
+      <div className="mb-8 mt-8 max-w-[720px] space-y-4">
+        <div className="relative w-full">
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
+            className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#94A3B8]"
             aria-hidden
           />
           <input
             type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="搜索行业、场景或关键词，例如：教育、医疗、电商、Agent"
-            className="w-full rounded-xl border border-[#D8E2F0] bg-white py-2.5 pl-10 pr-3 text-sm text-[#0F172A] shadow-sm outline-none placeholder:text-[#94A3B8] focus:border-[#94A3B8] focus:ring-2 focus:ring-[#1463FF]/20"
+            placeholder="搜索行业、场景或关键词，例如：教育、电商、Agent、内容创作"
+            className="h-12 w-full rounded-2xl border border-[#D8E2F0] bg-white py-3 pl-11 pr-4 text-sm text-[#0F172A] shadow-sm outline-none placeholder:text-[#94A3B8] focus:border-[#94A3B8] focus:ring-2 focus:ring-[#1463FF]/15"
             aria-label="搜索榜单事件"
             autoComplete="off"
           />
         </div>
+        {debouncedQ ? (
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-slate-500">
+            <span>
+              搜索「{debouncedQ}」的相关事件 · 共 {items.length} 条
+            </span>
+            <button
+              type="button"
+              className="font-normal text-[#2563EB] underline-offset-2 hover:underline"
+              onClick={() => {
+                setSearchInput('');
+                setDebouncedQ('');
+              }}
+            >
+              清空搜索
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {err ? (
