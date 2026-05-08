@@ -126,7 +126,7 @@ export default function HomePage() {
               每周读 AI 简报
             </h1>
             <p className="mt-[22px] max-w-[420px] text-[16px] font-normal leading-[1.8] text-[#64748B]">
-              追踪全球 AI 动态，筛出值得看的信息，帮你做出判断，每周整理成 AI 信号简报。
+              追踪全球 AI 动态，筛出值得看的信息，帮你做出判断。
             </p>
             <div className="mt-7 flex flex-wrap gap-4">
               <Link

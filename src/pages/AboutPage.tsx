@@ -1,7 +1,7 @@
 import type { FormEvent, ReactNode } from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, CalendarDays, FileText, Layers2 } from 'lucide-react';
+import { Archive, CalendarDays, FileText, Heart, Layers2 } from 'lucide-react';
 
 import { apiBase } from '../config';
 import { getVisitorId } from '../lib/analytics';
@@ -12,6 +12,10 @@ const cardPlain =
 
 const tagCls =
   'inline-flex items-center rounded-full border border-[#D8E2F0] bg-white px-3 py-1 text-[13px] font-medium text-slate-600';
+
+/** 静态资源路径：`public/reward-author-qrcode.png`；未部署该文件时请把开关改为 false，仅保留文案 */
+const SHOW_REWARD_QR = true;
+const REWARD_QR_SRC = '/reward-author-qrcode.png';
 
 function MiniIcon({ children }: { children: ReactNode }) {
   return <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center text-slate-500">{children}</span>;
@@ -269,7 +273,45 @@ export default function AboutPage() {
           </p>
         </section>
 
-        {/* 八、给 AI Pulse 提建议 */}
+        {/* 八、打赏作者 */}
+        <section className={cardPlain} aria-labelledby="about-reward">
+          <div
+            className={
+              SHOW_REWARD_QR ? 'flex flex-col gap-5 sm:flex-row sm:gap-6' : 'flex flex-col'
+            }
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex gap-3">
+                <MiniIcon>
+                  <Heart className="h-4 w-4" strokeWidth={2} aria-hidden />
+                </MiniIcon>
+                <h2 id="about-reward" className="heading-section text-slate-900">
+                  打赏作者
+                </h2>
+              </div>
+              <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600 md:text-[15px] md:leading-[1.75]">
+                <p>如果 AI Pulse 对你有帮助，欢迎打赏支持作者。</p>
+                <p>你的认可是我持续维护、优化和更新这个网站的重要动力。</p>
+              </div>
+            </div>
+            {SHOW_REWARD_QR ? (
+              <div className="flex shrink-0 flex-col items-center sm:items-end sm:pt-1">
+                <img
+                  src={REWARD_QR_SRC}
+                  alt="微信、支付宝打赏二维码"
+                  width={140}
+                  height={140}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-[140px] w-[140px] rounded-lg border border-[#E8EDF5] bg-white object-contain p-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                />
+                <p className="mt-2 text-center text-[13px] text-slate-500 sm:text-right">微信 / 支付宝打赏</p>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        {/* 九、给 AI Pulse 提建议 */}
         <section className={cardPlain} aria-labelledby="about-suggest">
           <h2 id="about-suggest" className="heading-section text-slate-900">
             给 AI Pulse 提建议
@@ -324,7 +366,7 @@ export default function AboutPage() {
           </form>
         </section>
 
-        {/* 九、底部 CTA */}
+        {/* 十、底部 CTA */}
         <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap">
           <Link to="/rankings" className="btn-primary-lg px-6 text-center no-underline md:px-8">
             查看今日榜单
