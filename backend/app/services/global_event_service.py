@@ -19,6 +19,7 @@ from app.services.digest_builder import classify_item_section
 from app.services.event_merge_service import _canonical_url, _norm_title
 from app.services.title_translate_service import ensure_global_event_title_zh
 from app.services.url_normalize import normalize_event_source_url, source_type_trust_rank
+from app.services.industry_tags import infer_industry_tags_for_global_event
 from app.services.ranking_score import (
     compute_ranking_score,
     freshness_from_published,
@@ -457,6 +458,10 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
         metrics["one_liner"] = one_liner_keep
     if title_zh_sha_keep:
         metrics["title_zh_source_sha256"] = title_zh_sha_keep
+
+    # 行业细分标签（仅 category=industry；规则匹配；不写 LLM）
+    metrics["industry_tags"] = infer_industry_tags_for_global_event(ge, metrics)
+
     ge.metrics_json = json.dumps(metrics, ensure_ascii=False)
     db.flush()
 

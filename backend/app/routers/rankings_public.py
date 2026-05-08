@@ -6,13 +6,18 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import GlobalEvent
 from app.services.global_event_service import build_deduped_sources_for_api
+from app.services.rankings_search_utils import (
+    industry_tags_from_metrics,
+    normalize_rankings_q,
+    sql_like_pattern,
+)
 from app.services.ranking_insight_service import CAPABILITY_KEYS, resolve_one_liner_for_api
 from app.services.ranking_score import RangeKey, effective_ranking_score, stable_pulse_score_for_global_event
 
@@ -37,6 +42,7 @@ def _parse_range(range_key: str) -> RangeKey:
 def list_rankings(
     range: str = "today",
     category: str = "all",
+    search_q: str | None = Query(None, alias="q"),
     limit: int = 20,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
@@ -45,12 +51,29 @@ def list_rankings(
     now = datetime.now(timezone.utc)
     cutoff = now - delta
 
-    q = select(GlobalEvent).where(GlobalEvent.status == "active")
-    q = q.where(or_(GlobalEvent.published_at >= cutoff, GlobalEvent.last_seen_at >= cutoff))
-    if category and category != "all":
-        q = q.where(GlobalEvent.category == category)
+    q_term = normalize_rankings_q(search_q)
 
-    rows = db.scalars(q.limit(800)).all()
+    stmt = select(GlobalEvent).where(GlobalEvent.status == "active")
+    stmt = stmt.where(or_(GlobalEvent.published_at >= cutoff, GlobalEvent.last_seen_at >= cutoff))
+    if category and category != "all":
+        stmt = stmt.where(GlobalEvent.category == category)
+
+    if q_term:
+        pat = sql_like_pattern(q_term)
+        esc = "\\"
+        stmt = stmt.where(
+            or_(
+                GlobalEvent.canonical_title.like(pat, escape=esc),
+                GlobalEvent.title_zh.like(pat, escape=esc),
+                GlobalEvent.summary.like(pat, escape=esc),
+                GlobalEvent.canonical_url.like(pat, escape=esc),
+                GlobalEvent.metrics_json.like(pat, escape=esc),
+                GlobalEvent.sources_json.like(pat, escape=esc),
+                GlobalEvent.category.like(pat, escape=esc),
+            )
+        )
+
+    rows = db.scalars(stmt.limit(800)).all()
 
     def _sort_ts(ge: GlobalEvent) -> datetime:
         if ge.published_at is not None:
@@ -63,7 +86,7 @@ def list_rankings(
         scored_rows.append((pulse, _sort_ts(ge), int(ge.source_count or 0), ge))
 
     scored_rows.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
-    scored_rows = scored_rows[: max(1, min(limit, 100))]
+    scored_rows = scored_rows[: max(1, min(limit, 50))]
 
     items: list[dict[str, Any]] = []
     for pulse, _ts, _sc, ge in scored_rows:
@@ -97,12 +120,14 @@ def list_rankings(
                 "what_it_means_for_you": ge.what_it_means_for_you or "",
                 "action_suggestion": ge.action_suggestion or "",
                 "one_liner": resolve_one_liner_for_api(ge),
+                "industry_tags": industry_tags_from_metrics(ge.metrics_json),
             }
         )
 
     return {
         "range": rk,
         "category": category or "all",
+        "q": q_term,
         "updated_at": now.isoformat(),
         "items": items,
     }

@@ -1,8 +1,12 @@
 import { apiBase } from '../config';
 
+export type IndustryTagItem = { slug: string; label: string };
+
 export type RankingsResponse = {
   range: string;
   category: string;
+  /** 搜索关键词回显；未搜索时为 null */
+  q?: string | null;
   updated_at: string;
   items: Array<{
     id: number;
@@ -41,6 +45,8 @@ export type RankingsResponse = {
     popularity_score?: number;
     user_value_score?: number;
     normalized_title?: string;
+    /** category=industry 时的细分标签 */
+    industry_tags?: IndustryTagItem[];
   }>;
 };
 
@@ -105,12 +111,16 @@ async function jget<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function fetchRankings(params: { range: string; category: string; limit: number }) {
+export function fetchRankings(params: { range: string; category: string; limit: number; q?: string }) {
   const sp = new URLSearchParams({
     range: params.range,
     category: params.category,
     limit: String(params.limit),
   });
+  const qq = params.q?.trim();
+  if (qq) {
+    sp.set('q', qq);
+  }
   return jget<RankingsResponse>(`/api/rankings?${sp.toString()}`);
 }
 

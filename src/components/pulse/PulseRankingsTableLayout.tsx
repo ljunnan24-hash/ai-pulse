@@ -50,7 +50,25 @@ export type PulseRankingsTableRow = {
   weeklyCategoryResolved?: WeeklyCategoryResolved | null;
   /** 周报操作列文案：查看来源 / 暂无详情 */
   weeklyUi?: boolean;
+  /** 行业细分小标签（排行榜专用，最多展示由调用方 slice） */
+  industryTags?: Array<{ slug: string; label: string }>;
 };
+
+function IndustryTagPills({ tags }: { tags: Array<{ slug: string; label: string }> }) {
+  if (!tags.length) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1">
+      {tags.slice(0, 2).map((t) => (
+        <span
+          key={t.slug}
+          className="inline-flex max-w-[8rem] truncate rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium leading-tight text-slate-600 ring-1 ring-slate-200/90"
+        >
+          {t.label}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function RankingsCategoryCell({ row }: { row: PulseRankingsTableRow }) {
   if (row.weeklyCategoryResolved !== undefined) {
@@ -149,6 +167,7 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
                   titleEnClassName={r.titleEnClassName}
                   hintOverflowTitle={r.overflowHints}
                 />
+                <IndustryTagPills tags={r.industryTags ?? []} />
               </div>
               <div className="min-w-0">
                 <PulseRankMeaningBlock
@@ -187,6 +206,7 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
                 titleEnClassName={r.titleEnClassName}
                 hintOverflowTitle={r.overflowHints}
               />
+              <IndustryTagPills tags={r.industryTags ?? []} />
             </div>
             <div className="mt-2 min-w-0">
               <PulseRankMeaningBlock

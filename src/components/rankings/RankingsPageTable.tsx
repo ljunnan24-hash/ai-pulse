@@ -24,6 +24,7 @@ export function RankingsPageTable({ items }: Props) {
     meaning: pulseWhatItMeans(item),
     categorySlug: item.category ?? '',
     detailTo: `/events/${item.id}`,
+    industryTags: item.industry_tags?.slice(0, 2),
   }));
 
   return <PulseRankingsTableLayout rows={rows} />;

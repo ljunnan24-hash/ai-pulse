@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp } from 'lucide-react';
+import { Search, TrendingUp } from 'lucide-react';
 
 import { fetchRankings } from '../api/public';
 import type { RankingItem } from '../components/rankings/RankingCard';
@@ -57,19 +57,26 @@ function formatUpdatedAtLabel(iso: string | undefined): string {
 export default function RankingsPage() {
   const [range, setRange] = useState<(typeof RANGES)[number]['id']>('today');
   const [category, setCategory] = useState<(typeof CATS)[number]['id']>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [items, setItems] = useState<RankingItem[]>([]);
   const [meta, setMeta] = useState<{ updated_at: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedQ(searchInput.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
     setErr(null);
-    fetchRankings({ range, category, limit: 20 })
+    fetchRankings({ range, category, limit: 50, q: debouncedQ || undefined })
       .then((r) => {
         setItems(r.items);
         setMeta({ updated_at: r.updated_at });
       })
       .catch((e: Error) => setErr(e.message));
-  }, [range, category]);
+  }, [range, category, debouncedQ]);
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
@@ -137,6 +144,41 @@ export default function RankingsPage() {
         ))}
       </div>
 
+      <div className="mb-6 grid gap-3 sm:grid-cols-1 lg:grid-cols-[1fr_minmax(0,28rem)] lg:items-center lg:gap-6">
+        <div className="min-h-[1.5rem] text-sm text-[#475569]">
+          {debouncedQ ? (
+            <span>
+              搜索「{debouncedQ}」的相关事件 · 共 {items.length} 条
+              <button
+                type="button"
+                className="ml-3 font-semibold text-[#1463FF] underline-offset-2 hover:underline"
+                onClick={() => {
+                  setSearchInput('');
+                  setDebouncedQ('');
+                }}
+              >
+                清空搜索
+              </button>
+            </span>
+          ) : null}
+        </div>
+        <div className="relative w-full lg:justify-self-end">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="搜索行业、场景或关键词，例如：教育、医疗、电商、Agent"
+            className="w-full rounded-xl border border-[#D8E2F0] bg-white py-2.5 pl-10 pr-3 text-sm text-[#0F172A] shadow-sm outline-none placeholder:text-[#94A3B8] focus:border-[#94A3B8] focus:ring-2 focus:ring-[#1463FF]/20"
+            aria-label="搜索榜单事件"
+            autoComplete="off"
+          />
+        </div>
+      </div>
+
       {err ? (
         <div className="card-surface-muted mb-6 px-5 py-4 text-sm">
           <p className="font-headline font-semibold text-slate-900">暂时无法加载榜单</p>
@@ -160,7 +202,22 @@ export default function RankingsPage() {
         </div>
       ) : null}
 
-      {!err && items.length === 0 ? (
+      {!err && items.length === 0 && debouncedQ ? (
+        <EmptyState title="没有找到相关事件" description="试试更宽泛的关键词，例如「教育」「电商」「Agent」。也可切换时间范围与分类。">
+          <button
+            type="button"
+            className="btn-secondary mt-6 inline-flex px-6 py-2.5 text-sm font-semibold"
+            onClick={() => {
+              setSearchInput('');
+              setDebouncedQ('');
+            }}
+          >
+            清空搜索
+          </button>
+        </EmptyState>
+      ) : null}
+
+      {!err && items.length === 0 && !debouncedQ ? (
         <EmptyState
           title="暂无匹配结果"
           description="当前筛选条件下没有可展示的榜单事件。可切换时间范围或分类，或确认后端已运行 daily_rankings。"
