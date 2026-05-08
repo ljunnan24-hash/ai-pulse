@@ -127,6 +127,19 @@ export default function EventDetailPage() {
                   <p className="mt-2 text-[13px] font-medium leading-[1.45] text-[#64748B] [overflow-wrap:anywhere]">{headlineSecondary}</p>
                 ) : null}
 
+                {Array.isArray(data.industry_tags) && data.industry_tags.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {data.industry_tags.slice(0, 4).map((t) => (
+                      <span
+                        key={t.slug}
+                        className="inline-flex max-w-[10rem] truncate rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200/90"
+                      >
+                        {t.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
                 <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[#64748B]">
                   <span className="max-w-[70%] break-words [overflow-wrap:anywhere] sm:max-w-none">
                     {(data.category ?? '').trim() || '—'}

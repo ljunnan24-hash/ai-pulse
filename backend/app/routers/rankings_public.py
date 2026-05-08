@@ -221,4 +221,5 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
         "sources": sources_out,
         "score_breakdown": breakdown,
         "related_events": related_events,
+        "industry_tags": industry_tags_from_metrics(ge.metrics_json),
     }

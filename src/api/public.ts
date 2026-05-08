@@ -55,6 +55,8 @@ export type EventDetailResponse = {
   title: string;
   title_zh?: string;
   category: string;
+  /** category=industry 时行业细分标签 */
+  industry_tags?: IndustryTagItem[];
   published_at: string | null;
   /** 稳定 Pulse Score，主展示；与榜单 pulse_score 同源 */
   pulse_score?: number;
