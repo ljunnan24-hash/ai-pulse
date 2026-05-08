@@ -299,11 +299,11 @@ export default function AboutPage() {
                 <img
                   src={REWARD_QR_SRC}
                   alt="微信、支付宝打赏二维码"
-                  width={140}
-                  height={140}
+                  width={220}
+                  height={220}
                   loading="lazy"
                   decoding="async"
-                  className="h-[140px] w-[140px] rounded-lg border border-[#E8EDF5] bg-white object-contain p-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                  className="mx-auto aspect-square w-[min(220px,calc(100vw-2.5rem))] rounded-lg border border-[#E8EDF5] bg-white object-contain p-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:mx-0 sm:w-[220px]"
                 />
                 <p className="mt-2 text-center text-[13px] text-slate-500 sm:text-right">微信 / 支付宝打赏</p>
               </div>
