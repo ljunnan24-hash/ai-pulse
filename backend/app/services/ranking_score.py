@@ -1,14 +1,20 @@
 """
 确定性排行榜评分（0–100）。MVP：分量加权求 ranking_score，列表查询时再套时间衰减。
+
+stable_pulse_score（pulse_score v1）：从综合分中剥离 freshness，用于周期榜单主展示与排序；
+effective_ranking_score 宜以 pulse_score 为底再乘时间衰减，避免与存库 freshness 双重叠加。
 """
 
 from __future__ import annotations
 
+import json
 import math
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Any, Literal
 
 RangeKey = Literal["today", "7d", "30d"]
+
+DEFAULT_COMPONENT = 50.0
 
 
 def trust_from_source_type(source_type: str) -> float:
@@ -117,5 +123,61 @@ def effective_ranking_score(
     *,
     now: datetime | None = None,
 ) -> float:
+    """
+    时间衰减后的「有效排序分」。base_ranking 在周期榜单场景应为 stable_pulse_score，
+    而非含 freshness 的 ge.ranking_score，否则会与时间因子双重叠加。
+    """
     m = decay_multiplier_for_range(published_at, range_key, now=now)
     return float(max(0.0, min(100.0, base_ranking * m)))
+
+
+def _float_from_breakdown(breakdown: dict[str, Any], key: str) -> float | None:
+    v = breakdown.get(key)
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def stable_pulse_score_for_global_event(ge: Any) -> float:
+    """
+    Pulse Score v1：用 score_breakdown 中非 freshness 项按权重重新归一化到 0–100。
+        (0.30*trust + 0.20*heat + 0.15*source_mix + 0.10*user_value) / 0.75
+    缺少分项时从 GlobalEvent 列或确定性 fallback 补齐。
+    """
+    breakdown: dict[str, Any] = {}
+    try:
+        m = json.loads(ge.metrics_json or "{}")
+        if isinstance(m, dict):
+            sb = m.get("score_breakdown")
+            if isinstance(sb, dict):
+                breakdown = sb
+    except Exception:
+        breakdown = {}
+
+    trust = _float_from_breakdown(breakdown, "trust")
+    if trust is None:
+        trust = float(ge.trust_score) if ge.trust_score is not None else DEFAULT_COMPONENT
+
+    heat = _float_from_breakdown(breakdown, "heat")
+    if heat is None:
+        heat = heat_normalized(int(ge.heat_score or 0))
+
+    source_mix = _float_from_breakdown(breakdown, "source_mix")
+    if source_mix is None:
+        source_mix = source_count_component(int(ge.source_count or 1))
+
+    user_value = _float_from_breakdown(breakdown, "user_value")
+    if user_value is None:
+        user_value = float(ge.user_value_score) if ge.user_value_score is not None else DEFAULT_COMPONENT
+
+    numerator = (
+        float(trust) * 0.30
+        + float(heat) * 0.20
+        + float(source_mix) * 0.15
+        + float(user_value) * 0.10
+    )
+    pulse = numerator / 0.75
+    return float(max(0.0, min(100.0, pulse)))

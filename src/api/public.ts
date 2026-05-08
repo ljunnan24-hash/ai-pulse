@@ -14,7 +14,16 @@ export type RankingsResponse = {
     source_type: string;
     source_count: number;
     published_at: string | null;
+    /** 最近抓取 / 合并时间（ISO） */
+    last_seen_at?: string | null;
+    /** 稳定 Pulse Score（周期榜单主展示与排序依据） */
+    pulse_score?: number;
+    /** 与 pulse_score 对齐的兼容字段 */
     ranking_score: number;
+    /** 存库综合分（含 freshness），调试用 */
+    stored_ranking_score?: number;
+    /** pulse_score × 时间衰减，调试用 / 未来实时流 */
+    effective_ranking_score?: number;
     score_delta: number;
     what_happened: string;
     /** 列表接口若将来返回，可与下方字段区分展示标签 */
@@ -26,7 +35,6 @@ export type RankingsResponse = {
     /** 若列表接口将来附带 metrics，可用于首页三指标 */
     metrics_json?: Record<string, unknown>;
     score_breakdown?: Record<string, number>;
-    pulse_score?: number;
     score?: number;
     freshness_score?: number;
     hotness_score?: number;
@@ -42,7 +50,15 @@ export type EventDetailResponse = {
   title_zh?: string;
   category: string;
   published_at: string | null;
+  /** 稳定 Pulse Score，主展示；与榜单 pulse_score 同源 */
+  pulse_score?: number;
+  /** 兼容字段，与 pulse_score 对齐 */
   ranking_score: number;
+  /** 存库综合分（含 freshness），调试 */
+  stored_ranking_score?: number;
+  /** pulse × 时间衰减（详情默认按 7d 衰减），调试 */
+  effective_ranking_score?: number;
+  score?: number;
   /** 若后端将来下发，摘要区优先展示 */
   one_liner?: string;
   what_happened: string;
@@ -58,7 +74,15 @@ export type EventDetailResponse = {
     raw_item_id: number;
   }>;
   score_breakdown: Record<string, number>;
-  related_events: Array<{ id: number; title: string; title_zh?: string; ranking_score: number; category: string }>;
+  related_events: Array<{
+    id: number;
+    title: string;
+    title_zh?: string;
+    pulse_score?: number;
+    ranking_score: number;
+    stored_ranking_score?: number;
+    category: string;
+  }>;
 };
 
 export type WeeklyJsonResponse = {

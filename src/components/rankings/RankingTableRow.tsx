@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { RankingItem } from './RankingCard';
 import { buildDisplayJudgment } from './RankingCard';
 import { categoryLabel } from '../../lib/categoryLabels';
+import { pulseDisplayScore } from '../../lib/homeRankingsDisplay';
 import { displayActionSuggestion, displayInsightSummary } from '../../lib/insightFallback';
 import { formatRelativeTime } from '../../lib/formatRelativeTime';
 import { splitTitleForDisplay } from '../../lib/titleDisplay';
@@ -121,7 +122,7 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
         </div>
 
         <div className="ranking-cell-pulse flex shrink-0 items-start justify-start pt-1" role="cell">
-          <PulseScoreCell score={item.ranking_score} variant={variant} rankTier="rest" />
+          <PulseScoreCell score={pulseDisplayScore(item)} variant={variant} rankTier="rest" />
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-col gap-1 py-1" role="cell">
@@ -166,7 +167,7 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
       </div>
 
       <div className="ranking-cell-pulse flex shrink-0 items-start justify-start pt-1" role="cell">
-        <PulseScoreCell score={item.ranking_score} variant={variant} rankTier={rankTier} />
+        <PulseScoreCell score={pulseDisplayScore(item)} variant={variant} rankTier={rankTier} />
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-col gap-1 overflow-hidden py-1" role="cell">

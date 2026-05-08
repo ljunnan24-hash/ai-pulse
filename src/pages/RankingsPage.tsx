@@ -154,7 +154,8 @@ export default function RankingsPage() {
             共 {items.length} 条 · 可调整时间范围与分类
           </p>
           <p className="mt-3 text-[13px] leading-relaxed text-[#64748B] md:text-center">
-            Pulse Score 仅用于辅助排序，不代表投资、职业或商业决策建议。
+            Pulse Score 用于衡量事件本身的关注价值，并作为榜单主要排序依据。时间范围只决定事件是否进入对应榜单。
+            不代表投资、职业或商业决策建议。
           </p>
         </div>
       ) : null}

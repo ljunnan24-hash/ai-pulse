@@ -14,7 +14,7 @@ from app.database import get_db
 from app.models import GlobalEvent
 from app.services.global_event_service import build_deduped_sources_for_api
 from app.services.ranking_insight_service import CAPABILITY_KEYS, resolve_one_liner_for_api
-from app.services.ranking_score import RangeKey, effective_ranking_score
+from app.services.ranking_score import RangeKey, effective_ranking_score, stable_pulse_score_for_global_event
 
 router = APIRouter(prefix="/api", tags=["rankings"])
 
@@ -51,15 +51,24 @@ def list_rankings(
         q = q.where(GlobalEvent.category == category)
 
     rows = db.scalars(q.limit(800)).all()
-    scored: list[tuple[float, GlobalEvent]] = []
+
+    def _sort_ts(ge: GlobalEvent) -> datetime:
+        if ge.published_at is not None:
+            return ge.published_at
+        return ge.last_seen_at
+
+    scored_rows: list[tuple[float, datetime, int, GlobalEvent]] = []
     for ge in rows:
-        eff = effective_ranking_score(float(ge.ranking_score or 0), ge.published_at, rk, now=now)
-        scored.append((eff, ge))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    scored = scored[: max(1, min(limit, 100))]
+        pulse = stable_pulse_score_for_global_event(ge)
+        scored_rows.append((pulse, _sort_ts(ge), int(ge.source_count or 0), ge))
+
+    scored_rows.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    scored_rows = scored_rows[: max(1, min(limit, 100))]
 
     items: list[dict[str, Any]] = []
-    for eff, ge in scored:
+    for pulse, _ts, _sc, ge in scored_rows:
+        stored = float(ge.ranking_score or 0)
+        eff = effective_ranking_score(pulse, ge.published_at, rk, now=now)
         delta_score = 0.0
         try:
             m = json.loads(ge.metrics_json or "{}")
@@ -67,6 +76,7 @@ def list_rankings(
                 delta_score = float(m.get("ranking_score") or 0) - float(m.get("prev_ranking_score") or 0)
         except Exception:
             delta_score = 0.0
+        pulse_r = round(pulse, 2)
         items.append(
             {
                 "id": ge.id,
@@ -77,7 +87,11 @@ def list_rankings(
                 "source_type": ge.source_type,
                 "source_count": ge.source_count,
                 "published_at": ge.published_at.isoformat() if ge.published_at else None,
-                "ranking_score": round(eff, 2),
+                "last_seen_at": ge.last_seen_at.isoformat() if ge.last_seen_at else None,
+                "pulse_score": pulse_r,
+                "ranking_score": pulse_r,
+                "stored_ranking_score": round(stored, 2),
+                "effective_ranking_score": round(eff, 2),
                 "score_delta": round(delta_score, 2),
                 "what_happened": ge.what_happened or "",
                 "what_it_means_for_you": ge.what_it_means_for_you or "",
@@ -99,6 +113,12 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
     ge = db.get(GlobalEvent, event_id)
     if not ge or ge.status != "active":
         raise HTTPException(status_code=404, detail="Not found")
+
+    now = datetime.now(timezone.utc)
+    pulse = stable_pulse_score_for_global_event(ge)
+    pulse_r = round(pulse, 2)
+    stored_r = round(float(ge.ranking_score or 0), 2)
+    eff_r = round(float(effective_ranking_score(pulse, ge.published_at, "7d", now=now)), 2)
 
     sources_out = build_deduped_sources_for_api(db, ge)
 
@@ -135,18 +155,28 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
         select(GlobalEvent)
         .where(GlobalEvent.status == "active", GlobalEvent.category == ge.category, GlobalEvent.id != ge.id)
         .order_by(GlobalEvent.ranking_score.desc())
-        .limit(6)
+        .limit(12)
     ).all()
-    related_events = [
-        {
-            "id": r.id,
-            "title": r.canonical_title,
-            "title_zh": (r.title_zh or "").strip(),
-            "ranking_score": round(float(r.ranking_score or 0), 2),
-            "category": r.category,
-        }
-        for r in related_rows[:4]
-    ]
+    related_scored: list[tuple[float, GlobalEvent]] = []
+    for r in related_rows:
+        rp = stable_pulse_score_for_global_event(r)
+        related_scored.append((rp, r))
+    related_scored.sort(key=lambda x: x[0], reverse=True)
+
+    related_events = []
+    for rp, r in related_scored[:4]:
+        pr = round(float(rp), 2)
+        related_events.append(
+            {
+                "id": r.id,
+                "title": r.canonical_title,
+                "title_zh": (r.title_zh or "").strip(),
+                "pulse_score": pr,
+                "ranking_score": pr,
+                "stored_ranking_score": round(float(r.ranking_score or 0), 2),
+                "category": r.category,
+            }
+        )
 
     return {
         "id": ge.id,
@@ -154,7 +184,10 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
         "title_zh": (ge.title_zh or "").strip(),
         "category": ge.category,
         "published_at": ge.published_at.isoformat() if ge.published_at else None,
-        "ranking_score": round(float(ge.ranking_score or 0), 2),
+        "pulse_score": pulse_r,
+        "ranking_score": pulse_r,
+        "stored_ranking_score": stored_r,
+        "effective_ranking_score": eff_r,
         "what_happened": ge.what_happened or "",
         "why_important": ge.why_important or "",
         "what_it_means_for_you": ge.what_it_means_for_you or "",

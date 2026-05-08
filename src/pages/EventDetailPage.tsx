@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { fetchEventDetail, type EventDetailResponse } from '../api/public';
+import { eventDetailPulseScore, relatedEventPulseScore } from '../lib/homeRankingsDisplay';
 import { ScoreBadge } from '../components/common/ScoreBadge';
 import { ActionBadge } from '../components/common/ActionBadge';
 import { EmptyState } from '../components/common/EmptyState';
@@ -145,7 +146,8 @@ export default function EventDetailPage() {
 
               <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[#E5ECF5] pt-5 text-sm text-slate-600">
                 <span>
-                  Pulse（排序参考） <ScoreBadge score={data.ranking_score} variant="subtle" />
+                  Pulse Score{' '}
+                  <ScoreBadge score={eventDetailPulseScore(data)} variant="subtle" />
                 </span>
                 <ActionBadge suggestion={data.action_suggestion} />
               </div>
@@ -262,7 +264,7 @@ export default function EventDetailPage() {
 
           <aside className="space-y-4 lg:sticky lg:top-28">
             <div className="card-surface p-5">
-              <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">Pulse Score（参考）</div>
+              <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">评分依据</div>
               <div className="mt-3 space-y-2 text-sm">
                 {[
                   ['新鲜度', sb.freshness],
@@ -318,7 +320,7 @@ export default function EventDetailPage() {
                           {(ev.title_zh ?? '').trim() || ev.title || '—'}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <ScoreBadge score={ev.ranking_score} variant="subtle" />
+                          <ScoreBadge score={relatedEventPulseScore(ev)} variant="subtle" />
                           <span className="break-words">{(ev.category ?? '').trim() || '—'}</span>
                         </div>
                       </Link>

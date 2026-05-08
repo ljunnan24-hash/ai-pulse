@@ -1,4 +1,4 @@
-import type { RankingsResponse } from '../api/public';
+import type { EventDetailResponse, RankingsResponse } from '../api/public';
 
 import { firstSentences } from './insightFallback';
 import { deriveEventPageHeading, hasCjkChars, splitTitleForDisplay } from './titleDisplay';
@@ -217,4 +217,38 @@ export function pulseDisplayScore(item: HomeRankingItem): number {
   }
   const rs = item.ranking_score;
   return typeof rs === 'number' && Number.isFinite(rs) ? Math.round(rs * 10) / 10 : 0;
+}
+
+/**
+ * 详情页主分数：pulse_score → score → ranking_score（不使用 stored_ranking_score）。
+ * 与 pulseDisplayScore 语义对齐。
+ */
+export function eventDetailPulseScore(d: EventDetailResponse): number {
+  const o = d as unknown as Record<string, unknown>;
+  const p = toFiniteNumber(o.pulse_score) ?? toFiniteNumber(o.score);
+  if (p !== null) {
+    const v = p >= 0 && p <= 1 ? p * 100 : p;
+    return Math.round(v * 10) / 10;
+  }
+  const rs = toFiniteNumber(o.ranking_score);
+  if (rs !== null) {
+    const v = rs >= 0 && rs <= 1 ? rs * 100 : rs;
+    return Math.round(v * 10) / 10;
+  }
+  return 0;
+}
+
+/** 详情「同类相关」行：与 eventDetailPulseScore 相同优先级 */
+export function relatedEventPulseScore(row: {
+  pulse_score?: number;
+  score?: number;
+  ranking_score: number;
+}): number {
+  const p = toFiniteNumber(row.pulse_score) ?? toFiniteNumber(row.score);
+  if (p !== null) {
+    const v = p >= 0 && p <= 1 ? p * 100 : p;
+    return Math.round(v * 10) / 10;
+  }
+  const v = row.ranking_score;
+  return typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 10) / 10 : 0;
 }

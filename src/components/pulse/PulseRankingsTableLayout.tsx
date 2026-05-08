@@ -122,7 +122,7 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
           style={{ gridTemplateColumns: PULSE_RANKINGS_TABLE_GRID_COLUMNS }}
         >
           <span className="text-center">排名</span>
-          <span>Score</span>
+          <span>Pulse Score</span>
           <span>事件</span>
           <span>对你意味着什么</span>
           <span className="text-center">分类</span>
