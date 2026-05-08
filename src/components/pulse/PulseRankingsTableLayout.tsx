@@ -14,9 +14,9 @@ import {
   pulseRankTitleZhBoldCls,
 } from './PulseRankItem';
 
-/** 排名 | Score | 事件 | 对你意味着什么 | 分类 | 操作（与排行榜页一致） */
+/** 排名 | Score | 事件 | 对你意味着什么 | 分类（含行业细分标签） | 操作（与排行榜页一致） */
 export const PULSE_RANKINGS_TABLE_GRID_COLUMNS =
-  '72px minmax(56px, 68px) minmax(280px, 2.2fr) minmax(180px, 1.25fr) minmax(72px, 92px) 112px' as const;
+  '72px minmax(56px, 68px) minmax(280px, 2.2fr) minmax(180px, 1.25fr) minmax(88px, 118px) 112px' as const;
 
 export const pulseRankingsTableWrapCls =
   'overflow-hidden rounded-[22px] border border-[#D8E2F0] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.035)]';
@@ -54,11 +54,17 @@ export type PulseRankingsTableRow = {
   industryTags?: Array<{ slug: string; label: string }>;
 };
 
-/** 行业细分标签（榜单 / 首页共用）；略大于正文辅助字以保证可读性 */
-export function IndustryTagPills({ tags }: { tags: Array<{ slug: string; label: string }> }) {
+/** 行业细分标签：通常叠放在「分类」大类 pill 下方；`className` 可控制对齐与外边距 */
+export function IndustryTagPills({
+  tags,
+  className = '',
+}: {
+  tags: Array<{ slug: string; label: string }>;
+  className?: string;
+}) {
   if (!tags.length) return null;
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <div className={`flex flex-wrap gap-1.5 ${className}`.trim()}>
       {tags.slice(0, 2).map((t) => (
         <span
           key={t.slug}
@@ -168,7 +174,6 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
                   titleEnClassName={r.titleEnClassName}
                   hintOverflowTitle={r.overflowHints}
                 />
-                <IndustryTagPills tags={r.industryTags ?? []} />
               </div>
               <div className="min-w-0">
                 <PulseRankMeaningBlock
@@ -177,8 +182,9 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
                   hintOverflowText={r.overflowHints}
                 />
               </div>
-              <div className="flex items-start justify-center pt-0.5" role="cell">
+              <div className="flex flex-col items-center justify-center gap-1.5 self-center pt-0.5 text-center" role="cell">
                 <RankingsCategoryCell row={r} />
+                <IndustryTagPills tags={r.industryTags ?? []} className="max-w-full justify-center" />
               </div>
               <div className={`flex justify-start ${stickyActionWrap}`}>
                 <PulseRankingsActionCell
@@ -207,7 +213,6 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
                 titleEnClassName={r.titleEnClassName}
                 hintOverflowTitle={r.overflowHints}
               />
-              <IndustryTagPills tags={r.industryTags ?? []} />
             </div>
             <div className="mt-2 min-w-0">
               <PulseRankMeaningBlock
@@ -216,8 +221,9 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
                 hintOverflowText={r.overflowHints}
               />
             </div>
-            <div className="mt-2 flex justify-start">
+            <div className="mt-2 flex flex-col items-start gap-1.5">
               <RankingsCategoryCell row={r} />
+              <IndustryTagPills tags={r.industryTags ?? []} className="justify-start" />
             </div>
             <div className="mt-4 flex justify-start">
               <PulseRankingsActionCell

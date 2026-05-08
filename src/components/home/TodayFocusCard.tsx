@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 
+import { categoryLabel, categoryPillClass } from '../../lib/categoryLabels';
 import { IndustryTagPills } from '../pulse/PulseRankingsTableLayout';
 import type { HomeRankingItem } from '../../lib/homeRankingsDisplay';
 import {
@@ -92,9 +93,14 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
               {pulseEventTitleEn(item)}
             </p>
           ) : null}
-          {item.industry_tags && item.industry_tags.length > 0 ? (
-            <IndustryTagPills tags={item.industry_tags.slice(0, 2)} />
-          ) : null}
+          <div className="mt-3 flex flex-col items-start gap-1.5">
+            <span
+              className={`inline-flex max-w-full whitespace-normal rounded-full px-2.5 py-0.5 text-center text-[12px] font-semibold leading-tight ${categoryPillClass(item.category ?? '')}`}
+            >
+              {categoryLabel(item.category ?? '')}
+            </span>
+            <IndustryTagPills tags={item.industry_tags?.slice(0, 2) ?? []} className="justify-start" />
+          </div>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl border border-[#E5ECF5] bg-white px-2 py-3 text-center md:min-h-[92px]">
