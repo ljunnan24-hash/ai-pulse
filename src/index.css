@@ -199,6 +199,11 @@
   .nav-link-active {
     @apply bg-primary/10 font-semibold text-primary ring-1 ring-primary/20;
   }
+
+  /* 顶栏：窄屏单行不换行，略收紧字距；配合「关于」简写与订阅按钮简写 */
+  .site-header-nav .nav-link {
+    @apply whitespace-nowrap px-2 py-1.5 text-[13px] md:px-3 md:py-2 md:text-sm;
+  }
 }
 
 .pulse-dot {
