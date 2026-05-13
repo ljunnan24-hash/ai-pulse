@@ -5,8 +5,6 @@ import re
 from typing import Any
 
 import httpx
-
-from app.config import get_settings
 from app.services.payload_schema import finalize_payload_v3
 
 
@@ -132,19 +130,43 @@ def normalize_payload(parsed: dict[str, Any]) -> dict[str, Any]:
                 }
             )
 
-    clean_top3: list[dict[str, str]] = []
+    clean_top3: list[dict[str, Any]] = []
     for t in normal.get("top3") if isinstance(normal.get("top3"), list) else []:
         if isinstance(t, dict) and (t.get("title") or t.get("url")):
-            clean_top3.append(
-                {
-                    "title": str(t.get("title", ""))[:200],
-                    "url": str(t.get("url", ""))[:2048],
-                    "what_happened": str(t.get("what_happened", ""))[:800],
-                    "why_important": str(t.get("why_important", ""))[:800],
-                    "what_it_means_for_you": str(t.get("what_it_means_for_you", ""))[:800],
-                    "attention_level": str(t.get("attention_level") or "3")[:8],
-                }
-            )
+            row: dict[str, Any] = {
+                "title": str(t.get("title", ""))[:200],
+                "url": str(t.get("url", ""))[:2048],
+                "what_happened": str(t.get("what_happened", ""))[:800],
+                "why_important": str(t.get("why_important", ""))[:800],
+                "what_it_means_for_you": str(t.get("what_it_means_for_you", ""))[:800],
+                "attention_level": str(t.get("attention_level") or "3")[:8],
+            }
+            eid_raw = t.get("event_id")
+            if eid_raw is not None and str(eid_raw).strip():
+                row["event_id"] = int(eid_raw) if str(eid_raw).strip().isdigit() else str(eid_raw).strip()
+            for ext_k in (
+                "category",
+                "category_slug",
+                "pulse_score",
+                "ranking_score",
+                "weekly_score",
+                "weekly_rank",
+                "detail_url",
+            ):
+                if ext_k not in t:
+                    continue
+                v = t[ext_k]
+                if v is None:
+                    continue
+                if isinstance(v, str) and not v.strip():
+                    continue
+                row[ext_k] = v
+            if isinstance(t.get("weekly_score_reasons"), dict):
+                row["weekly_score_reasons"] = t["weekly_score_reasons"]
+            su = t.get("source_urls")
+            if isinstance(su, list):
+                row["source_urls"] = [str(x).strip() for x in su if str(x).strip()][:12]
+            clean_top3.append(row)
 
     sections_out: list[dict[str, Any]] = []
     for s in normal.get("sections") if isinstance(normal.get("sections"), list) else []:
@@ -221,6 +243,11 @@ def normalize_payload(parsed: dict[str, Any]) -> dict[str, Any]:
         },
         "glossary": clean_glossary,
     }
+    if isinstance(parsed, dict):
+        if parsed.get("allow_short_top3"):
+            merged["allow_short_top3"] = True
+        if parsed.get("weekly_top3_global_events_only"):
+            merged["weekly_top3_global_events_only"] = True
     out = finalize_payload_v3(merged)
     if email_payload is not None:
         out = {**out, "email_payload": email_payload}

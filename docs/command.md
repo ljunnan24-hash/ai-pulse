@@ -18,7 +18,7 @@ cd C:\Users\Lenovo\Desktop\ai-pulse\backend
 $env:WEEKLY_SOURCE="global_events"
 .\.venv\Scripts\python.exe -m app.jobs.generate_weekly --reuse-crawl --force
 
-重启服务：
+重启后端：
 sudo systemctl restart aipulse-api
 sudo systemctl status aipulse-api --no-pager
 

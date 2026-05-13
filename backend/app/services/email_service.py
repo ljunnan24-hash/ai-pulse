@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart

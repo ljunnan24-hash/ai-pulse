@@ -41,6 +41,7 @@ from app.services.weekly_issue_snapshot import append_weekly_issue_snapshot
 from app.services.deliverability_pipeline import apply_email_notification_pipeline
 from app.services.llm_json_client import LlmJsonClient
 from app.services.multi_agent_orchestrator import MultiAgentOrchestrator
+from app.services.payload_schema import finalize_payload_v3
 from app.services.publish_weekly_page import publish_weekly_report, weekly_report_public_url
 from app.services.scoring_service import score_item
 from app.services.summarizer_service import normalize_payload, payload_to_texts, summarize_items
@@ -221,6 +222,17 @@ def _require_global_events_table(db: Session) -> None:
         )
 
 
+def _require_weekly_event_scores_table(db: Session) -> None:
+    bind = db.get_bind()
+    if bind is None:
+        return
+    insp = inspect(bind)
+    if not insp.has_table("weekly_event_scores"):
+        raise RuntimeError(
+            "缺少表 weekly_event_scores，请执行 sql/migrations/2026-05-13_weekly_event_scores.sql。"
+        )
+
+
 def _crawler_item_to_extra_json(it: dict) -> str:
     out: dict[str, Any] = {}
     for key in ("feed_url", "source_name", "crawl_time", "language", "author"):
@@ -304,6 +316,7 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
 
     if weekly_global:
         _require_global_events_table(db)
+        _require_weekly_event_scores_table(db)
 
     if reuse_crawl:
         print(
@@ -457,6 +470,11 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
         except Exception as e:
             print(f"Summarizer failed: {e}")
             raise
+        if weekly_global:
+            from app.services.weekly_event_score_service import apply_global_event_weekly_top3_to_payload
+
+            apply_global_event_weekly_top3_to_payload(db, payload, period)
+            payload = finalize_payload_v3(payload)
         publish_weekly_report(db, payload, period, settings=settings)
         payload["weekly_url"] = weekly_report_public_url(period, settings=settings)
         llm = LlmJsonClient()

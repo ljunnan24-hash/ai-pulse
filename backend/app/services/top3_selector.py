@@ -793,7 +793,10 @@ def calculate_top3_score_legacy_for_audit(event: dict[str, Any]) -> float:
 
 def calculate_top3_score(event: dict[str, Any]) -> float:
     """
-    周报 Top3 选题分 ``top3_score``。
+    Legacy 周报选题综合分 ``top3_score``（历史命名）：多因子加权，**曾用于** Top3 预排序/审计。
+
+    自新版周报起，周刊主路径 Top3 **不再**以本函数结果为排序依据；请使用基于 GlobalEvent 的
+    ``weekly_score``（见 ``weekly_event_scores`` / ``calculate_weekly_score``）。
 
     ``top3_score`` **不等于** ``ranking_score``，也**不是**七天平均分。它在基础重要性、用户价值、
     AI 相关性、行动价值、来源可信、新鲜度和热度之间做加权，用于判断某个事件是否适合作为本周代表性事件。

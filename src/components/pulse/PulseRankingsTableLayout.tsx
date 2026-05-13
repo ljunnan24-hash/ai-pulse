@@ -26,7 +26,7 @@ export type PulseRankingsTableRow = {
   rank: number;
   /** 周报等：01 / 02 / 03 */
   rankPaddedTwoDigits?: boolean;
-  score: number;
+  score: number | null;
   titleZh: string;
   titleEn?: string;
   meaning: string;
@@ -134,7 +134,14 @@ function PulseRankingsActionCell({
   );
 }
 
-export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow[] }) {
+export function PulseRankingsTableLayout({
+  rows,
+  scoreColumnLabel = 'Pulse Score',
+}: {
+  rows: PulseRankingsTableRow[];
+  /** 表头分数列文案；周报使用「本周分」 */
+  scoreColumnLabel?: string;
+}) {
   if (rows.length === 0) return null;
 
   const stickyActionWrap = 'sticky right-0 z-[2] -mr-px bg-white pl-2 shadow-[-12px_0_14px_-10px_rgba(15,23,42,0.1)]';
@@ -147,7 +154,7 @@ export function PulseRankingsTableLayout({ rows }: { rows: PulseRankingsTableRow
           style={{ gridTemplateColumns: PULSE_RANKINGS_TABLE_GRID_COLUMNS }}
         >
           <span className="text-center">排名</span>
-          <span>Pulse Score</span>
+          <span>{scoreColumnLabel}</span>
           <span>事件</span>
           <span>对你意味着什么</span>
           <span className="text-center">分类</span>

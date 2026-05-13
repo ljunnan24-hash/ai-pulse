@@ -102,7 +102,7 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
         cat_top = pick_category_fields(t if isinstance(t, dict) else {})
         if cat_top:
             row["category"] = cat_top[:64]
-        eid_top = str(t.get("event_id") or "").strip()
+        eid_top = str(t.get("event_id") if t.get("event_id") is not None else "").strip()
         if eid_top:
             row["event_id"] = eid_top
         su = t.get("source_urls")
@@ -116,6 +116,17 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
         rsk = t.get("related_stable_keys")
         if isinstance(rsk, list):
             row["related_stable_keys"] = [str(x).strip() for x in rsk if str(x).strip()][:12]
+        for ext_k in ("pulse_score", "ranking_score", "weekly_score", "weekly_rank", "detail_url", "category_slug"):
+            if ext_k not in t:
+                continue
+            v = t[ext_k]
+            if v is None:
+                continue
+            if isinstance(v, str) and not v.strip():
+                continue
+            row[ext_k] = v
+        if isinstance(t.get("weekly_score_reasons"), dict):
+            row["weekly_score_reasons"] = t["weekly_score_reasons"]
         clean_top3.append(row)
 
     sections_out: list[dict[str, Any]] = []
@@ -235,6 +246,8 @@ def ensure_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
     if isinstance(raw, dict):
         if raw.get("allow_short_top3"):
             out["allow_short_top3"] = True
+        if raw.get("weekly_top3_global_events_only"):
+            out["weekly_top3_global_events_only"] = True
         nraw = raw.get("normal")
         if isinstance(nraw, dict) and str(nraw.get("top3_section_title") or "").strip():
             out.setdefault("normal", {})["top3_section_title"] = str(nraw["top3_section_title"]).strip()[:80]
@@ -307,8 +320,10 @@ def finalize_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
 
     norm = dict(p.get("normal") or {})
     top3 = list(norm.get("top3") or [])
+    weekly_ge_only = bool(p.get("weekly_top3_global_events_only"))
     allow_short = bool(p.get("allow_short_top3"))
-    if not allow_short:
+    short_or_ge = weekly_ge_only or allow_short
+    if not short_or_ge:
         while len(top3) < 3:
             top3.append(dict(_pad_top3_row()))
         norm["top3"] = top3[:3]
@@ -376,7 +391,7 @@ def finalize_payload_v3(raw: dict[str, Any] | None) -> dict[str, Any]:
     p["glossary"] = gloss[:12]
     p["normal"] = norm
     backfill_top3_judgments_category_from_top3(norm)
-    apply_backward_compat_from_phase35(norm)
+    apply_backward_compat_from_phase35(norm, weekly_top3_global_events_only=weekly_ge_only)
     return p
 
 
@@ -435,8 +450,17 @@ def validate_payload(payload: dict[str, Any]) -> list[ValidationError]:
             errs.append(ValidationError("$.normal.top3", "must be an array"))
             top3 = []
         allow_short = bool(p.get("allow_short_top3"))
+        weekly_ge_only = bool(p.get("weekly_top3_global_events_only"))
         if isinstance(top3, list):
-            if allow_short:
+            if weekly_ge_only:
+                if len(top3) > 3:
+                    errs.append(
+                        ValidationError(
+                            "$.normal.top3",
+                            "must have at most 3 items when weekly_top3_global_events_only",
+                        )
+                    )
+            elif allow_short:
                 if len(top3) < 1 or len(top3) > 3:
                     errs.append(ValidationError("$.normal.top3", "must have 1-3 items when allow_short_top3"))
             elif len(top3) != 3:

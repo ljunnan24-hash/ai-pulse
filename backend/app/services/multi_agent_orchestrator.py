@@ -692,6 +692,15 @@ class MultiAgentOrchestrator:
         payload_in = editor_out if isinstance(editor_out, dict) else {}
         sanitized_prd = sanitize_urls_in_payload(copy.deepcopy(payload_in))
 
+        weekly_global = (settings.weekly_source or "legacy").strip().lower() == "global_events"
+        if db is not None and report_date is not None and weekly_global:
+            try:
+                from app.services.weekly_event_score_service import apply_global_event_weekly_top3_to_payload
+
+                apply_global_event_weekly_top3_to_payload(db, sanitized_prd, report_date)
+            except Exception:
+                logging.getLogger(__name__).exception("apply_global_event_weekly_top3_to_payload failed")
+
         f_out = finalize_payload_v3(sanitized_prd)
         errors = validate_payload(f_out)
         if errors:

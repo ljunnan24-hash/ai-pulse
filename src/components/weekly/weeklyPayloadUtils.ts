@@ -73,6 +73,9 @@ const WEEKLY_OPTIONAL_KEYS = [
   'canonical_url',
   'source_url',
   'category_slug',
+  'weekly_score',
+  'weekly_rank',
+  'detail_url',
   'tag',
   'type',
 ] as const;
@@ -314,11 +317,35 @@ export function enrichWeeklyTopThreeWithLegacyTop3(rows: WeeklyLooseRow[], legac
   });
 }
 
+/** 新版周报 Top3：仅展示 `normal.top3` 中带合法 `event_id` 的条目（不合并 top3_judgments）。 */
+export function getWeeklyTopThreeFromNormalTop3(payload: Record<string, unknown>): WeeklyLooseRow[] {
+  const normal = (payload.normal as Record<string, unknown> | undefined) || {};
+  const raw = (normal.top3 as unknown[]) || [];
+  const out: WeeklyLooseRow[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== 'object') continue;
+    const o = x as Record<string, unknown>;
+    const eid = String(o.event_id ?? '').trim();
+    if (!eid) continue;
+    const r = normalizeWeeklyRow(x);
+    if (r) out.push(r);
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
+/** 周报 Top3 分数列：仅使用 `weekly_score`；缺失返回 null（不回落为 0）。 */
+export function weeklyTopThreeDisplayScore(row: WeeklyLooseRow): number | null {
+  const r = row as Record<string, string>;
+  const ws = (r.weekly_score ?? '').trim();
+  if (!ws) return null;
+  const p = Number(ws);
+  if (!Number.isFinite(p)) return null;
+  return Math.round(Math.min(100, Math.max(0, p)) * 10) / 10;
+}
+
 /**
- * 本周最重要的三件事：
- * - 候选来自 top3_judgments → top3 → weekly_judgments → top5_information → sections.items → simple.lines；
- * - 若 normal 含 deduped_events / canonical_events 等后端去重列表则优先仅用该列表；
- * - 同簇条目合并进保留项（择优中文标题、合并摘要与来源）；独立主题最多 3 条，不足不重复补位。
+ * 本周最重要的三件事（历史合并逻辑）：候选来自 top3_judgments → top3 → …；其它页面如需旧行为可继续调用。
  */
 export function getWeeklyTopThreeJudgments(payload: Record<string, unknown>): WeeklyLooseRow[] {
   const normal = (payload.normal as Record<string, unknown> | undefined) || {};

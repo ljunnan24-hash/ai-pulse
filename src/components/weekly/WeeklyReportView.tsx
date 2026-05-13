@@ -6,11 +6,7 @@ import { WeeklyJudgmentCard } from './WeeklyJudgmentCard';
 import { WeeklyTopThreeList } from './WeeklyTopThreeList';
 import { WeeklyBoundaryPairSection, weeklyBoundaryHasContent } from './WeeklyBoundaryPairSection';
 import { GlossaryGrid } from './GlossaryGrid';
-import {
-  enrichWeeklyTopThreeWithLegacyTop3,
-  getWeeklyTopThreeJudgments,
-  normalizeGlossary,
-} from './weeklyPayloadUtils';
+import { getWeeklyTopThreeFromNormalTop3, normalizeGlossary } from './weeklyPayloadUtils';
 
 export type WeeklyReportViewProps = {
   title: string;
@@ -25,8 +21,7 @@ export function WeeklyReportView({ title, reportDate, payload }: WeeklyReportVie
 
   const headline = (thesis?.headline ?? '').trim() || title.trim() || '本期周报';
 
-  const topThreeRaw = getWeeklyTopThreeJudgments(payload);
-  const topThree = enrichWeeklyTopThreeWithLegacyTop3(topThreeRaw, normal.top3);
+  const topThree = getWeeklyTopThreeFromNormalTop3(payload);
 
   const capsBoundaries =
     (normal.capability_boundaries as Array<Record<string, unknown>> | undefined) || [];

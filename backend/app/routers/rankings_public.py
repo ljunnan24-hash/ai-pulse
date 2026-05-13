@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import GlobalEvent
+from app.utils.time_windows import get_yesterday_window_utc
 from app.services.global_event_service import build_deduped_sources_for_api
 from app.services.rankings_search_utils import (
     industry_tags_from_metrics,
@@ -47,14 +48,21 @@ def list_rankings(
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     rk = _parse_range(range)
-    delta = _range_delta(rk)
     now = datetime.now(timezone.utc)
-    cutoff = now - delta
-
     q_term = normalize_rankings_q(search_q)
 
     stmt = select(GlobalEvent).where(GlobalEvent.status == "active")
-    stmt = stmt.where(or_(GlobalEvent.published_at >= cutoff, GlobalEvent.last_seen_at >= cutoff))
+    if rk == "today":
+        start_utc, end_utc, _target_date = get_yesterday_window_utc("Asia/Shanghai")
+        stmt = stmt.where(
+            GlobalEvent.published_at.isnot(None),
+            GlobalEvent.published_at >= start_utc,
+            GlobalEvent.published_at < end_utc,
+        )
+    else:
+        delta = _range_delta(rk)
+        cutoff = now - delta
+        stmt = stmt.where(or_(GlobalEvent.published_at >= cutoff, GlobalEvent.last_seen_at >= cutoff))
     if category and category != "all":
         stmt = stmt.where(GlobalEvent.category == category)
 

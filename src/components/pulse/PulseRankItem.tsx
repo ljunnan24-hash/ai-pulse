@@ -51,7 +51,16 @@ export function PulseRankRankBadge({
   return <span className={rankBadgeCls}>{label}</span>;
 }
 
-export function PulseRankScoreCell({ score, compact }: { score: number; compact?: boolean }) {
+export function PulseRankScoreCell({ score, compact }: { score: number | null; compact?: boolean }) {
+  if (score == null || !Number.isFinite(score)) {
+    return (
+      <span
+        className={`font-medium tabular-nums text-slate-400 ${compact ? 'text-base' : 'text-lg'}`}
+      >
+        —
+      </span>
+    );
+  }
   return (
     <span
       className={`font-semibold tabular-nums text-blue-600 ${compact ? 'text-base' : 'text-lg'}`}

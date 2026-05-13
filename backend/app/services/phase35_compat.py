@@ -396,11 +396,16 @@ def map_top3_judgments_to_top3(jlist: list[Any]) -> list[dict[str, str]]:
     return out
 
 
-def apply_backward_compat_from_phase35(normal: dict[str, Any]) -> None:
+def apply_backward_compat_from_phase35(
+    normal: dict[str, Any], *, weekly_top3_global_events_only: bool = False
+) -> None:
     """
     若存在 Phase 3.5 新字段，则填充对应 legacy 字段（供邮件/旧前端）。
     调用时机：finalize 前，且 top3 已由 locked merge 处理过之后；
     top3 正文也可再次由 sync_legacy_top3_from_judgments 覆盖。
+
+    weekly_top3_global_events_only：新版周报 Top3 仅来自 GlobalEvent + weekly_event_scores；
+    禁止用 top3_judgments 回填或覆盖 normal.top3（即使 top3 为空也不补位）。
     """
     if not isinstance(normal, dict):
         return
@@ -424,7 +429,14 @@ def apply_backward_compat_from_phase35(normal: dict[str, Any]) -> None:
             normal["sections"] = secs
 
     tj = normal.get("top3_judgments")
-    if isinstance(tj, list) and tj and not normal.get("top3"):
+    top3_existing = normal.get("top3")
+    has_top3_rows = isinstance(top3_existing, list) and len(top3_existing) > 0
+    if (
+        not weekly_top3_global_events_only
+        and isinstance(tj, list)
+        and tj
+        and not has_top3_rows
+    ):
         normal["top3"] = map_top3_judgments_to_top3(tj)[:3]
 
 

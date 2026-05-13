@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import GlobalEvent
+from app.utils.time_windows import get_yesterday_window_utc
 from app.services.llm_json_client import LlmJsonClient
 from app.services.ranking_score import effective_ranking_score
 from app.services.global_event_service import recalculate_global_event
@@ -75,9 +76,13 @@ def needs_ranking_insight_refresh(ge: GlobalEvent) -> bool:
 def _today_effective_top_ids(db: Session, top_n: int) -> list[int]:
     """与公开排行榜 today 范围一致的有效分 Top N（用于 Insight 候选）。"""
     now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(days=1)
+    start_utc, end_utc, _ = get_yesterday_window_utc("Asia/Shanghai")
     q = select(GlobalEvent).where(GlobalEvent.status == "active")
-    q = q.where(or_(GlobalEvent.published_at >= cutoff, GlobalEvent.last_seen_at >= cutoff))
+    q = q.where(
+        GlobalEvent.published_at.isnot(None),
+        GlobalEvent.published_at >= start_utc,
+        GlobalEvent.published_at < end_utc,
+    )
     rows = db.scalars(q.limit(800)).all()
     scored: list[tuple[float, int]] = []
     for ge in rows:

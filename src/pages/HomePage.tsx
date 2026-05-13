@@ -82,13 +82,16 @@ export default function HomePage() {
         const pl = r.payload as Record<string, unknown>;
         const normal = (pl.normal as Record<string, unknown> | undefined) || {};
         const thesis = normal.weekly_thesis as { headline?: string; summary?: string } | undefined;
-        const tj = (normal.top3_judgments as Array<{ title?: string }> | undefined) || [];
-        const legacy = (normal.top3 as Array<{ title?: string }> | undefined) || [];
+        const top3 = (normal.top3 as Array<{ title?: string; event_id?: unknown }> | undefined) || [];
         const caps =
           (normal.capability_boundaries as Array<{ question?: string; conclusion?: string }> | undefined) || [];
         const hl = thesis?.headline?.trim();
         const summary = (thesis?.summary ?? '').trim();
-        const titles = (tj.length ? tj : legacy).map((x) => String(x.title || '')).filter(Boolean).slice(0, 3);
+        const titles = top3
+          .filter((x) => String(x?.event_id ?? '').trim())
+          .map((x) => String(x.title || ''))
+          .filter(Boolean)
+          .slice(0, 3);
         const cap0 = caps[0];
         const boundaryLine = cap0?.conclusion?.trim() || cap0?.question?.trim() || '';
         setWeeklyPreview({

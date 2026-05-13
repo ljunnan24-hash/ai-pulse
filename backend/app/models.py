@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import enum
 from datetime import date, datetime
-from typing import Optional
+from typing import Any, Optional
 
-from sqlalchemy import BigInteger, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import BigInteger, Date, DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -33,7 +33,7 @@ class Subscriber(Base):
     unsubscribe_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     manage_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     send_logs: Mapped[list["SendLog"]] = relationship(back_populates="subscriber")
 
@@ -50,13 +50,13 @@ class WeeklyReport(Base):
     slug: Mapped[str] = mapped_column(String(32), default="")
     title: Mapped[str] = mapped_column(String(512), default="")
     payload_json: Mapped[str] = mapped_column(Text, default="{}")
-    html_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    html_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="published", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class WeeklyIssue(Base):
@@ -69,7 +69,7 @@ class WeeklyIssue(Base):
     glossary_json: Mapped[str] = mapped_column(Text, default="[]")
     payload_json: Mapped[str] = mapped_column(Text, default="{}")
     status: Mapped[str] = mapped_column(String(16), default=IssueStatus.draft.value, index=True)
-    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ready_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     raw_items: Mapped[list["RawItem"]] = relationship(back_populates="issue")
@@ -95,9 +95,9 @@ class WeeklyIssueSnapshot(Base):
     glossary_json: Mapped[str] = mapped_column(Text, default="[]")
     payload_json: Mapped[str] = mapped_column(Text, default="{}")
     status: Mapped[str] = mapped_column(String(16), default="")
-    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ready_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     source: Mapped[str] = mapped_column(String(64), default="")
-    audit_report_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    audit_report_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     issue: Mapped["WeeklyIssue"] = relationship(back_populates="snapshots")
@@ -121,7 +121,7 @@ class IssueEvent(Base):
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     score_total: Mapped[int] = mapped_column(Integer, default=0, index=True)
     heat_score: Mapped[int] = mapped_column(Integer, default=0)
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     sources_json: Mapped[str] = mapped_column(Text, default="[]")
     enrichment_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -147,14 +147,14 @@ class RawItem(Base):
     __tablename__ = "raw_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    issue_id: Mapped[int | None] = mapped_column(ForeignKey("weekly_issues.id"), nullable=True, index=True)
-    event_id: Mapped[int | None] = mapped_column(ForeignKey("issue_events.id"), nullable=True, index=True)
+    issue_id: Mapped[Optional[int]] = mapped_column(ForeignKey("weekly_issues.id"), nullable=True, index=True)
+    event_id: Mapped[Optional[int]] = mapped_column(ForeignKey("issue_events.id"), nullable=True, index=True)
     source_type: Mapped[str] = mapped_column(String(32), default="rss")
     source: Mapped[str] = mapped_column(String(128), default="")
     title: Mapped[str] = mapped_column(String(512), default="")
     summary: Mapped[str] = mapped_column(Text, default="")
     link: Mapped[str] = mapped_column(String(1024), default="")
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     heat_score: Mapped[int] = mapped_column(Integer, default=0)
     score_total: Mapped[int] = mapped_column(Integer, default=0, index=True)
     score_breakdown_json: Mapped[str] = mapped_column(Text, default="{}")
@@ -180,7 +180,7 @@ class GlobalEvent(Base):
     summary: Mapped[str] = mapped_column(Text, default="")
     category: Mapped[str] = mapped_column(String(32), default="application", index=True)
     source_type: Mapped[str] = mapped_column(String(32), default="rss")
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     source_count: Mapped[int] = mapped_column(Integer, default=1)
@@ -214,10 +214,38 @@ class GlobalEventSource(Base):
     source_name: Mapped[str] = mapped_column(String(256), default="")
     source_type: Mapped[str] = mapped_column(String(32), default="")
     url: Mapped[str] = mapped_column(String(2048), default="")
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     global_event: Mapped["GlobalEvent"] = relationship(back_populates="sources")
+
+
+class WeeklyEventScore(Base):
+    """
+    新版周报：按「期刊周一 period_start」对 GlobalEvent 的周评分（weekly_score）。
+    与 global_events.weekly_score 列解耦；Top3 排序与历史追溯以本表为准。
+    """
+
+    __tablename__ = "weekly_event_scores"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    report_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    period_start: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    global_event_id: Mapped[int] = mapped_column(ForeignKey("global_events.id", ondelete="CASCADE"), index=True)
+    weekly_score: Mapped[float] = mapped_column(Float, default=0.0)
+    max_pulse_score: Mapped[float] = mapped_column(Float, default=0.0)
+    independent_source_count: Mapped[int] = mapped_column(Integer, default=0)
+    active_days: Mapped[int] = mapped_column(Integer, default=0)
+    source_boost: Mapped[float] = mapped_column(Float, default=0.0)
+    active_day_boost: Mapped[float] = mapped_column(Float, default=0.0)
+    authority_boost: Mapped[float] = mapped_column(Float, default=0.0)
+    new_development_boost: Mapped[float] = mapped_column(Float, default=0.0)
+    has_official_source: Mapped[bool] = mapped_column(default=False)
+    has_authority_media: Mapped[bool] = mapped_column(default=False)
+    score_reasons: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class WeeklyClickLog(Base):
@@ -226,18 +254,18 @@ class WeeklyClickLog(Base):
     __tablename__ = "weekly_click_logs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    subscriber_id: Mapped[int | None] = mapped_column(
+    subscriber_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("subscribers.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    weekly_issue_id: Mapped[int | None] = mapped_column(
+    weekly_issue_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("weekly_issues.id", ondelete="SET NULL"), nullable=True, index=True
     )
     report_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
     event_type: Mapped[str] = mapped_column(String(16), index=True)
-    click_target: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    top3_slot: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    dest_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
-    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    click_target: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    top3_slot: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    dest_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -246,7 +274,7 @@ class SendLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     subscriber_id: Mapped[int] = mapped_column(ForeignKey("subscribers.id"), index=True)
-    issue_id: Mapped[int | None] = mapped_column(ForeignKey("weekly_issues.id"), nullable=True, index=True)
+    issue_id: Mapped[Optional[int]] = mapped_column(ForeignKey("weekly_issues.id"), nullable=True, index=True)
     # kind is used for deduplication. DuckDB-backed variants may require encoding
     # issue identity into this field, so keep it comfortably sized.
     kind: Mapped[str] = mapped_column(String(255), default="weekly")
@@ -263,7 +291,7 @@ class AdminUser(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[int] = mapped_column(Integer, default=1, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AnalyticsPageView(Base):
@@ -273,11 +301,11 @@ class AnalyticsPageView(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     visitor_id: Mapped[str] = mapped_column(String(40), index=True)
-    session_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    session_id: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     path: Mapped[str] = mapped_column(String(512), index=True)
-    referrer: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    ip_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    referrer: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    ip_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
@@ -288,12 +316,12 @@ class UserFeedback(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     content: Mapped[str] = mapped_column(Text)
-    contact: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    source_page: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    contact: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    source_page: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="new", index=True)
-    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    ip_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    visitor_id: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    admin_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    ip_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    visitor_id: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

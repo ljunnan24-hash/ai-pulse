@@ -6,10 +6,10 @@ import { resolveWeeklyCategoryDisplay } from '../../lib/weeklyCategoryDisplay';
 import type { WeeklyLooseRow } from './weeklyPayloadUtils';
 import {
   pickWeeklyCategoryRaw,
-  weeklyPulseDisplayScore,
   weeklyPulseMeaning,
   weeklyPulseTitleEn,
   weeklyPulseTitleZh,
+  weeklyTopThreeDisplayScore,
 } from './weeklyPayloadUtils';
 import { PulseRankingsTableLayout, type PulseRankingsTableRow } from '../pulse/PulseRankingsTableLayout';
 
@@ -35,13 +35,11 @@ export function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null 
   return null;
 }
 
-function scoreForRow(row: WeeklyLooseRow, apiRanking?: number): number {
-  const base = weeklyPulseDisplayScore(row);
-  if (base > 0) return base;
-  if (apiRanking != null && Number.isFinite(apiRanking)) {
-    return Math.round(apiRanking * 10) / 10;
-  }
-  return 0;
+function detailHrefForWeeklyRow(row: WeeklyLooseRow, eid: number | null): string | undefined {
+  const raw = ((row as Record<string, string>).detail_url ?? '').trim();
+  if (raw.startsWith('/')) return raw;
+  if (eid !== null) return `/events/${eid}`;
+  return undefined;
 }
 
 /**
@@ -119,15 +117,14 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
     const eid = resolveWeeklyNumericEventId(row);
     const api = eid !== null ? eventById[eid] : undefined;
 
-    /** 与排行榜一致：仅站内事件详情；外链在详情页「来源」查看，不在表格里跳转外部 */
-    const detailTo = eid !== null ? `/events/${eid}` : undefined;
+    const detailTo = detailHrefForWeeklyRow(row, eid);
 
     const weeklyCategoryResolved = resolveWeeklyTopThreeCategory(row, api?.category);
 
     return {
       key: `${row.title}-${i}`,
       rank: i + 1,
-      score: scoreForRow(row, api?.ranking_score),
+      score: weeklyTopThreeDisplayScore(row),
       titleZh: weeklyPulseTitleZh(row),
       titleEn: weeklyPulseTitleEn(row),
       meaning: weeklyPulseMeaning(row),
@@ -139,5 +136,5 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
     };
   });
 
-  return <PulseRankingsTableLayout rows={pulseRows} />;
+  return <PulseRankingsTableLayout rows={pulseRows} scoreColumnLabel="本周分" />;
 }
