@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any
 
 from sqlalchemy import desc, inspect as sa_inspect, select
@@ -15,13 +16,30 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import SessionLocal
-from app.models import RawItem
-from app.services.crawler_service import collect_all_feed_items
+from app.models import FeedCrawlRun, RawItem
+from app.services.crawler_service import collect_all_feed_items_with_reports
+from app.services.feed_crawl_report import FeedCrawlReport, apply_inserted_counts_and_no_new_health
 from app.services.global_event_service import upsert_global_events_from_raw_items
 from app.services.ranking_insight_service import enrich_ranking_insights
 from app.services.scoring_service import score_item
 
 _log = logging.getLogger("uvicorn.error")
+
+
+def _persist_feed_crawl_reports(db: Session, reports: list[FeedCrawlReport]) -> None:
+    bind = db.get_bind()
+    insp = sa_inspect(bind) if bind else None
+    if not insp or not insp.has_table("feed_crawl_runs"):
+        _log.warning(
+            "daily_rankings: feed_crawl_runs table missing; skip persisting crawl reports "
+            "(apply sql/migrations/2026-05-14_feed_crawl_runs.sql)."
+        )
+        return
+    rows = [r.to_row() for r in reports]
+    if not rows:
+        return
+    db.bulk_insert_mappings(FeedCrawlRun, rows)
+    db.commit()
 
 
 def _crawler_item_to_extra_json(it: dict) -> str:
@@ -56,9 +74,16 @@ def run(db: Session) -> None:
     has_score_breakdown = "score_breakdown_json" in existing_cols
     has_extra_json = "extra_json" in existing_cols
 
-    items = collect_all_feed_items()
+    run_id = str(uuid.uuid4())
+    items, crawl_reports = collect_all_feed_items_with_reports(
+        run_id=run_id,
+        job_name="daily_rankings",
+    )
     if not items:
         print("daily_rankings: no feed items collected.")
+        apply_inserted_counts_and_no_new_health(crawl_reports, [])
+        _persist_feed_crawl_reports(db, crawl_reports)
+        print(f"daily_rankings: feed crawl run_id={run_id} reports={len(crawl_reports)} (no items).")
         return
 
     for it in items:
@@ -95,6 +120,8 @@ def run(db: Session) -> None:
 
     if not mappings:
         print("daily_rankings: empty mappings.")
+        apply_inserted_counts_and_no_new_health(crawl_reports, items)
+        _persist_feed_crawl_reports(db, crawl_reports)
         return
 
     n = len(mappings)
@@ -116,6 +143,13 @@ def run(db: Session) -> None:
             print(f"daily_rankings: ranking_insight enriched ~{n} events.")
         except Exception as exc:
             _log.exception("daily_rankings: enrich_ranking_insights failed (job continues): %s", exc)
+
+    apply_inserted_counts_and_no_new_health(crawl_reports, items)
+    _persist_feed_crawl_reports(db, crawl_reports)
+    print(
+        f"daily_rankings: feed crawl persisted run_id={run_id} rows={len(crawl_reports)} "
+        "(see feed_crawl_runs table; console lines prefixed [feed-health])."
+    )
 
 
 def main() -> None:

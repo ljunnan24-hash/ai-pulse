@@ -81,3 +81,55 @@ curl -s "https://你的域名/api/archive?limit=10"
 5）Nginx 建议：`/api/`、`/health`、`/manage/*`、后台所需 `/admin/auth` 等 → 后端；**其余（含 `/weekly/*`）→ 前端静态 SPA**。邮件里的 `weekly_url` 仍为 `/weekly/日期`，由 React 读 `/api/weekly/*`；若需旧的服务端 HTML 周报，路径为 **`/weekly-html/日期`**（直连后端时）。
 
 当前不必做：付费、复杂权限、个性化、雷达完整 Agent、B 端。
+
+---
+
+## RSS 信源健康（`feed_crawl_runs`）
+
+`daily_rankings` 每次跑完会按 `run_id` 批量写入各 `feed_url` 的抓取报告；控制台抓取过程中有 `[feed-health]` 前缀摘要。
+
+**迁移（首次部署）：**
+
+```bash
+mysql -h … -u … -p aipulse < sql/migrations/2026-05-14_feed_crawl_runs.sql
+```
+
+**1）最近一次任务里，每个 RSS 源是否成功（取最新 `run_at` 那一批 `run_id`）：**
+
+```sql
+SELECT run_id, MAX(run_at) AS run_at
+FROM feed_crawl_runs
+WHERE job_name = 'daily_rankings'
+GROUP BY run_id
+ORDER BY run_at DESC
+LIMIT 1;
+-- 将上一步得到的 run_id 代入：
+SELECT feed_url, feed_channel, health_status, http_status, content_type,
+       raw_entry_count, emitted_item_count, inserted_item_count, error_message
+FROM feed_crawl_runs
+WHERE run_id = '上一步的 run_id'
+ORDER BY feed_channel, feed_url;
+```
+
+**2）最近 7 天「失败」最多的源（`health_status` 非 `ok`）：**
+
+```sql
+SELECT feed_url, feed_channel, health_status, COUNT(*) AS fail_cnt
+FROM feed_crawl_runs
+WHERE job_name = 'daily_rankings'
+  AND run_at >= NOW(6) - INTERVAL 7 DAY
+  AND health_status <> 'ok'
+GROUP BY feed_url, feed_channel, health_status
+ORDER BY fail_cnt DESC
+LIMIT 30;
+```
+
+**3）HTTP 200 但判定不是 RSS（`invalid_feed`，多为 `text/html` 占位页）：**
+
+```sql
+SELECT run_at, feed_url, feed_channel, http_status, content_type, error_message
+FROM feed_crawl_runs
+WHERE health_status = 'invalid_feed'
+ORDER BY run_at DESC
+LIMIT 50;
+```

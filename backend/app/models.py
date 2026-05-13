@@ -325,3 +325,27 @@ class UserFeedback(Base):
     visitor_id: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class FeedCrawlRun(Base):
+    """单次任务内各 RSS/信源抓取结果（daily_rankings 等）。"""
+
+    __tablename__ = "feed_crawl_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(64), index=True)
+    job_name: Mapped[str] = mapped_column(String(64), default="")
+    feed_url: Mapped[str] = mapped_column(String(2048), default="")
+    feed_channel: Mapped[str] = mapped_column(String(64), default="")
+    http_status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    content_type: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    fetch_ok: Mapped[bool] = mapped_column(default=False)
+    parse_ok: Mapped[bool] = mapped_column(default=False)
+    raw_entry_count: Mapped[int] = mapped_column(Integer, default=0)
+    emitted_item_count: Mapped[int] = mapped_column(Integer, default=0)
+    inserted_item_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    health_status: Mapped[str] = mapped_column(String(32), default="", index=True)
+    error_class: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

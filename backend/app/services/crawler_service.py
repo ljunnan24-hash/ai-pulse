@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urljoin
@@ -10,12 +12,22 @@ import feedparser
 import httpx
 
 from app.config import get_settings
+from app.services.feed_crawl_report import (
+    FeedCrawlReport,
+    FeedCrawlTimer,
+    body_looks_like_feed,
+    content_type_implies_feed,
+    should_mark_invalid_feed,
+    utcnow,
+)
 from app.services.github_service import collect_trending_repos, collect_trending_repos_weekly
 from app.services.source_labeling import (
     feed_source_name,
     prd_source_type_for_channel,
     short_source_field,
 )
+
+_log = logging.getLogger("uvicorn.error")
 
 
 def _heat_from_entry(entry: dict[str, Any], idx: int) -> int:
@@ -118,12 +130,94 @@ def discover_rss_links_from_page(page_url: str) -> list[str]:
     return out
 
 
-def fetch_feed_items(
+def _log_feed_health_line(rep: FeedCrawlReport) -> None:
+    ch = rep.feed_channel or "?"
+    hs = rep.health_status
+    url = (rep.feed_url or "")[:200]
+    if hs == "invalid_feed":
+        msg = (
+            f"[feed-health] {ch} {hs} http={rep.http_status} "
+            f"content_type={rep.content_type or '?'} url={url}"
+        )
+    else:
+        msg = (
+            f"[feed-health] {ch} {hs} entries={rep.raw_entry_count} "
+            f"emitted={rep.emitted_item_count} url={url}"
+        )
+    print(msg)
+    _log.info(msg)
+
+
+def fetch_feed_items_with_report(
     feed_url: str,
     limit_per_feed: int = 15,
     *,
     feed_channel: str = "official",
-) -> list[dict[str, Any]]:
+    run_id: str = "",
+    job_name: str = "fetch_feed_items",
+    run_at: datetime | None = None,
+) -> tuple[list[dict[str, Any]], FeedCrawlReport]:
+    run_at = run_at or utcnow()
+    timer = FeedCrawlTimer()
+    feed_url = (feed_url or "").strip()
+    out: list[dict[str, Any]] = []
+
+    if not feed_url:
+        rep = FeedCrawlReport(
+            run_id=run_id or "",
+            job_name=job_name,
+            feed_url="",
+            feed_channel=feed_channel,
+            http_status=None,
+            content_type=None,
+            fetch_ok=False,
+            parse_ok=False,
+            raw_entry_count=0,
+            emitted_item_count=0,
+            inserted_item_count=None,
+            health_status="fetch_failed",
+            error_class="ValueError",
+            error_message="empty feed_url",
+            duration_ms=timer.elapsed_ms(),
+            run_at=run_at,
+        )
+        _log_feed_health_line(rep)
+        return [], rep
+
+    def _finish(
+        *,
+        http_status: int | None,
+        content_type: str | None,
+        fetch_ok: bool,
+        parse_ok: bool,
+        raw_entry_count: int,
+        emitted_item_count: int,
+        health_status: str,
+        error_class: str | None,
+        error_message: str | None,
+        items: list[dict[str, Any]] | None = None,
+    ) -> tuple[list[dict[str, Any]], FeedCrawlReport]:
+        rep = FeedCrawlReport(
+            run_id=run_id or "",
+            job_name=job_name,
+            feed_url=feed_url,
+            feed_channel=feed_channel,
+            http_status=http_status,
+            content_type=content_type,
+            fetch_ok=fetch_ok,
+            parse_ok=parse_ok,
+            raw_entry_count=raw_entry_count,
+            emitted_item_count=emitted_item_count,
+            inserted_item_count=None,
+            health_status=health_status,
+            error_class=error_class,
+            error_message=error_message,
+            duration_ms=timer.elapsed_ms(),
+            run_at=run_at,
+        )
+        _log_feed_health_line(rep)
+        return (items if items is not None else out, rep)
+
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -134,29 +228,85 @@ def fetch_feed_items(
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7",
         "Cache-Control": "no-cache",
     }
-    out: list[dict[str, Any]] = []
+
+    http_status: int | None = None
+    content_type: str | None = None
+    body: bytes | None = None
+    httpx_ok = False
+    httpx_err: str | None = None
+
     try:
         with httpx.Client(timeout=30.0, follow_redirects=True) as client:
             r = client.get(feed_url, headers=headers)
+            http_status = r.status_code
+            content_type = r.headers.get("content-type")
             r.raise_for_status()
-            parsed = feedparser.parse(r.content)
-    except Exception:
+            body = r.content
+            httpx_ok = True
+    except Exception as exc:
+        httpx_err = f"{type(exc).__name__}: {exc}"
+
+    parsed: Any = None
+    used_url_fallback = False
+
+    if httpx_ok and body is not None:
+        if should_mark_invalid_feed(http_status, content_type, body):
+            return _finish(
+                http_status=http_status,
+                content_type=content_type,
+                fetch_ok=True,
+                parse_ok=False,
+                raw_entry_count=0,
+                emitted_item_count=0,
+                health_status="invalid_feed",
+                error_class="InvalidFeedContent",
+                error_message="HTTP success but body does not look like RSS/Atom",
+            )
+        try:
+            parsed = feedparser.parse(body)
+        except Exception as exc:
+            return _finish(
+                http_status=http_status,
+                content_type=content_type,
+                fetch_ok=True,
+                parse_ok=False,
+                raw_entry_count=0,
+                emitted_item_count=0,
+                health_status="parse_failed",
+                error_class=type(exc).__name__,
+                error_message=str(exc)[:2000],
+            )
+    else:
         try:
             parsed = feedparser.parse(feed_url)
-        except Exception:
-            return out
+            used_url_fallback = True
+        except Exception as exc:
+            return _finish(
+                http_status=http_status,
+                content_type=content_type,
+                fetch_ok=False,
+                parse_ok=False,
+                raw_entry_count=0,
+                emitted_item_count=0,
+                health_status="fetch_failed",
+                error_class=type(exc).__name__,
+                error_message=(httpx_err or str(exc))[:2000],
+            )
+
+    entries = list(getattr(parsed, "entries", []) or [])
+    raw_entry_count = len(entries)
 
     source_type = prd_source_type_for_channel(feed_channel)
     if _feed_url_implies_social_bridge(feed_url):
         source_type = "social"
-    elif (feed_url or "").lower().find("/meta/ai/blog") >= 0:
+    elif feed_url and feed_url.lower().find("/meta/ai/blog") >= 0:
         source_type = "official"
 
     label = feed_source_name(feed_url)
     short_src = short_source_field(feed_url, label)
     crawl_time = datetime.now(timezone.utc).isoformat()
 
-    for idx, entry in enumerate(getattr(parsed, "entries", [])[:limit_per_feed]):
+    for idx, entry in enumerate(entries[:limit_per_feed]):
         title = (entry.get("title") or "").strip()
         link = (entry.get("link") or "").strip()
         summary = (entry.get("summary") or entry.get("description") or "").strip()
@@ -190,7 +340,48 @@ def fetch_feed_items(
                 },
             }
         )
-    return out
+
+    emitted = len(out)
+    parse_ok = True
+    fetch_ok = bool(httpx_ok or emitted > 0 or raw_entry_count > 0)
+
+    if raw_entry_count == 0:
+        health = "fetch_failed" if not httpx_ok else "empty_feed"
+    elif emitted == 0:
+        health = "all_filtered"
+    else:
+        health = "ok"
+
+    if health == "fetch_failed":
+        parse_ok = False
+
+    return _finish(
+        http_status=http_status,
+        content_type=content_type,
+        fetch_ok=fetch_ok,
+        parse_ok=parse_ok,
+        raw_entry_count=raw_entry_count,
+        emitted_item_count=emitted,
+        health_status=health,
+        error_class=None,
+        error_message=("feedparser.parse(url) fallback" if used_url_fallback and httpx_err else None),
+    )
+
+
+def fetch_feed_items(
+    feed_url: str,
+    limit_per_feed: int = 15,
+    *,
+    feed_channel: str = "official",
+) -> list[dict[str, Any]]:
+    items, _ = fetch_feed_items_with_report(
+        feed_url,
+        limit_per_feed,
+        feed_channel=feed_channel,
+        run_id="",
+        job_name="fetch_feed_items",
+    )
+    return items
 
 
 def _dedupe_key(item: dict[str, Any]) -> str:
@@ -244,9 +435,17 @@ def _collect_github_block() -> list[dict[str, Any]]:
     return out
 
 
-def collect_all_feed_items() -> list[dict[str, Any]]:
+def collect_all_feed_items_with_reports(
+    *,
+    run_id: str | None = None,
+    job_name: str = "collect_all_feed_items",
+    run_at: datetime | None = None,
+) -> tuple[list[dict[str, Any]], list[FeedCrawlReport]]:
+    run_id = run_id or str(uuid.uuid4())
+    run_at = run_at or utcnow()
     settings = get_settings()
     merged: list[dict[str, Any]] = []
+    reports: list[FeedCrawlReport] = []
     seen: set[str] = set()
 
     def append_items(items: list[dict[str, Any]]) -> None:
@@ -259,25 +458,64 @@ def collect_all_feed_items() -> list[dict[str, Any]]:
 
     for token in settings.crawl_priority_order():
         if token == "github":
-            append_items(_collect_github_block())
+            gh_timer = FeedCrawlTimer()
+            gh_items = _collect_github_block()
+            gh_rep = FeedCrawlReport(
+                run_id=run_id,
+                job_name=job_name,
+                feed_url="",
+                feed_channel="github",
+                http_status=None,
+                content_type=None,
+                fetch_ok=len(gh_items) > 0,
+                parse_ok=len(gh_items) > 0,
+                raw_entry_count=len(gh_items),
+                emitted_item_count=len(gh_items),
+                inserted_item_count=None,
+                health_status="ok" if gh_items else "empty_feed",
+                error_class=None,
+                error_message=None,
+                duration_ms=gh_timer.elapsed_ms(),
+                run_at=run_at,
+            )
+            _log_feed_health_line(gh_rep)
+            reports.append(gh_rep)
+            append_items(gh_items)
             continue
         tier, urls, channel = settings._feed_bucket(token)
         for url in urls:
-            append_items(
-                [
-                    {**it, "source_tier": int(tier)}
-                    for it in fetch_feed_items(url, feed_channel=channel)
-                ]
+            items, rep = fetch_feed_items_with_report(
+                url,
+                feed_channel=channel,
+                run_id=run_id,
+                job_name=job_name,
+                run_at=run_at,
             )
+            reports.append(rep)
+            append_items([{**it, "source_tier": int(tier)} for it in items])
 
     for page_url in settings._split_urls(settings.official_page_urls):
         feeds = discover_rss_links_from_page(page_url)
         if not feeds:
             continue
         for furl in feeds:
-            append_items(
-                [{**it, "source_tier": 0} for it in fetch_feed_items(furl, feed_channel="official")]
+            items, rep = fetch_feed_items_with_report(
+                furl,
+                feed_channel="official",
+                run_id=run_id,
+                job_name=job_name,
+                run_at=run_at,
             )
+            reports.append(rep)
+            append_items([{**it, "source_tier": 0} for it in items])
 
     merged.sort(key=lambda x: x.get("heat_score") or 0, reverse=True)
-    return merged[:80]
+    return merged[:80], reports
+
+
+def collect_all_feed_items() -> list[dict[str, Any]]:
+    items, _ = collect_all_feed_items_with_reports(
+        run_id=str(uuid.uuid4()),
+        job_name="collect_all_feed_items",
+    )
+    return items
