@@ -20,6 +20,7 @@ from app.models import FeedCrawlRun, RawItem
 from app.services.crawler_service import collect_all_feed_items_with_reports
 from app.services.feed_crawl_report import FeedCrawlReport, apply_inserted_counts_and_no_new_health
 from app.services.global_event_service import upsert_global_events_from_raw_items
+from app.services.raw_item_dedupe import filter_new_items_for_daily_rankings
 from app.services.ranking_insight_service import enrich_ranking_insights
 from app.services.scoring_service import score_item
 
@@ -73,6 +74,8 @@ def run(db: Session) -> None:
     has_score_total = "score_total" in existing_cols
     has_score_breakdown = "score_breakdown_json" in existing_cols
     has_extra_json = "extra_json" in existing_cols
+    has_normalized_link = "normalized_link" in existing_cols
+    has_normalized_link_hash = "normalized_link_hash" in existing_cols
 
     run_id = str(uuid.uuid4())
     items, crawl_reports = collect_all_feed_items_with_reports(
@@ -86,7 +89,18 @@ def run(db: Session) -> None:
         print(f"daily_rankings: feed crawl run_id={run_id} reports={len(crawl_reports)} (no items).")
         return
 
-    for it in items:
+    new_items = filter_new_items_for_daily_rankings(db, items)
+    if not new_items:
+        print(
+            f"daily_rankings: all {len(items)} collected items skipped "
+            "(already in raw_items issue_id=null, intra-batch dup, or DB match)."
+        )
+        apply_inserted_counts_and_no_new_health(crawl_reports, new_items)
+        _persist_feed_crawl_reports(db, crawl_reports)
+        print(f"daily_rankings: feed crawl run_id={run_id} reports={len(crawl_reports)} (no new raw_items).")
+        return
+
+    for it in new_items:
         bd = score_item(it)
         it["_score_total"] = int(bd.total)
         try:
@@ -98,7 +112,7 @@ def run(db: Session) -> None:
             it["_score_breakdown_json"] = bd.to_json()
 
     mappings: list[dict[str, Any]] = []
-    for it in items:
+    for it in new_items:
         row: dict[str, Any] = {
             "issue_id": None,
             "source": it.get("source", ""),
@@ -116,11 +130,17 @@ def run(db: Session) -> None:
             row["score_breakdown_json"] = str(it.get("_score_breakdown_json") or "{}")
         if has_extra_json:
             row["extra_json"] = _crawler_item_to_extra_json(it)
+        if has_normalized_link:
+            nl = (it.get("_normalized_link") or "").strip()
+            row["normalized_link"] = nl if nl else None
+        if has_normalized_link_hash:
+            nh = (it.get("_normalized_link_hash") or "").strip()
+            row["normalized_link_hash"] = nh if nh else None
         mappings.append(row)
 
     if not mappings:
         print("daily_rankings: empty mappings.")
-        apply_inserted_counts_and_no_new_health(crawl_reports, items)
+        apply_inserted_counts_and_no_new_health(crawl_reports, new_items)
         _persist_feed_crawl_reports(db, crawl_reports)
         return
 
@@ -144,7 +164,7 @@ def run(db: Session) -> None:
         except Exception as exc:
             _log.exception("daily_rankings: enrich_ranking_insights failed (job continues): %s", exc)
 
-    apply_inserted_counts_and_no_new_health(crawl_reports, items)
+    apply_inserted_counts_and_no_new_health(crawl_reports, new_items)
     _persist_feed_crawl_reports(db, crawl_reports)
     print(
         f"daily_rankings: feed crawl persisted run_id={run_id} rows={len(crawl_reports)} "

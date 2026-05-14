@@ -84,6 +84,17 @@ curl -s "https://你的域名/api/archive?limit=10"
 
 ---
 
+## RawItem 入库去重（规范化 URL）
+
+- 行为说明见 **`docs/去重机制说明.md`**（源级仍全量请求、item/入库去重、`GlobalEvent` 为另一层；ETag/feed_state 为后续项）。
+- 首次需执行迁移（与现有库兼容，无 UNIQUE）：
+
+```bash
+mysql -h … -u … -p aipulse < sql/migrations/2026-05-15_raw_items_dedupe_columns.sql
+```
+
+---
+
 ## RSS 信源健康（`feed_crawl_runs`）
 
 `daily_rankings` 每次跑完会按 `run_id` 批量写入各 `feed_url` 的抓取报告；控制台抓取过程中有 `[feed-health]` 前缀摘要。

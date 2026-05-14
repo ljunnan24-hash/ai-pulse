@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 import uuid
@@ -20,6 +19,7 @@ from app.services.feed_crawl_report import (
     should_mark_invalid_feed,
     utcnow,
 )
+from app.utils.url_dedupe import item_stable_dedupe_key
 from app.services.github_service import collect_trending_repos, collect_trending_repos_weekly
 from app.services.source_labeling import (
     feed_source_name,
@@ -385,7 +385,8 @@ def fetch_feed_items(
 
 
 def _dedupe_key(item: dict[str, Any]) -> str:
-    return hashlib.sha256(f"{item.get('link')}|{item.get('title')}".encode("utf-8")).hexdigest()
+    """单次 run 内合并：规范化 URL 哈希优先，无 link 时用标题哈希。"""
+    return item_stable_dedupe_key(item)
 
 
 def _collect_github_block() -> list[dict[str, Any]]:
@@ -447,6 +448,40 @@ def collect_all_feed_items_with_reports(
     merged: list[dict[str, Any]] = []
     reports: list[FeedCrawlReport] = []
     seen: set[str] = set()
+    seen_feed_urls: set[str] = set()
+
+    def _fetch_feed_once(url: str, feed_channel: str) -> tuple[list[dict[str, Any]], FeedCrawlReport]:
+        u = (url or "").strip()
+        t0 = FeedCrawlTimer()
+        if u in seen_feed_urls:
+            rep = FeedCrawlReport(
+                run_id=run_id,
+                job_name=job_name,
+                feed_url=u,
+                feed_channel=feed_channel,
+                http_status=None,
+                content_type=None,
+                fetch_ok=True,
+                parse_ok=True,
+                raw_entry_count=0,
+                emitted_item_count=0,
+                inserted_item_count=None,
+                health_status="skipped_duplicate_feed",
+                error_class=None,
+                error_message="duplicate feed_url in same run",
+                duration_ms=t0.elapsed_ms(),
+                run_at=run_at,
+            )
+            _log_feed_health_line(rep)
+            return [], rep
+        seen_feed_urls.add(u)
+        return fetch_feed_items_with_report(
+            u,
+            feed_channel=feed_channel,
+            run_id=run_id,
+            job_name=job_name,
+            run_at=run_at,
+        )
 
     def append_items(items: list[dict[str, Any]]) -> None:
         for item in items:
@@ -484,13 +519,7 @@ def collect_all_feed_items_with_reports(
             continue
         tier, urls, channel = settings._feed_bucket(token)
         for url in urls:
-            items, rep = fetch_feed_items_with_report(
-                url,
-                feed_channel=channel,
-                run_id=run_id,
-                job_name=job_name,
-                run_at=run_at,
-            )
+            items, rep = _fetch_feed_once(url, channel)
             reports.append(rep)
             append_items([{**it, "source_tier": int(tier)} for it in items])
 
@@ -499,13 +528,7 @@ def collect_all_feed_items_with_reports(
         if not feeds:
             continue
         for furl in feeds:
-            items, rep = fetch_feed_items_with_report(
-                furl,
-                feed_channel="official",
-                run_id=run_id,
-                job_name=job_name,
-                run_at=run_at,
-            )
+            items, rep = _fetch_feed_once(furl, "official")
             reports.append(rep)
             append_items([{**it, "source_tier": 0} for it in items])
 

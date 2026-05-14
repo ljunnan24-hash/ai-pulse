@@ -154,6 +154,8 @@ class RawItem(Base):
     title: Mapped[str] = mapped_column(String(512), default="")
     summary: Mapped[str] = mapped_column(Text, default="")
     link: Mapped[str] = mapped_column(String(1024), default="")
+    normalized_link: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
+    normalized_link_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     heat_score: Mapped[int] = mapped_column(Integer, default=0)
     score_total: Mapped[int] = mapped_column(Integer, default=0, index=True)
