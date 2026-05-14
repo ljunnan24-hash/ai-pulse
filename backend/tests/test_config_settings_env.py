@@ -9,6 +9,13 @@ import pytest
 from app.config import Settings, get_settings
 
 
+def test_split_urls_strips_double_scheme() -> None:
+    raw = "https://https://www.qbitai.com/feed,https://example.com/atom"
+    out = Settings._split_urls(raw)
+    assert out[0] == "https://www.qbitai.com/feed"
+    assert out[1] == "https://example.com/atom"
+
+
 def test_settings_model_declares_phase_fields() -> None:
     names = Settings.model_fields.keys()
     assert "ranking_insight_enabled" in names

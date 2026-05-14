@@ -5,6 +5,24 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _sanitize_list_url(url: str) -> str:
+    """逗号列表里的 RSS/HTML URL：纠正常见的 `https://https://host` 重复 scheme。"""
+    u = (url or "").strip()
+    while True:
+        lo = u.lower()
+        if lo.startswith("https://https://"):
+            u = u[8:]
+        elif lo.startswith("http://https://"):
+            u = u[7:]
+        elif lo.startswith("https://http://"):
+            u = u[8:]
+        elif lo.startswith("http://http://"):
+            u = u[7:]
+        else:
+            break
+    return u.strip()
+
+
 class Settings(BaseSettings):
     # 环境变量名：大写 + 下划线，与 .env 中 RANKING_INSIGHT_*、WEEKLY_SOURCE、GLOBAL_EVENTS_* 一致
     model_config = SettingsConfigDict(
@@ -121,7 +139,7 @@ class Settings(BaseSettings):
 
     @staticmethod
     def _split_urls(s: str) -> list[str]:
-        return [u.strip() for u in (s or "").split(",") if u.strip()]
+        return [_sanitize_list_url(u) for u in (s or "").split(",") if u.strip()]
 
     _CRAWL_KEYS: tuple[str, ...] = ("official", "meta", "media", "product", "community", "x", "github")
 
