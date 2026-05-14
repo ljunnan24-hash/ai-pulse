@@ -37,5 +37,8 @@ admin.aipulse.asia_nginx/
 # Local scratch / extraction artifacts
 ._docx_extract/
 
+# RSS governance script output (regenerated locally / on server)
+reports/rss_source_governance.json
+
 # Do not commit local copies of RDS CA material (e.g. ApsaraDB-Chain)
 ssl/

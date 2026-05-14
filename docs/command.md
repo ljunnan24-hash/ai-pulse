@@ -133,3 +133,78 @@ WHERE health_status = 'invalid_feed'
 ORDER BY run_at DESC
 LIMIT 50;
 ```
+
+**4）按 `feed_url` 汇总最近 7 天各状态次数 + 最近一次详情（MySQL 8+）：**
+
+```sql
+WITH w AS (
+  SELECT
+    feed_channel,
+    feed_url,
+    run_id,
+    run_at,
+    health_status,
+    http_status,
+    content_type,
+    error_message,
+    error_class,
+    ROW_NUMBER() OVER (PARTITION BY feed_channel, feed_url ORDER BY run_at DESC) AS rn
+  FROM feed_crawl_runs
+  WHERE job_name = 'daily_rankings'
+    AND run_at >= NOW(6) - INTERVAL 7 DAY
+)
+SELECT
+  a.feed_channel,
+  a.feed_url,
+  a.total_runs,
+  a.ok_count,
+  a.no_new_items_count,
+  a.invalid_feed_count,
+  a.fetch_failed_count,
+  a.parse_failed_count,
+  a.empty_feed_count,
+  a.all_filtered_count,
+  x.health_status AS last_status,
+  x.http_status AS last_http_status,
+  x.content_type AS last_content_type,
+  COALESCE(NULLIF(x.error_message, ''), x.error_class) AS last_error,
+  x.run_at AS last_seen_at
+FROM (
+  SELECT
+    feed_channel,
+    feed_url,
+    COUNT(*) AS total_runs,
+    SUM(health_status = 'ok') AS ok_count,
+    SUM(health_status = 'no_new_items') AS no_new_items_count,
+    SUM(health_status = 'invalid_feed') AS invalid_feed_count,
+    SUM(health_status = 'fetch_failed') AS fetch_failed_count,
+    SUM(health_status = 'parse_failed') AS parse_failed_count,
+    SUM(health_status = 'empty_feed') AS empty_feed_count,
+    SUM(health_status = 'all_filtered') AS all_filtered_count
+  FROM w
+  GROUP BY feed_channel, feed_url
+) a
+JOIN w x
+  ON x.feed_channel = a.feed_channel
+ AND x.feed_url = a.feed_url
+ AND x.rn = 1
+ORDER BY a.feed_channel, a.feed_url;
+```
+
+**5）RSS 治理脚本（读 `DATABASE_URL`，输出表格 + `reports/rss_source_governance.json`）：**
+
+```bash
+cd /opt/ai-pulse/backend
+.venv/bin/python scripts/rss_source_governance.py
+.venv/bin/python scripts/rss_source_governance.py --days 14 --min-runs-for-remove 3
+```
+
+**6）验证候选 RSS（stdlib，不依赖 feedparser）：**
+
+```bash
+cd /opt/ai-pulse/backend
+.venv/bin/python scripts/verify_feeds_stdlib.py --nvidia-defaults
+.venv/bin/python scripts/verify_feeds_stdlib.py --check-url https://example.com/feed.xml
+```
+
+治理结论与生产 `.env` 手動片段见 **`docs/rss源治理记录.md`**。

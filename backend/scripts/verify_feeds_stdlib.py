@@ -1,9 +1,12 @@
 """
 不依赖 feedparser：用 urllib 验证列表页是否含 RSS link，以及 URL 是否像 RSS 正文。
+
 运行: cd backend && python scripts/verify_feeds_stdlib.py
+      cd backend && python scripts/verify_feeds_stdlib.py --check-url https://example.com/feed.xml
 """
 from __future__ import annotations
 
+import argparse
 import re
 import ssl
 import urllib.request
@@ -27,7 +30,7 @@ def fetch(url: str, limit: int = 400_000, accept: str = "*/*") -> tuple[int, str
     ctx = ssl.create_default_context()
     with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
         code = r.getcode()
-        ct = (r.headers.get("Content-Type") or "")[:80]
+        ct = (r.headers.get("Content-Type") or "")[:120]
         body = r.read(limit).decode("utf-8", errors="replace")
     return code, ct, body
 
@@ -63,10 +66,59 @@ def rss_like(body: str) -> bool:
 
 
 def item_count_hint(body: str) -> int:
-    return len(re.findall(r"<item\b", body[:500_000], re.I))
+    blob = body[:500_000]
+    return len(re.findall(r"<item\b", blob, re.I)) + len(re.findall(r"<entry\b", blob, re.I))
+
+
+def verify_rss_url(url: str, accept: str = "application/rss+xml, application/xml, text/xml, */*") -> dict[str, object]:
+    """返回 HTTP 状态、content-type、rss_like、条目数近似（与 rss_source_governance 验收口径一致）。"""
+    try:
+        code, ct, body = fetch(url, accept=accept)
+    except Exception as e:
+        return {"url": url, "ok": False, "error": f"{type(e).__name__}: {e}"}
+    like = rss_like(body)
+    n = item_count_hint(body) if like else 0
+    return {
+        "url": url,
+        "ok": bool(code and 200 <= int(code) < 300 and like and n > 0),
+        "http_status": code,
+        "content_type": ct,
+        "rss_like": like,
+        "item_count": n,
+    }
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser(description="Verify RSS / discover feeds (stdlib only)")
+    ap.add_argument(
+        "--check-url",
+        action="append",
+        dest="check_urls",
+        metavar="URL",
+        help="可重复；仅检查该 URL 是否为可用 RSS（HTTP 2xx + rss_like + item_count>0）",
+    )
+    ap.add_argument(
+        "--nvidia-defaults",
+        action="store_true",
+        help="检查 NVIDIA 治理候选三条（releases / generative_al / feedburner）",
+    )
+    args = ap.parse_args()
+
+    if args.check_urls or args.nvidia_defaults:
+        urls = list(args.check_urls or [])
+        if args.nvidia_defaults:
+            urls.extend(
+                [
+                    "https://nvidianews.nvidia.com/releases.xml",
+                    "https://nvidianews.nvidia.com/cats/generative_al.xml",
+                    "https://feeds.feedburner.com/nvidiablog",
+                ]
+            )
+        for u in urls:
+            r = verify_rss_url(u)
+            print(r)
+        return
+
     pages = [
         "https://www.deepseek.com/",
         "https://tongyi.aliyun.com/",
