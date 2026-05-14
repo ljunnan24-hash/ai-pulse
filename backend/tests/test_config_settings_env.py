@@ -21,6 +21,7 @@ def test_settings_model_declares_phase_fields() -> None:
     assert "ranking_insight_enabled" in names
     assert "ranking_insight_limit" in names
     assert "ranking_insight_batch_size" in names
+    assert "ranking_insight_timeout_seconds" in names
     assert "weekly_source" in names
     assert "global_events_lookback_days" in names
     assert "global_events_min_candidates" in names

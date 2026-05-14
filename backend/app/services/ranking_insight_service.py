@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
@@ -21,6 +22,10 @@ from app.services.ranking_score import effective_ranking_score
 from app.services.global_event_service import recalculate_global_event
 
 _log = logging.getLogger("uvicorn.error")
+
+_USER_PROMPT_PREFIX = (
+    "请为下列事件分别生成 insights 数组元素（insights 长度与事件条数一致，且 event_id 对应）：\n"
+)
 
 CAPABILITY_KEYS = (
     "reasoning",
@@ -561,6 +566,7 @@ def _cap_field(s: str, max_len: int) -> str:
 
 
 def _build_user_payload(ge: GlobalEvent) -> dict[str, Any]:
+    """构造发往 LLM 的单条事件 JSON（控制长度，降低 batch 超时概率）。"""
     try:
         sources = json.loads(ge.sources_json or "[]")
     except json.JSONDecodeError:
@@ -568,22 +574,22 @@ def _build_user_payload(ge: GlobalEvent) -> dict[str, Any]:
     if not isinstance(sources, list):
         sources = []
     slim_sources: list[dict[str, Any]] = []
-    for s in sources[:12]:
+    for s in sources[:5]:
         if not isinstance(s, dict):
             continue
         slim_sources.append(
             {
-                "title": str(s.get("title", ""))[:400],
-                "url": str(s.get("url", ""))[:500],
-                "source": str(s.get("source", ""))[:120],
+                "title": str(s.get("title", ""))[:200],
+                "url": str(s.get("url", ""))[:300],
+                "source": str(s.get("source", ""))[:80],
             }
         )
     return {
         "event_id": ge.id,
-        "title": (ge.canonical_title or "")[:512],
-        "summary": (ge.summary or "")[:4000],
-        "canonical_url": (ge.canonical_url or "")[:2048],
-        "category": ge.category or "",
+        "title": (ge.canonical_title or "")[:300],
+        "summary": (ge.summary or "")[:1200],
+        "canonical_url": (ge.canonical_url or "")[:800],
+        "category": (ge.category or "")[:64],
         "sources_json": slim_sources,
     }
 
@@ -643,10 +649,105 @@ def _parse_insights_response(data: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _user_prompt_for_events(ges: list[GlobalEvent]) -> str:
+    user_lines = [_build_user_payload(g) for g in ges]
+    return _USER_PROMPT_PREFIX + json.dumps(user_lines, ensure_ascii=False)
+
+
+def _by_id_from_raw(raw: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    rows = _parse_insights_response(raw)
+    by_id: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        try:
+            eid = int(row.get("event_id"))
+            by_id[eid] = row
+        except (TypeError, ValueError):
+            continue
+    return by_id
+
+
+def _apply_insights_for_ges(
+    ges: list[GlobalEvent],
+    by_id: dict[int, dict[str, Any]],
+    *,
+    now_iso: str,
+    force: bool,
+) -> list[int]:
+    """将 LLM 返回的多条映射写回 ORM；返回成功更新的 event_id 列表。"""
+    batch_updated: list[int] = []
+    for ge in ges:
+        row = by_id.get(ge.id)
+        if not row:
+            continue
+        try:
+            wh = _strip_banned(_cap_field(str(row.get("what_happened", "")), 512))
+            wi = _strip_banned(_cap_field(str(row.get("why_important", "")), 1024))
+            wm = _strip_banned(_cap_field(str(row.get("what_it_means_for_you", "")), 1024))
+            act = _normalize_action(row.get("action_suggestion"))
+            uv_raw = row.get("user_value_score", 50)
+            try:
+                uv = float(uv_raw)
+            except (TypeError, ValueError):
+                uv = 50.0
+            uv = max(0.0, min(100.0, uv))
+            caps = _normalize_capability_tags(row.get("capability_tags"))
+
+            if not wh:
+                wh = _cap_field(ge.canonical_title or "", 512)
+            if not wi:
+                wi = _cap_field(ge.summary or ge.canonical_title or "", 1024)
+            if not wm:
+                wm = "结合标题与来源核对是否与你业务相关。"
+
+            ol_raw = row.get("one_liner")
+            llm_ol = ol_raw.strip() if isinstance(ol_raw, str) and ol_raw.strip() else None
+            one_liner = finalize_one_liner_for_event(
+                llm_one_liner=llm_ol,
+                why_important=wi,
+                what_happened=wh,
+                title=(ge.canonical_title or ""),
+            )
+
+            if _text_has_placeholder(wh) or _text_has_placeholder(wi) or _text_has_placeholder(wm):
+                _log.warning(
+                    "ranking_insight: LLM output still contains placeholder-like copy event_id=%s",
+                    ge.id,
+                )
+
+            ge.what_happened = wh[:512]
+            ge.why_important = wi[:1024]
+            ge.what_it_means_for_you = wm[:1024]
+            ge.action_suggestion = act[:32]
+            ge.user_value_score = uv
+            ge.capability_tags_json = json.dumps(caps, ensure_ascii=False)
+
+            try:
+                m_prev = json.loads(ge.metrics_json or "{}")
+            except json.JSONDecodeError:
+                m_prev = {}
+            if not isinstance(m_prev, dict):
+                m_prev = {}
+            ri_meta: dict[str, Any] = {
+                "applied": True,
+                "user_value_score": uv,
+                "enriched_at": now_iso,
+            }
+            if force:
+                ri_meta["forced"] = True
+            m_prev["ranking_insight"] = ri_meta
+            m_prev["one_liner"] = one_liner
+            ge.metrics_json = json.dumps(m_prev, ensure_ascii=False)
+            batch_updated.append(ge.id)
+        except Exception as exc:
+            _log.warning("ranking_insight: apply failed event_id=%s: %s", ge.id, exc)
+            continue
+    return batch_updated
+
+
 def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: bool = False) -> int:
     """
     对候选 global_events 分批调用 LLM，写入判断字段与 capability_tags；
-    单批失败仅记录日志；成功批次内逐条 recalculate_global_event 刷新 ranking_score。
+    批量 HTTP/解析失败时对批内事件逐条重试；成功写入后逐条 recalculate_global_event。
     返回成功写入并参与重算的事件数（近似）。
 
     force=True：忽略 RANKING_INSIGHT_ENABLED；候选不足时用高分事件补足；成功写入后一律
@@ -657,6 +758,8 @@ def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: boo
     lim = max(1, min(lim, 200))
     batch_size = int(settings.ranking_insight_batch_size or 8)
     batch_size = max(4, min(batch_size, 10))
+    timeout_s = float(settings.ranking_insight_timeout_seconds)
+    model = settings.doubao_model
 
     if not force and not settings.ranking_insight_enabled:
         _log.info("ranking_insight: disabled (RANKING_INSIGHT_ENABLED=false)")
@@ -683,12 +786,20 @@ def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: boo
         if not ges:
             continue
 
-        user_lines = [_build_user_payload(g) for g in ges]
-        user_prompt = (
-            "请为下列事件分别生成 insights 数组元素（insights 长度与事件条数一致，且 event_id 对应）：\n"
-            + json.dumps(user_lines, ensure_ascii=False)
+        user_prompt = _user_prompt_for_events(ges)
+        event_ids = [g.id for g in ges]
+        prompt_chars = len(user_prompt)
+        t0 = time.monotonic()
+        _log.info(
+            "ranking_insight: calling LLM batch_size=%s event_ids=%s prompt_chars=%s timeout_s=%s model=%s",
+            len(ges),
+            event_ids,
+            prompt_chars,
+            timeout_s,
+            model,
         )
 
+        batch_updated: list[int] = []
         try:
             raw = client.complete_json(
                 system=_INSIGHT_SYSTEM,
@@ -696,87 +807,70 @@ def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: boo
                 temperature=0.15,
                 max_tokens=8192,
                 json_retries=2,
+                timeout_s=timeout_s,
+            )
+            dur = int((time.monotonic() - t0) * 1000)
+            by_id = _by_id_from_raw(raw)
+            batch_updated = _apply_insights_for_ges(ges, by_id, now_iso=now_iso, force=force)
+            _log.info(
+                "ranking_insight: LLM batch success duration_ms=%s updated=%s event_ids=%s",
+                dur,
+                len(batch_updated),
+                batch_updated,
             )
         except Exception as exc:
-            _log.warning("ranking_insight: LLM batch failed (skipped batch): %s", exc)
-            continue
-
-        rows = _parse_insights_response(raw)
-        by_id: dict[int, dict[str, Any]] = {}
-        for row in rows:
-            try:
-                eid = int(row.get("event_id"))
-                by_id[eid] = row
-            except (TypeError, ValueError):
-                continue
-
-        batch_updated: list[int] = []
-        for ge in ges:
-            row = by_id.get(ge.id)
-            if not row:
-                continue
-            try:
-                wh = _strip_banned(_cap_field(str(row.get("what_happened", "")), 512))
-                wi = _strip_banned(_cap_field(str(row.get("why_important", "")), 1024))
-                wm = _strip_banned(_cap_field(str(row.get("what_it_means_for_you", "")), 1024))
-                act = _normalize_action(row.get("action_suggestion"))
-                uv_raw = row.get("user_value_score", 50)
-                try:
-                    uv = float(uv_raw)
-                except (TypeError, ValueError):
-                    uv = 50.0
-                uv = max(0.0, min(100.0, uv))
-                caps = _normalize_capability_tags(row.get("capability_tags"))
-
-                if not wh:
-                    wh = _cap_field(ge.canonical_title or "", 512)
-                if not wi:
-                    wi = _cap_field(ge.summary or ge.canonical_title or "", 1024)
-                if not wm:
-                    wm = "结合标题与来源核对是否与你业务相关。"
-
-                ol_raw = row.get("one_liner")
-                llm_ol = ol_raw.strip() if isinstance(ol_raw, str) and ol_raw.strip() else None
-                one_liner = finalize_one_liner_for_event(
-                    llm_one_liner=llm_ol,
-                    why_important=wi,
-                    what_happened=wh,
-                    title=(ge.canonical_title or ""),
+            dur = int((time.monotonic() - t0) * 1000)
+            _log.warning(
+                "ranking_insight: LLM batch failed duration_ms=%s error_class=%s event_ids=%s: %s",
+                dur,
+                type(exc).__name__,
+                event_ids,
+                exc,
+            )
+            for ge in ges:
+                one_prompt = _user_prompt_for_events([ge])
+                t1 = time.monotonic()
+                _log.info(
+                    "ranking_insight: LLM fallback single event_id=%s prompt_chars=%s timeout_s=%s model=%s",
+                    ge.id,
+                    len(one_prompt),
+                    timeout_s,
+                    model,
                 )
-
-                if _text_has_placeholder(wh) or _text_has_placeholder(wi) or _text_has_placeholder(wm):
-                    _log.warning(
-                        "ranking_insight: LLM output still contains placeholder-like copy event_id=%s",
-                        ge.id,
-                    )
-
-                ge.what_happened = wh[:512]
-                ge.why_important = wi[:1024]
-                ge.what_it_means_for_you = wm[:1024]
-                ge.action_suggestion = act[:32]
-                ge.user_value_score = uv
-                ge.capability_tags_json = json.dumps(caps, ensure_ascii=False)
-
                 try:
-                    m_prev = json.loads(ge.metrics_json or "{}")
-                except json.JSONDecodeError:
-                    m_prev = {}
-                if not isinstance(m_prev, dict):
-                    m_prev = {}
-                ri_meta: dict[str, Any] = {
-                    "applied": True,
-                    "user_value_score": uv,
-                    "enriched_at": now_iso,
-                }
-                if force:
-                    ri_meta["forced"] = True
-                m_prev["ranking_insight"] = ri_meta
-                m_prev["one_liner"] = one_liner
-                ge.metrics_json = json.dumps(m_prev, ensure_ascii=False)
-                batch_updated.append(ge.id)
-            except Exception as exc:
-                _log.warning("ranking_insight: apply failed event_id=%s: %s", ge.id, exc)
-                continue
+                    raw_one = client.complete_json(
+                        system=_INSIGHT_SYSTEM,
+                        user=one_prompt,
+                        temperature=0.15,
+                        max_tokens=8192,
+                        json_retries=2,
+                        timeout_s=timeout_s,
+                    )
+                    dur1 = int((time.monotonic() - t1) * 1000)
+                    by_one = _by_id_from_raw(raw_one)
+                    updated_one = _apply_insights_for_ges([ge], by_one, now_iso=now_iso, force=force)
+                    if updated_one:
+                        batch_updated.extend(updated_one)
+                        _log.info(
+                            "ranking_insight: LLM single success duration_ms=%s event_id=%s",
+                            dur1,
+                            ge.id,
+                        )
+                    else:
+                        _log.warning(
+                            "ranking_insight: LLM single no row duration_ms=%s event_id=%s",
+                            dur1,
+                            ge.id,
+                        )
+                except Exception as exc2:
+                    dur1 = int((time.monotonic() - t1) * 1000)
+                    _log.warning(
+                        "ranking_insight: LLM single failed duration_ms=%s error_class=%s event_id=%s: %s",
+                        dur1,
+                        type(exc2).__name__,
+                        ge.id,
+                        exc2,
+                    )
 
         if not batch_updated:
             continue

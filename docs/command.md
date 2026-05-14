@@ -63,6 +63,16 @@ SHOW TABLES LIKE 'global_event_sources';
 cd /opt/ai-pulse/backend
 .venv/bin/python -m app.jobs.daily_rankings
 
+**Ranking Insight 生产建议（`.env`）**：`RANKING_INSIGHT_LIMIT=10`、`RANKING_INSIGHT_BATCH_SIZE=4`、`RANKING_INSIGHT_TIMEOUT_SECONDS=180`。
+
+仅补跑 Insight（不爬 RSS、不写 raw_items）：
+
+```bash
+cd /opt/ai-pulse/backend
+.venv/bin/python -m app.jobs.enrich_rankings --limit 10
+.venv/bin/python -m app.jobs.enrich_rankings --limit 10 --force
+```
+
 SELECT COUNT(*) FROM raw_items WHERE issue_id IS NULL;
 SELECT COUNT(*) FROM global_events;
 SELECT COUNT(*) FROM global_event_sources;

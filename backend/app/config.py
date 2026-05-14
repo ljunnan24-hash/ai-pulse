@@ -112,10 +112,12 @@ class Settings(BaseSettings):
     github_trending_language: str = ""  # empty = all
 
     # Daily rankings — Phase 2.5 Ranking Insight Agent（需 DOUBAO_*；关闭或未配置时跳过）
-    # .env 键名：RANKING_INSIGHT_ENABLED / RANKING_INSIGHT_LIMIT / RANKING_INSIGHT_BATCH_SIZE
+    # .env 键名：RANKING_INSIGHT_ENABLED / RANKING_INSIGHT_LIMIT / RANKING_INSIGHT_BATCH_SIZE /
+    # RANKING_INSIGHT_TIMEOUT_SECONDS
     ranking_insight_enabled: bool = Field(default=False)
     ranking_insight_limit: int = Field(default=30)
     ranking_insight_batch_size: int = Field(default=8)
+    ranking_insight_timeout_seconds: float = Field(default=180.0, ge=15.0, le=600.0)
 
     # Phase 3：周报选题来源 — legacy=RSS+issue_events；global_events=过去 N 天排行榜事件池
     # .env 键名：WEEKLY_SOURCE、GLOBAL_EVENTS_*（见 pydantic-settings 默认大写映射）

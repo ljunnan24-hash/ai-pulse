@@ -3,8 +3,8 @@
 可选每日 cron，接在 daily_rankings 之后（见 deploy/crontab.example，默认 02:40）。
 
 用法：
-  cd backend && python -m app.jobs.enrich_rankings --limit 50
-  cd backend && python -m app.jobs.enrich_rankings --force --limit 50
+  cd /opt/ai-pulse/backend && .venv/bin/python -m app.jobs.enrich_rankings --limit 10
+  cd /opt/ai-pulse/backend && .venv/bin/python -m app.jobs.enrich_rankings --limit 10 --force
 
 --force：忽略 RANKING_INSIGHT_ENABLED=false；候选不足时用高分事件补足；写入 applied=true（见 enrich_ranking_insights）。
 """
