@@ -8,7 +8,6 @@ import { apiBase } from '../config';
  */
 export default function SubscribePage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'simple' | 'normal'>('normal');
   const [keywords, setKeywords] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [email, setEmail] = useState('');
@@ -38,25 +37,8 @@ export default function SubscribePage() {
       </header>
 
       <div className="card-surface max-w-xl p-5 md:p-8">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode('simple')}
-            className={`filter-chip ${mode === 'simple' ? 'filter-chip-active' : 'filter-chip-inactive'}`}
-          >
-            简洁
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('normal')}
-            className={`filter-chip ${mode === 'normal' ? 'filter-chip-active' : 'filter-chip-inactive'}`}
-          >
-            标准
-          </button>
-        </div>
-
         <form
-          className="mt-6 space-y-5"
+          className="space-y-5"
           onSubmit={(e) => {
             e.preventDefault();
           }}
@@ -116,7 +98,7 @@ export default function SubscribePage() {
                 const res = await fetch(`${apiBase()}/api/subscribe`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ email: email.trim(), mode, keywords }),
+                  body: JSON.stringify({ email: email.trim(), mode: 'normal', keywords }),
                 });
                 const data = res.ok ? null : await res.json().catch(() => null);
                 if (!res.ok) {
@@ -129,7 +111,7 @@ export default function SubscribePage() {
                   return;
                 }
                 window.sessionStorage.setItem('aipulse_last_subscribe_email', email.trim());
-                navigate('/?pending=1');
+                navigate('/subscribe/check-email');
               } catch {
                 setFormError('网络错误，请确认 API 可用。');
               } finally {

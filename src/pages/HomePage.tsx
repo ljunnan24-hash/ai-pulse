@@ -118,8 +118,7 @@ export default function HomePage() {
       return;
     }
     if (params.get('unsubscribed') === '1') {
-      setMailFromLinkNotice('你已取消邮件订阅。若想再次接收周报，可在本站重新订阅。');
-      window.history.replaceState({}, '', window.location.pathname);
+      navigate('/subscribe/unsubscribed', { replace: true });
       return;
     }
     if (params.get('error') === 'invalid_token') {

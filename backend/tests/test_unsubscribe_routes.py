@@ -34,7 +34,7 @@ def test_unsubscribe_get_ok_redirect(client):
     monkeypatch.setattr(api_router, "_perform_unsubscribe", lambda _db, t: True)
     r = tc.get("/api/unsubscribe?token=ok", follow_redirects=False)
     assert r.status_code == 302
-    assert "unsubscribed=1" in (r.headers.get("location") or "")
+    assert "subscribe/unsubscribed" in (r.headers.get("location") or "")
 
 
 def test_unsubscribe_post_one_click_ok(client):
@@ -47,7 +47,7 @@ def test_unsubscribe_post_one_click_ok(client):
         follow_redirects=False,
     )
     assert r.status_code == 302
-    assert "unsubscribed=1" in (r.headers.get("location") or "")
+    assert "subscribe/unsubscribed" in (r.headers.get("location") or "")
 
 
 def test_unsubscribe_post_empty_body_ok(client):
@@ -55,3 +55,4 @@ def test_unsubscribe_post_empty_body_ok(client):
     monkeypatch.setattr(api_router, "_perform_unsubscribe", lambda _db, t: True)
     r = tc.post("/api/unsubscribe?token=ok", follow_redirects=False)
     assert r.status_code == 302
+    assert "subscribe/unsubscribed" in (r.headers.get("location") or "")

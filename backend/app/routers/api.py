@@ -456,7 +456,7 @@ def _unsubscribe_redirect(ok: bool) -> RedirectResponse:
     settings = get_settings()
     base = settings.frontend_url.rstrip("/")
     if ok:
-        return RedirectResponse(url=f"{base}/?unsubscribed=1", status_code=302)
+        return RedirectResponse(url=f"{base}/subscribe/unsubscribed", status_code=302)
     return RedirectResponse(url=f"{base}/?error=invalid_token", status_code=302)
 
 

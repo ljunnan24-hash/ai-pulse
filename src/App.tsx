@@ -9,6 +9,8 @@ import RankingsPage from './pages/RankingsPage';
 import WeeklyLatestPage from './pages/WeeklyLatestPage';
 import WeeklyReportPage from './pages/WeeklyReportPage';
 import SubscribePage from './pages/SubscribePage';
+import SubscribeCheckEmailPage from './pages/SubscribeCheckEmailPage';
+import SubscribeUnsubscribedPage from './pages/SubscribeUnsubscribedPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import { AnalyticsTracker } from './components/AnalyticsTracker';
@@ -33,6 +35,8 @@ export default function App() {
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/subscribe" element={<SubscribePage />} />
+          <Route path="/subscribe/check-email" element={<SubscribeCheckEmailPage />} />
+          <Route path="/subscribe/unsubscribed" element={<SubscribeUnsubscribedPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
