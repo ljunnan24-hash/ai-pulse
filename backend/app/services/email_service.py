@@ -49,6 +49,8 @@ def send_email(
     msg["Auto-Submitted"] = "auto-generated"
     if list_unsubscribe_url:
         msg["List-Unsubscribe"] = f"<{list_unsubscribe_url}>"
+        # RFC 8058：声明一键退订后，Gmail 等会对同一 HTTPS URI 发 POST（application/x-www-form-urlencoded）。
+        msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
         msg["Precedence"] = "bulk"
 
     if text_body:

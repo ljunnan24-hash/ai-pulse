@@ -6,7 +6,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import insert, or_, select, update
 from sqlalchemy.orm import Session
@@ -416,31 +416,61 @@ def resend_latest(token: str, db: Session = Depends(get_db)):
     return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?resent=1", status_code=302)
 
 
-@router.get("/unsubscribe")
-def unsubscribe(token: str, db: Session = Depends(get_db)):
-    settings = get_settings()
+def _perform_unsubscribe(db: Session, token: str) -> bool:
+    """
+    将匹配 token 的订阅者标为退订。返回是否找到匹配行。
+    Gmail 等客户端的一键退订会对 List-Unsubscribe URL 发 POST（RFC 8058），须与 GET 共用此逻辑。
+    """
+    token = (token or "").strip()
+    if not token:
+        return False
     subs = (
         db.execute(select(Subscriber).where(Subscriber.unsubscribe_token == token).order_by(Subscriber.created_at.desc()))
         .scalars()
         .all()
     )
-    if subs:
-        sub = subs[0]
-        # Defensive: if duplicated tokens exist (bad data), rotate tokens for the rest.
-        if len(subs) > 1:
-            for dup in subs[1:]:
-                new_confirm, new_unsub, new_manage = _fresh_tokens(db)
-                db.execute(
-                    update(Subscriber)
-                    .where(Subscriber.email == dup.email)
-                    .where(Subscriber.unsubscribe_token == token)
-                    .values(confirm_token=new_confirm, unsubscribe_token=new_unsub, manage_token=new_manage)
-                )
-        db.execute(
-            update(Subscriber)
-            .where(Subscriber.email == sub.email)
-            .where(Subscriber.unsubscribe_token == token)
-            .values(status=SubscriberStatus.unsubscribed.value)
-        )
-        db.commit()
-    return RedirectResponse(url=f"{settings.frontend_url.rstrip('/')}/?unsubscribed=1", status_code=302)
+    if not subs:
+        return False
+    sub = subs[0]
+    # Defensive: if duplicated tokens exist (bad data), rotate tokens for the rest.
+    if len(subs) > 1:
+        for dup in subs[1:]:
+            new_confirm, new_unsub, new_manage = _fresh_tokens(db)
+            db.execute(
+                update(Subscriber)
+                .where(Subscriber.email == dup.email)
+                .where(Subscriber.unsubscribe_token == token)
+                .values(confirm_token=new_confirm, unsubscribe_token=new_unsub, manage_token=new_manage)
+            )
+    db.execute(
+        update(Subscriber)
+        .where(Subscriber.email == sub.email)
+        .where(Subscriber.unsubscribe_token == token)
+        .values(status=SubscriberStatus.unsubscribed.value)
+    )
+    db.commit()
+    return True
+
+
+def _unsubscribe_redirect(ok: bool) -> RedirectResponse:
+    settings = get_settings()
+    base = settings.frontend_url.rstrip("/")
+    if ok:
+        return RedirectResponse(url=f"{base}/?unsubscribed=1", status_code=302)
+    return RedirectResponse(url=f"{base}/?error=invalid_token", status_code=302)
+
+
+@router.get("/unsubscribe")
+def unsubscribe_get(token: str, db: Session = Depends(get_db)):
+    return _unsubscribe_redirect(_perform_unsubscribe(db, token))
+
+
+@router.post("/unsubscribe")
+def unsubscribe_post(
+    token: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+    list_unsubscribe: str | None = Form(default=None),
+):
+    # RFC 8058：正文常为 List-Unsubscribe=One-Click；退订凭 URL 中的 token 即可。
+    _ = list_unsubscribe
+    return _unsubscribe_redirect(_perform_unsubscribe(db, token))

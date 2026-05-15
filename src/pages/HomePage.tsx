@@ -62,6 +62,7 @@ export default function HomePage() {
     boundary?: string;
   } | null>(null);
   const [weeklyErr, setWeeklyErr] = useState(false);
+  const [mailFromLinkNotice, setMailFromLinkNotice] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRankings({ range: 'today', category: 'all', limit: 5 })
@@ -114,11 +115,29 @@ export default function HomePage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('confirmed') === '1') {
       navigate('/', { replace: true });
+      return;
+    }
+    if (params.get('unsubscribed') === '1') {
+      setMailFromLinkNotice('你已取消邮件订阅。若想再次接收周报，可在本站重新订阅。');
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+    if (params.get('error') === 'invalid_token') {
+      setMailFromLinkNotice('退订链接无效或已过期。请使用最新邮件中的退订链接，或在本站「订阅」页重新操作。');
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, [navigate]);
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-4 pb-16 pt-5 md:px-6 md:pb-20 md:pt-7">
+      {mailFromLinkNotice ? (
+        <div
+          className="mb-6 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-[14px] leading-relaxed text-[#1E3A8A]"
+          role="status"
+        >
+          {mailFromLinkNotice}
+        </div>
+      ) : null}
       {/* Hero：底部留白略收紧，避免与 Top5 之间视觉断层过大 */}
       <section className="mb-8 pb-5 md:mb-10 md:pb-7">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_470px] lg:items-start lg:gap-16">
