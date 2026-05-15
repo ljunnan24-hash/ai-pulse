@@ -125,7 +125,7 @@ export default function HomePage() {
           <div className="min-w-0">
             <h1 className="max-w-[460px] font-headline text-[38px] font-extrabold leading-[1.12] tracking-[-0.03em] text-[#0F172A] md:text-[48px] md:leading-[1.08] xl:text-[52px]">
               每天看 AI 信号，
-              <br className="hidden sm:block" />
+              <br />
               每周读 AI 简报
             </h1>
             <p className="mt-[22px] max-w-[420px] text-[16px] font-normal leading-[1.8] text-[#64748B]">
