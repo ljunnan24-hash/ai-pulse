@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { fetchEventDetail, type EventDetailResponse } from '../api/public';
 import { eventDetailPulseScore, relatedEventPulseScore } from '../lib/homeRankingsDisplay';
@@ -20,8 +20,17 @@ function safeHostname(raw: string): string {
 }
 
 export default function EventDetailPage() {
+  const navigate = useNavigate();
   const { eventId: eventIdParam } = useParams<{ eventId: string }>();
   const eventId = Number(eventIdParam);
+
+  const goBackToList = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/rankings');
+  };
 
   const [data, setData] = useState<EventDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,9 +115,9 @@ export default function EventDetailPage() {
     <div className="page-container section-y pb-16 md:pb-20">
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex flex-wrap items-center gap-3">
-          <Link to="/rankings" className="btn-secondary px-4 py-2 text-sm font-semibold no-underline">
+          <button type="button" onClick={goBackToList} className="btn-secondary px-4 py-2 text-sm font-semibold">
             ← 返回排行榜
-          </Link>
+          </button>
           <Link to="/" className="btn-secondary px-4 py-2 text-sm font-semibold no-underline">
             首页
           </Link>

@@ -10,13 +10,34 @@ cd backend
 给测试邮箱发周报：在服务器上（已 cd /opt/ai-pulse/backend、虚拟环境已激活）时
 .venv/bin/python -m app.jobs.send_weekly --test
 
-重新生成本周刊物：
-WEEKLY_SOURCE=global_events .venv/bin/python -m app.jobs.generate_weekly --force
+重新生成本周刊物（**推荐**：基于日榜 `global_events`，不抓周刊专用 RSS）：
 
-若不想重新爬 RSS，可：
+```bash
+cd /opt/ai-pulse/backend
+WEEKLY_SOURCE=global_events .venv/bin/python -m app.jobs.generate_weekly --force
+```
+
+Windows 本地：
+
+```powershell
 cd C:\Users\Lenovo\Desktop\ai-pulse\backend
 $env:WEEKLY_SOURCE="global_events"
-.\.venv\Scripts\python.exe -m app.jobs.generate_weekly --reuse-crawl --force
+.\.venv\Scripts\python.exe -m app.jobs.generate_weekly --force
+```
+
+**周刊流水线说明**（详见 `docs/MULTI_AGENT_V1.md` §0）：
+
+| 步骤 | 说明 |
+|------|------|
+| 前置 | 本周窗内已跑 `daily_rankings`（`global_events` 有数据）；Insight 可选 `enrich_rankings` |
+| 选题 | `weekly_event_scores` → 候选池按 `weekly_score`；Top3 = 前 3 条 |
+| LLM | 仅 thesis / capability_boundaries / glossary（3 次）；无 Impact、无 sections |
+| 产物 | `payload` + `audit_report_YYYY-MM-DD.json`（`mode=weekly_global_slim`） |
+| 页面 | `/weekly/日期`：本周判断、Top3（链 `/events/:id`）、能力边界、术语 |
+
+`.env` 建议：`WEEKLY_SOURCE=global_events`、`MULTI_AGENT_WEEKLY=true`。`--reuse-crawl` 对 global 路径无意义（本就不爬周刊 RSS），可省略。
+
+仅 legacy（`WEEKLY_SOURCE=legacy`）才需要 `--reuse-crawl` 复用本期 `issue_events`。
 
 重启后端：
 sudo systemctl restart aipulse-api

@@ -51,8 +51,10 @@ class Settings(BaseSettings):
     # Composer 等大 JSON 输出默认上限；过小会导致截断、JSONDecodeError（设为 0 则请求里不传，走平台默认）
     doubao_max_tokens: int = 16384
 
-    # 多 Agent 流水线（见 docs/MULTI_AGENT_V1.md / PRD §6.3）
-    # weekly：默认 Cleaner→Verifier→…→Composer；设 MULTI_AGENT_WEEKLY=false 则退回单次 summarize
+    # 周刊流水线（见 docs/MULTI_AGENT_V1.md）
+    # WEEKLY_SOURCE=global_events → weekly_global_slim（weekly_score + 3×LLM）
+    # WEEKLY_SOURCE=legacy + multi_agent_weekly=true → 全量多 Agent Orchestrator
+    # multi_agent_weekly=false → 单次 summarize（legacy）或 global 无 LLM 兜底
     multi_agent_weekly: bool = True
     multi_agent_digest_top_n: int = 20
     # Editor：多一次 LLM 润色 payload，延时长；Auditor：事实/安全审计，high/use_fallback 时回退确定性组装

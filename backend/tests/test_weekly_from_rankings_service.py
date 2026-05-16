@@ -27,6 +27,7 @@ def _ge(
     base = dict(
         id=eid,
         canonical_title=title,
+        title_zh="",
         canonical_url=url,
         summary="Base summary.",
         category=category,

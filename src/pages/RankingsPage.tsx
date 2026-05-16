@@ -14,13 +14,13 @@ const RANGES = [
   { id: '30d', label: '30 天' },
 ] as const;
 
+/** 与后端 map_global_category 对齐；不含 application（流水线不会产出该分类） */
 const CATS = [
   { id: 'all', label: '全部' },
   { id: 'model', label: '模型' },
   { id: 'tool', label: '工具' },
   { id: 'industry', label: '行业' },
   { id: 'open_source', label: '开源' },
-  { id: 'application', label: '应用' },
 ] as const;
 
 const chipBase =

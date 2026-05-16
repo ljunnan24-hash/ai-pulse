@@ -33,10 +33,11 @@ from app.services.issue_events_service import (
     fetch_digest_candidates,
     rebuild_issue_events,
 )
-from app.services.weekly_from_rankings_service import (
-    global_events_to_orchestrator_dicts,
-    select_global_events_for_weekly,
+from app.services.weekly_event_score_service import (
+    recompute_weekly_event_scores_for_period,
+    select_global_events_by_weekly_score,
 )
+from app.services.weekly_global_pipeline import build_global_weekly_payload
 from app.services.weekly_issue_snapshot import append_weekly_issue_snapshot
 from app.services.deliverability_pipeline import apply_email_notification_pipeline
 from app.services.llm_json_client import LlmJsonClient
@@ -399,25 +400,23 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
             print(f"rebuild_issue_events failed (apply sql/migrations/2026-05-02_issue_events.sql?): {exc}")
 
     if weekly_global:
-        selected, selection_report_global = select_global_events_for_weekly(
+        recompute_weekly_event_scores_for_period(db, period, report_date=period)
+        pool_limit = max(1, int(getattr(settings, "global_events_pool_limit", 40) or 40))
+        min_cand = max(0, int(getattr(settings, "global_events_min_candidates", 8) or 8))
+        selected, selection_report_global = select_global_events_by_weekly_score(
             db,
             period_start=period,
-            limit=max(1, int(getattr(settings, "global_events_pool_limit", 40) or 40)),
-            lookback_days=max(1, int(getattr(settings, "global_events_lookback_days", 7) or 7)),
-            min_candidates=max(0, int(getattr(settings, "global_events_min_candidates", 8) or 8)),
-            fallback_lookback_days=max(
-                1, int(getattr(settings, "global_events_fallback_lookback_days", 14) or 14)
-            ),
+            limit=pool_limit,
+            min_candidates=min_cand,
         )
-        candidates = global_events_to_orchestrator_dicts(selected)
-        items = candidates
+        items = selected
         if selection_report_global.get("insufficient_global_events"):
             print(
-                "generate_weekly: 警告 — global_events 候选少于 min_candidates；仍将生成（薄周报 / orchestrator fallback）。"
+                "generate_weekly: 警告 — weekly_score 候选少于 min_candidates；仍将生成（可能为薄周报）。"
             )
         print(
-            f"generate_weekly: global_events 选题 {len(candidates)} 条 "
-            f"(fallback_lookback_used={selection_report_global.get('fallback_lookback_used')})."
+            f"generate_weekly: global_events 按 weekly_score 选题 {len(selected)} 条 "
+            f"(pool_limit={pool_limit})."
         )
     else:
         candidates = fetch_digest_candidates(db, issue.id)
@@ -437,7 +436,30 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
     audit_report_to_store: dict[str, Any] | None = None
     weekly_quality_summary: dict[str, Any] | None = None
 
-    if use_ma:
+    if use_ma and weekly_global:
+        res = build_global_weekly_payload(
+            db,
+            period_start=period,
+            pool_events=list(items),
+            top_n_llm=top_n,
+            enable_llm=True,
+        )
+        payload = normalize_payload(res.payload)
+        audit_report_to_store = res.audit_report if isinstance(res.audit_report, dict) else {}
+        weekly_quality_summary = dict(audit_report_to_store.get("weekly_quality_summary") or {})
+        weekly_quality_summary["mode"] = "weekly_global_slim"
+        weekly_quality_summary["llm_enabled"] = True
+        audit_report_to_store["weekly_quality_summary"] = weekly_quality_summary
+        if selection_report_global:
+            audit_report_to_store["weekly_global_selection"] = selection_report_global
+        audit_path = os.path.join(os.getcwd(), f"audit_report_{period.isoformat()}.json")
+        try:
+            with open(audit_path, "w", encoding="utf-8") as f:
+                json.dump(audit_report_to_store, f, ensure_ascii=False, indent=2)
+            print(f"Weekly global slim pipeline OK; audit: {audit_path}")
+        except OSError as exc:
+            print(f"audit report write failed: {exc}")
+    elif use_ma:
         orch = MultiAgentOrchestrator()
         res = orch.build(
             raw_items=list(candidates),
@@ -465,32 +487,42 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
         except OSError as exc:
             print(f"audit report write failed: {exc}")
     else:
-        try:
-            payload = summarize_items(items)
-        except Exception as e:
-            print(f"Summarizer failed: {e}")
-            raise
         if weekly_global:
-            from app.services.weekly_event_score_service import apply_global_event_weekly_top3_to_payload
-
-            apply_global_event_weekly_top3_to_payload(db, payload, period)
-            payload = finalize_payload_v3(payload)
-        publish_weekly_report(db, payload, period, settings=settings)
-        payload["weekly_url"] = weekly_report_public_url(period, settings=settings)
-        llm = LlmJsonClient()
-        payload, _ = apply_email_notification_pipeline(
-            llm,
-            payload,
-            enabled=bool(getattr(settings, "multi_agent_enable_deliverability", True)),
-            weekly_main_link=payload["weekly_url"],
-            rewrite_score_threshold=int(getattr(settings, "multi_agent_deliverability_rewrite_below", 85)),
-            min_score=int(getattr(settings, "multi_agent_deliverability_min_score", 70)),
-            strict=bool(getattr(settings, "multi_agent_deliverability_strict", True)),
-        )
-        weekly_quality_summary = _weekly_quality_summary_summarize_path(payload, settings=settings)
-        audit_report_to_store = {"weekly_quality_summary": weekly_quality_summary}
-        if selection_report_global:
-            audit_report_to_store["weekly_global_selection"] = selection_report_global
+            res = build_global_weekly_payload(
+                db,
+                period_start=period,
+                pool_events=list(items),
+                top_n_llm=top_n,
+                enable_llm=False,
+            )
+            payload = normalize_payload(res.payload)
+            audit_report_to_store = res.audit_report if isinstance(res.audit_report, dict) else {}
+            weekly_quality_summary = {"mode": "weekly_global_slim", "llm_enabled": False}
+            audit_report_to_store["weekly_quality_summary"] = weekly_quality_summary
+            if selection_report_global:
+                audit_report_to_store["weekly_global_selection"] = selection_report_global
+        else:
+            try:
+                payload = summarize_items(items)
+            except Exception as e:
+                print(f"Summarizer failed: {e}")
+                raise
+            publish_weekly_report(db, payload, period, settings=settings)
+            payload["weekly_url"] = weekly_report_public_url(period, settings=settings)
+            llm = LlmJsonClient()
+            payload, _ = apply_email_notification_pipeline(
+                llm,
+                payload,
+                enabled=bool(getattr(settings, "multi_agent_enable_deliverability", True)),
+                weekly_main_link=payload["weekly_url"],
+                rewrite_score_threshold=int(getattr(settings, "multi_agent_deliverability_rewrite_below", 85)),
+                min_score=int(getattr(settings, "multi_agent_deliverability_min_score", 70)),
+                strict=bool(getattr(settings, "multi_agent_deliverability_strict", True)),
+            )
+            weekly_quality_summary = _weekly_quality_summary_summarize_path(payload, settings=settings)
+            audit_report_to_store = {"weekly_quality_summary": weekly_quality_summary}
+            if selection_report_global:
+                audit_report_to_store["weekly_global_selection"] = selection_report_global
 
     simple_text, normal_text, glossary_json = payload_to_texts(payload)
 

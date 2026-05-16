@@ -319,7 +319,7 @@ def global_events_to_orchestrator_dicts(events: list[GlobalEvent]) -> list[dict[
         d: dict[str, Any] = {
             "global_event_id": int(ge.id),
             "title": (ge.canonical_title or "").strip(),
-            "title_zh": (ge.title_zh or "").strip(),
+            "title_zh": (getattr(ge, "title_zh", None) or "").strip(),
             "summary": merged,
             "link": (ge.canonical_url or "").strip(),
             "url": (ge.canonical_url or "").strip(),

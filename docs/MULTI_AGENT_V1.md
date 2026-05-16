@@ -1,12 +1,65 @@
 # 多 Agent 周报生产模式（v1，组装式）
 
-本文件定义 AI Pulse 的“多 Agent 分工”架构，用于提升周报的专业性与可控性。
+本文件定义 AI Pulse 的周报生产架构。**生产环境推荐 `WEEKLY_SOURCE=global_events`（精简流水线）**；下文 §1–§7 中的「全量多 Agent DAG」主要描述 **legacy**（`WEEKLY_SOURCE=legacy`）路径，供对照与回退。
 
-本模式选择 **方案 2：结构化摘要 + 模板组装**（而非一次性自由写作长文），目标是做到 **快 + 够准**，并可追溯到事实来源与评分依据。
+## 0. 生产路径：基于日榜的 `weekly_global_slim`（推荐）
 
-## 0. 目标与约束
+### 0.1 产品定位
 
-- **输入**：本周期（周）事件集合（建议 Top20 候选），每条事件包含来源、热度信号、评分拆解与基础事实字段。
+- **日榜**：`daily_rankings` 每日写入 `global_events`，`enrich_rankings` 可选写入 Ranking Insight（事件详情页解读）。
+- **周刊**：不再每期重抓 RSS、不再对全量候选跑 Impact / EventCards / Composer sections；而是在 **本周窗内 `global_events`** 上二次分析，页面只展示四块：
+  1. **本周判断**（`weekly_thesis.headline`，前端不展示长 `summary`）
+  2. **Top3**（`normal.top3`，`event_id` → `/events/:id`）
+  3. **能力边界**（`capability_boundaries`）
+  4. **术语**（`glossary`）
+
+### 0.2 数据流与选题
+
+```mermaid
+flowchart LR
+  DR[daily_rankings] --> GE[global_events]
+  ER[enrich_rankings 可选] --> GE
+  GW[generate_weekly] --> WS[recompute weekly_event_scores]
+  WS --> POOL[候选池: weekly_score TopN]
+  POOL --> T3[Top3: weekly_score 前 3]
+  POOL --> LLM[3× LLM: thesis / capability / glossary]
+  T3 --> P[payload v3 + validate + publish]
+  LLM --> P
+```
+
+| 环节 | 说明 |
+|------|------|
+| 候选池 | `select_global_events_by_weekly_score`，上限 `GLOBAL_EVENTS_POOL_LIMIT`（默认 40） |
+| Top3 | **统一 `weekly_score`**，`build_normal_top3_payload_rows`；文案来自 `GlobalEvent` / 日榜 Insight，**不跑 Impact Analyst** |
+| LLM | 仅 3 次：`weekly_thesis`、`capability_boundaries`、`glossary`（见 `weekly_global_pipeline.py`） |
+| 已停用 | Impact、EventCards、Trend、Composer 的 `sections` / `category_recap` / `tools` / `noise` 等（省 token） |
+| 审核 | `finalize_payload_v3`、`validate_payload`、`weekly_quality_v2_audit`；可选邮件 **Deliverability**（与 legacy 相同开关） |
+
+入口：`python -m app.jobs.generate_weekly` 在 `WEEKLY_SOURCE=global_events` 且 `MULTI_AGENT_WEEKLY=true` 时调用 `build_global_weekly_payload`；`audit_report_YYYY-MM-DD.json` 中 `weekly_quality_summary.mode` = `weekly_global_slim`。
+
+`MULTI_AGENT_WEEKLY=false` 时仍走 global 路径，但 LLM 关闭，thesis 用确定性兜底。
+
+### 0.3 环境变量（与 `backend/.env.example` 一致）
+
+```env
+WEEKLY_SOURCE=global_events
+MULTI_AGENT_WEEKLY=true
+GLOBAL_EVENTS_LOOKBACK_DAYS=7
+GLOBAL_EVENTS_POOL_LIMIT=40
+GLOBAL_EVENTS_MIN_CANDIDATES=8
+```
+
+前置：本周内已跑过 `daily_rankings`（表 `global_events` 有数据）。操作命令见 `docs/command.md`「周刊生成」小节。
+
+### 0.4 Legacy 全量多 Agent（`WEEKLY_SOURCE=legacy`）
+
+仍走 `MultiAgentOrchestrator`（Cleaner → Verifier → Impact → … → Composer）。仅在你需要旧「每期 RSS + issue_events」行为时启用。新功能与页面展示以 **§0** 为准。
+
+---
+
+## 0.5 目标与约束（通用）
+
+- **输入（global）**：过去 N 天 `global_events` + `weekly_event_scores`；**输入（legacy）**：本周期 RSS/issue_events 候选 Top20。
 - **输出**：
   - `payload.json`：用于邮件渲染的结构化周报（simple/normal/glossary）
   - `audit_report.json`：审计报告（事实冲突、可信度风险、重复合并、评分异常）
@@ -19,7 +72,9 @@
 - 评分规范：`docs/SCORING_V1.md`
 - 社媒白名单：`docs/SOCIAL_SOURCES.md`
 
-## 1. 总体流程（每周批处理）
+## 1. 总体流程（legacy 每周批处理）
+
+> **global_events 路径**：跳过本节 1) 的周刊专用 RSS 抓取；选题见 **§0.2**。
 
 1) **Ingest + Normalize**（抓取与标准化）
    - 产出 `raw_items` 或 `event_candidates`（建议已去重/合并成事件实体）
@@ -30,9 +85,9 @@
 5) **Copy Editor 收口**（语言统一、长度约束、格式）
 6) **产出 payload + audit_report**
 
-### 1.1 依赖关系（DAG）
+### 1.1 依赖关系（DAG，仅 legacy）
 
-与 **PRD §6.3** 对齐的实现（代码：`backend/app/services/multi_agent_orchestrator.py`）。抓取与 **IssueEvent** 合并在入库阶段完成，流水线从 Cleaner 起。
+与 **PRD §6.3** 对齐的实现（代码：`backend/app/services/multi_agent_orchestrator.py`）。抓取与 **IssueEvent** 合并在入库阶段完成，流水线从 Cleaner 起。**`WEEKLY_SOURCE=global_events` 时不执行此 DAG**，见 `backend/app/services/weekly_global_pipeline.py`。
 
 ```mermaid
 flowchart TD
@@ -157,6 +212,9 @@ flowchart TD
 
 ### Agent B：Impact Analyst（非技术影响解读）
 
+- **legacy**：见下述职责。
+- **global_events / weekly_global_slim**：**已移除**；Top3 解读复用日榜 Insight / `GlobalEvent` 字段，由 `build_normal_top3_payload_rows` 写入 payload。
+
 - **输入**：fact_sheet + Top20 事件摘要
 - **输出**：`impact_notes.json`
 - **职责**：
@@ -166,13 +224,16 @@ flowchart TD
 ### Agent C：Scoring Auditor（评分审计/异常检测）
 
 - **输入**：Top20 评分拆解 + 信号字段
-- **输出**：`scoring_findings.json`
+- **输出**：`scoring_findings.json` 
 - **职责**：
   - 检查是否存在“噪音霸榜”：低可信账号热度极高但缺少共识
   - 检查重复事件：同事件多条来源未合并
   - 输出“建议降权/剔除/合并”的规则化建议（不直接改内容）
 
 ### Agent D：Trend Synthesizer（趋势归纳）
+
+- **legacy**：独立 Trend Agent，产出 `trend_section.json`。
+- **global slim**：**本周判断**由主编 LLM 写入 `weekly_thesis`（`headline` + 可选 `trend_lines`），不再单独跑 Trend Agent。
 
 - **输入**：Top20 EventCard 草稿 + 评分/信号
 - **输出**：`trend_section.json`
@@ -218,10 +279,12 @@ flowchart TD
 
 ### 4.3 TopN 选择
 
-- **候选池**：Top20（按基础分 S）
-- **Simple**：从 Top20 选 5 条（可结合“关键词优先”逻辑）
-- **Normal Top3**：从 Top20 选 3 条，要求 `confidence != low`
-- **Sections**：按 tags 分类填充（每段 3–5 条卡片）
+- **global_events（推荐）**：候选池与 Top3 均按 **`weekly_score`**（`weekly_event_scores` 表）；Top3 的 `event_id` 必须为真实 `global_events.id`。
+- **legacy**：
+  - **候选池**：Top20（按基础分 S）
+  - **Simple**：从 Top20 选 5 条（可结合“关键词优先”逻辑）
+  - **Normal Top3**：从 Top20 选 3 条，要求 `confidence != low`
+  - **Sections**：按 tags 分类填充（每段 3–5 条卡片）
 
 ## 5. Prompt 模板（可复用骨架）
 

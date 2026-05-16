@@ -355,6 +355,47 @@ def _attention_level_from_action(s: str) -> str:
     return "2"
 
 
+def select_global_events_by_weekly_score(
+    db: Session,
+    *,
+    period_start: date,
+    limit: int = 40,
+    min_candidates: int = 8,
+) -> tuple[list[GlobalEvent], dict[str, Any]]:
+    """
+    按已写入的 weekly_event_scores 降序选取 GlobalEvent（须先 recompute_weekly_event_scores_for_period）。
+    用于周刊候选池与多 Agent 上下文，与页面 Top3 同一套分数口径。
+    """
+    lim = max(1, min(int(limit), 200))
+    rows = list(
+        db.scalars(
+            select(WeeklyEventScore)
+            .where(WeeklyEventScore.period_start == period_start)
+            .order_by(WeeklyEventScore.weekly_score.desc(), WeeklyEventScore.global_event_id.asc())
+            .limit(lim * 2)
+        ).all()
+    )
+    events: list[GlobalEvent] = []
+    for wes in rows:
+        ge = db.get(GlobalEvent, wes.global_event_id)
+        if not ge or ge.status != "active":
+            continue
+        if not (ge.canonical_title or "").strip():
+            continue
+        events.append(ge)
+        if len(events) >= lim:
+            break
+    report: dict[str, Any] = {
+        "weekly_source": "global_events",
+        "selection": "weekly_score",
+        "period_start": period_start.isoformat(),
+        "selected_global_event_ids": [int(g.id) for g in events],
+        "selected_count": len(events),
+        "insufficient_global_events": len(events) < max(0, int(min_candidates)),
+    }
+    return events, report
+
+
 def build_normal_top3_payload_rows(db: Session, period_start: date, *, limit: int = 3) -> list[dict[str, Any]]:
     """按 weekly_score 降序取前 limit 条，组装 PRD normal.top3 行（含扩展字段）。"""
     rows = db.scalars(
