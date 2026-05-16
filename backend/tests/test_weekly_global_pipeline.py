@@ -64,19 +64,22 @@ def test_build_global_weekly_payload_structure_without_llm() -> None:
     with (
         patch("app.services.weekly_global_pipeline.recompute_weekly_event_scores_for_period", return_value=1),
         patch(
-            "app.services.weekly_global_pipeline.build_normal_top3_payload_rows",
-            return_value=[
-                {
-                    "event_id": 1,
-                    "title": "事件A",
-                    "url": "https://example.com/a",
-                    "what_happened": "WH",
-                    "why_important": "WI",
-                    "what_it_means_for_you": "WM",
-                    "weekly_score": 88.5,
-                    "detail_url": "/events/1",
-                }
-            ],
+            "app.services.weekly_global_pipeline.resolve_global_weekly_top3_rows",
+            return_value=(
+                [
+                    {
+                        "event_id": 1,
+                        "title": "事件A",
+                        "url": "https://example.com/a",
+                        "what_happened": "WH",
+                        "why_important": "WI",
+                        "what_it_means_for_you": "WM",
+                        "weekly_score": 88.5,
+                        "detail_url": "/events/1",
+                    }
+                ],
+                {"method": "weekly_score_fallback"},
+            ),
         ),
         patch(
             "app.services.weekly_global_pipeline.publish_weekly_report",

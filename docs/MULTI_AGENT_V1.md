@@ -21,23 +21,25 @@ flowchart LR
   ER[enrich_rankings 可选] --> GE
   GW[generate_weekly] --> WS[recompute weekly_event_scores]
   WS --> POOL[候选池: weekly_score TopN]
-  POOL --> T3[Top3: weekly_score 前 3]
-  POOL --> LLM[3× LLM: thesis / capability / glossary]
+  POOL --> T3[Top3: LLM 从池中选 3]
+  POOL --> LLM[4× LLM: top3 + thesis / capability / glossary]
   T3 --> P[payload v3 + validate + publish]
   LLM --> P
 ```
 
 | 环节 | 说明 |
 |------|------|
-| 候选池 | `select_global_events_by_weekly_score`，上限 `GLOBAL_EVENTS_POOL_LIMIT`（默认 40） |
-| Top3 | **统一 `weekly_score`**，`build_normal_top3_payload_rows`；文案来自 `GlobalEvent` / 日榜 Insight，**不跑 Impact Analyst** |
-| LLM | 仅 3 次：`weekly_thesis`、`capability_boundaries`、`glossary`（见 `weekly_global_pipeline.py`） |
+| 候选池 | `select_global_events_by_weekly_score`：按 **`weekly_score` 降序**，上限 `GLOBAL_EVENTS_POOL_LIMIT`（默认 40） |
+| Top3 | **`resolve_global_weekly_top3_rows`**：LLM 从候选池选 3 条 `event_id`；失败或未配置豆包时 **回退** 分数 Top3；正文来自 `GlobalEvent` / 日榜 Insight，**不跑 Impact Analyst** |
+| LLM | **4 次**：Top3 选题 + `weekly_thesis` + `capability_boundaries` + `glossary`（见 `weekly_global_pipeline.py`） |
 | 已停用 | Impact、EventCards、Trend、Composer 的 `sections` / `category_recap` / `tools` / `noise` 等（省 token） |
 | 审核 | `finalize_payload_v3`、`validate_payload`、`weekly_quality_v2_audit`；可选邮件 **Deliverability**（与 legacy 相同开关） |
 
 入口：`python -m app.jobs.generate_weekly` 在 `WEEKLY_SOURCE=global_events` 且 `MULTI_AGENT_WEEKLY=true` 时调用 `build_global_weekly_payload`；`audit_report_YYYY-MM-DD.json` 中 `weekly_quality_summary.mode` = `weekly_global_slim`。
 
-`MULTI_AGENT_WEEKLY=false` 时仍走 global 路径，但 LLM 关闭，thesis 用确定性兜底。
+`MULTI_AGENT_WEEKLY=false` 时仍走 global 路径，但 **Top3 与 thesis 均不走 LLM**（Top3 用分数前 3，thesis 用确定性兜底）。
+
+审计：`audit_report_*.json` 内 **`top3_selection`** 记录候选 id、LLM 选定 id、`method`（`llm_with_score_backfill` / `weekly_score_fallback`）。
 
 ### 0.3 环境变量（与 `backend/.env.example` 一致）
 
@@ -213,7 +215,7 @@ flowchart TD
 ### Agent B：Impact Analyst（非技术影响解读）
 
 - **legacy**：见下述职责。
-- **global_events / weekly_global_slim**：**已移除**；Top3 解读复用日榜 Insight / `GlobalEvent` 字段，由 `build_normal_top3_payload_rows` 写入 payload。
+- **global_events / weekly_global_slim**：**已移除**；Top3 **名单**由 LLM 在 `weekly_score` 候选池内选定（`select_top3_event_ids_with_llm`），正文行由 `build_normal_top3_payload_rows_for_event_ids` 从日榜字段组装。
 
 - **输入**：fact_sheet + Top20 事件摘要
 - **输出**：`impact_notes.json`
@@ -279,7 +281,7 @@ flowchart TD
 
 ### 4.3 TopN 选择
 
-- **global_events（推荐）**：候选池与 Top3 均按 **`weekly_score`**（`weekly_event_scores` 表）；Top3 的 `event_id` 必须为真实 `global_events.id`。
+- **global_events（推荐）**：候选池按 **`weekly_score`**；Top3 由 **LLM 在池内决策**（失败则分数 Top3）；`event_id` 必须为真实 `global_events.id`。
 - **legacy**：
   - **候选池**：Top20（按基础分 S）
   - **Simple**：从 Top20 选 5 条（可结合“关键词优先”逻辑）

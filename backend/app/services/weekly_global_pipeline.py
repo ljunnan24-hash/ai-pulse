@@ -27,8 +27,8 @@ from app.services.phase35_compat import compute_weekly_quality_v2_audit, weekly_
 from app.services.publish_weekly_page import publish_weekly_report, weekly_report_public_url
 from app.services.slim_weekly_render import merge_phase35_into_payload
 from app.services.weekly_event_score_service import (
-    build_normal_top3_payload_rows,
     recompute_weekly_event_scores_for_period,
+    resolve_global_weekly_top3_rows,
 )
 from app.services.weekly_from_rankings_service import global_events_to_orchestrator_dicts
 
@@ -95,14 +95,23 @@ def build_global_weekly_payload(
     """
   生成周刊 payload（global_events 路径）。
 
-  - Top3：weekly_score 前 3，字段来自 GlobalEvent / 日榜 Insight
-  - LLM（可选）：weekly_thesis、capability_boundaries、glossary
+  - Top3：weekly_score 定候选池，LLM 选最重要 3 条（失败则分数 Top3）；字段来自 GlobalEvent / 日榜 Insight
+  - LLM（可选）：Top3 选题 + weekly_thesis、capability_boundaries、glossary
   - 校验：finalize_payload_v3、validate_payload、邮件送达率（若开启）
     """
     settings = get_settings()
     recompute_weekly_event_scores_for_period(db, period_start, report_date=period_start)
 
-    top3_rows = build_normal_top3_payload_rows(db, period_start, limit=3)
+    client = LlmJsonClient()
+    top3_rows, top3_selection_audit = resolve_global_weekly_top3_rows(
+        db,
+        period_start,
+        list(pool_events),
+        client=client,
+        enable_llm=enable_llm,
+        hard_rules=weekly_prompt_hard_rules(),
+        limit=3,
+    )
     pool_compact = _compact_pool_for_llm(pool_events, top_n=top_n_llm)
 
     thesis_block: dict[str, Any] = {}
@@ -110,7 +119,6 @@ def build_global_weekly_payload(
     glossary_block: dict[str, Any] = {"glossary": []}
     llm_notes: list[str] = []
 
-    client = LlmJsonClient()
     if enable_llm and client.is_configured():
         thesis_block = client.complete_json(
             system="You output JSON only. You are the editor-in-chief of AI Pulse weekly report.",
@@ -120,7 +128,7 @@ def build_global_weekly_payload(
                 '输出 JSON：{ "weekly_thesis": { "headline", "summary", "trend_lines": [] } }\n'
                 "headline 必须是一句判断式陈述；summary 2-3 句；trend_lines 最多 3 条。\n\n"
                 f"候选事件（已按 weekly_score 排序）：\n{_safe_json(pool_compact)}\n\n"
-                f"本周 Top3 已定（勿改 event_id/url）：\n{_safe_json(top3_rows)}\n"
+                f"本周 Top3 已由主编选定（勿改 event_id/url）：\n{_safe_json(top3_rows)}\n"
             ),
             temperature=0.35,
         )
@@ -209,7 +217,7 @@ def build_global_weekly_payload(
         "pipeline": [
             "recompute_weekly_event_scores",
             "select_pool_by_weekly_score",
-            "build_top3_from_weekly_score",
+            "select_top3_llm_from_weekly_score_pool",
             "thesis_agent",
             "capability_boundaries",
             "glossary",
@@ -220,6 +228,7 @@ def build_global_weekly_payload(
         ],
         "notes": llm_notes,
         "top3_event_ids": [r.get("event_id") for r in top3_rows],
+        "top3_selection": top3_selection_audit,
         "pool_event_ids": [d.get("global_event_id") for d in pool_compact],
         "publish_weekly_page": {
             "weekly_url": weekly_url,
@@ -238,6 +247,7 @@ def build_global_weekly_payload(
         "capability": capability_block,
         "glossary": glossary_block,
         "top3_rows": top3_rows,
+        "top3_selection": top3_selection_audit,
         "pool_compact": pool_compact,
     }
     return MultiAgentResult(payload=payload, audit_report=audit, artifacts=artifacts)

@@ -30,8 +30,8 @@ $env:WEEKLY_SOURCE="global_events"
 | 步骤 | 说明 |
 |------|------|
 | 前置 | 本周窗内已跑 `daily_rankings`（`global_events` 有数据）；Insight 可选 `enrich_rankings` |
-| 选题 | `weekly_event_scores` → 候选池按 `weekly_score`；Top3 = 前 3 条 |
-| LLM | 仅 thesis / capability_boundaries / glossary（3 次）；无 Impact、无 sections |
+| 选题 | `weekly_score` 定候选池；**LLM 从池里选 Top3**（失败则分数前 3） |
+| LLM | Top3 选题 + thesis + capability + glossary（4 次）；无 Impact、无 sections |
 | 产物 | `payload` + `audit_report_YYYY-MM-DD.json`（`mode=weekly_global_slim`） |
 | 页面 | `/weekly/日期`：本周判断、Top3（链 `/events/:id`）、能力边界、术语 |
 

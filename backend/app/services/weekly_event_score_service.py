@@ -1,5 +1,5 @@
 """
-新版周报 Top3：仅基于 GlobalEvent 池计算 weekly_score，写入 weekly_event_scores，并生成 normal.top3。
+新版周报 Top3：GlobalEvent 池计算 weekly_score → 候选池；Top3 由 LLM 在池内选定（失败则分数 Top3）→ normal.top3。
 
 说明：
 - max_pulse_score 第一版取 GlobalEvent 当前可观测分数的上界近似（stable_pulse、ranking_score、
@@ -396,6 +396,271 @@ def select_global_events_by_weekly_score(
     return events, report
 
 
+def _weekly_score_map_for_period(db: Session, period_start: date, event_ids: list[int]) -> dict[int, WeeklyEventScore]:
+    if not event_ids:
+        return {}
+    rows = db.scalars(
+        select(WeeklyEventScore).where(
+            WeeklyEventScore.period_start == period_start,
+            WeeklyEventScore.global_event_id.in_(event_ids),
+        )
+    ).all()
+    return {int(r.global_event_id): r for r in rows}
+
+
+def build_top3_llm_candidate_rows(
+    db: Session,
+    period_start: date,
+    events: list[GlobalEvent],
+) -> list[dict[str, Any]]:
+    """候选池紧凑摘要（按 weekly_score 降序），供 LLM 选 Top3。"""
+    ids = [int(g.id) for g in events if g and getattr(g, "id", None)]
+    wmap = _weekly_score_map_for_period(db, period_start, ids)
+    scored: list[tuple[float, int, GlobalEvent]] = []
+    for ge in events:
+        wes = wmap.get(int(ge.id))
+        sc = float(wes.weekly_score or 0.0) if wes else 0.0
+        scored.append((sc, int(ge.id), ge))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+
+    out: list[dict[str, Any]] = []
+    for sc, eid, ge in scored:
+        title = (getattr(ge, "title_zh", None) or "").strip() or (ge.canonical_title or "").strip()
+        out.append(
+            {
+                "event_id": eid,
+                "title": title[:200],
+                "category": (ge.category or "").strip()[:64],
+                "weekly_score": round(sc, 2),
+                "what_happened": (ge.what_happened or "").strip()[:280],
+                "why_important": (ge.why_important or "").strip()[:280],
+                "what_it_means_for_you": (ge.what_it_means_for_you or "").strip()[:200],
+                "action_suggestion": (ge.action_suggestion or "").strip()[:120],
+            }
+        )
+    return out
+
+
+def _parse_llm_selected_event_ids(data: Any, *, allowed: set[int], limit: int) -> list[int]:
+    if not isinstance(data, dict):
+        return []
+    raw = data.get("selected_event_ids")
+    if raw is None:
+        raw = data.get("top3_event_ids")
+    if not isinstance(raw, list):
+        return []
+    picked: list[int] = []
+    seen: set[int] = set()
+    for x in raw:
+        try:
+            eid = int(x)
+        except (TypeError, ValueError):
+            continue
+        if eid not in allowed or eid in seen:
+            continue
+        seen.add(eid)
+        picked.append(eid)
+        if len(picked) >= limit:
+            break
+    return picked
+
+
+def select_top3_event_ids_with_llm(
+    client: Any,
+    candidate_rows: list[dict[str, Any]],
+    *,
+    limit: int = 3,
+    hard_rules: str = "",
+) -> tuple[list[int], dict[str, Any]]:
+    """
+    从 weekly_score 候选池中由 LLM 选出最多 limit 条 event_id。
+    返回 (ids, audit_fragment)；无 client / 失败 / 全非法时 ids 为空，由调用方回退分数 Top3。
+    """
+    from app.services.multi_agent_orchestrator import _safe_json
+
+    audit: dict[str, Any] = {"method": "llm", "limit": limit}
+    allowed = {int(r["event_id"]) for r in candidate_rows if r.get("event_id") is not None}
+    if not allowed:
+        audit["error"] = "empty_candidates"
+        return [], audit
+    if len(allowed) == 0:
+        audit["error"] = "empty_allowed_set"
+        return [], audit
+    if len(allowed) == 1:
+        audit["note"] = "single_candidate"
+        return [next(iter(allowed))], audit
+
+    if client is None or not getattr(client, "is_configured", lambda: False)():
+        audit["error"] = "llm_not_configured"
+        return [], audit
+
+    n_pick = min(limit, len(allowed))
+    try:
+        data = client.complete_json(
+            system="You output JSON only. You are the editor-in-chief selecting weekly Top3 from a ranked candidate pool.",
+            user=(
+                (hard_rules or "")
+                + "\n\n你是 AI Pulse 周刊主编。下面候选已按 weekly_score 预筛（分数是参考，不是唯一标准）。\n"
+                f"请从中选出本周最值得普通读者跟进的 **恰好 {n_pick} 条**（若你认为不足 {n_pick} 条值得入选，可少选，但尽量满 {n_pick} 条）。\n\n"
+                "选型原则（按优先级）：\n"
+                "1. 对本周 AI 行业/产品/能力有代表性，不是边角花絮；\n"
+                "2. 三条之间尽量覆盖不同主题（避免同赛道刷屏）；\n"
+                "3. 对非技术读者有明确「现在该怎么做」的价值；\n"
+                "4. weekly_score 高者优先考虑，但若高分条目同质，可略降分选更有代表性的。\n\n"
+                "硬性约束：\n"
+                "- 只能使用候选中的 event_id，禁止编造；\n"
+                "- 禁止重复 event_id；\n"
+                "- 不要输出 title/url 等字段，只输出 id 列表。\n\n"
+                f"候选（weekly_score 降序）：\n{_safe_json(candidate_rows)}\n\n"
+                '输出 JSON：{ "selected_event_ids": [ <int>, ... ], "rationale": "可选，1-2句" }\n'
+            ),
+            temperature=0.25,
+        )
+    except Exception as exc:
+        audit["error"] = f"llm_failed:{exc}"
+        return [], audit
+
+    picked = _parse_llm_selected_event_ids(data, allowed=allowed, limit=limit)
+    audit["llm_raw"] = data if isinstance(data, dict) else {}
+    audit["selected_event_ids"] = picked
+    if not picked:
+        audit["error"] = "no_valid_ids_from_llm"
+    return picked, audit
+
+
+def _fill_top3_ids_from_weekly_score(
+    db: Session,
+    period_start: date,
+    *,
+    primary_ids: list[int],
+    limit: int = 3,
+) -> list[int]:
+    """用 LLM 已选 id 为主，不足 limit 时按 weekly_score 补齐（不重复）。"""
+    seen = {int(i) for i in primary_ids}
+    out = list(primary_ids)
+    if len(out) >= limit:
+        return out[:limit]
+    rows = db.scalars(
+        select(WeeklyEventScore)
+        .where(WeeklyEventScore.period_start == period_start)
+        .order_by(WeeklyEventScore.weekly_score.desc(), WeeklyEventScore.global_event_id.asc())
+        .limit(limit * 3)
+    ).all()
+    for wes in rows:
+        eid = int(wes.global_event_id)
+        if eid in seen:
+            continue
+        ge = db.get(GlobalEvent, eid)
+        if not ge or ge.status != "active":
+            continue
+        seen.add(eid)
+        out.append(eid)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def build_normal_top3_payload_row(
+    db: Session,
+    period_start: date,
+    ge: GlobalEvent,
+    wes: WeeklyEventScore | None,
+    *,
+    weekly_rank: int,
+) -> dict[str, Any]:
+    eid = int(ge.id)
+    title = (ge.title_zh or "").strip() or (ge.canonical_title or "").strip()
+    url = (ge.canonical_url or "").strip() or f"/events/{eid}"
+    wh = (ge.what_happened or "").strip() or (ge.summary or "")[:800]
+    wy = (ge.why_important or "").strip()
+    wu = (ge.what_it_means_for_you or "").strip()
+    pulse = round(float(stable_pulse_score_for_global_event(ge)), 2)
+    _, merged = _independent_sources_from_event(db, ge)
+    source_urls = [str(x.get("url") or "").strip() for x in merged if str(x.get("url") or "").strip()][:12]
+    reasons = wes.score_reasons if wes and isinstance(wes.score_reasons, dict) else {}
+    wscore = round(float(wes.weekly_score or 0.0), 2) if wes else 0.0
+    return {
+        "event_id": eid,
+        "title": title[:200],
+        "url": url[:2048],
+        "what_happened": wh[:800],
+        "why_important": wy[:800],
+        "what_it_means_for_you": wu[:800],
+        "attention_level": _attention_level_from_action(ge.action_suggestion),
+        "category": (ge.category or "").strip()[:64],
+        "category_slug": (ge.category or "").strip()[:64],
+        "pulse_score": pulse,
+        "ranking_score": round(float(ge.ranking_score or 0.0), 2),
+        "weekly_score": wscore,
+        "weekly_rank": weekly_rank,
+        "detail_url": f"/events/{eid}",
+        "source_urls": source_urls,
+        "weekly_score_reasons": reasons,
+    }
+
+
+def build_normal_top3_payload_rows_for_event_ids(
+    db: Session,
+    period_start: date,
+    event_ids: list[int],
+) -> list[dict[str, Any]]:
+    """按给定 event_id 顺序组装 normal.top3（用于 LLM 选定后的落库行）。"""
+    wmap = _weekly_score_map_for_period(db, period_start, [int(i) for i in event_ids])
+    out: list[dict[str, Any]] = []
+    for rank, eid in enumerate(event_ids, start=1):
+        ge = db.get(GlobalEvent, int(eid))
+        if not ge:
+            continue
+        out.append(
+            build_normal_top3_payload_row(
+                db, period_start, ge, wmap.get(int(eid)), weekly_rank=rank
+            )
+        )
+    return out
+
+
+def resolve_global_weekly_top3_rows(
+    db: Session,
+    period_start: date,
+    pool_events: list[GlobalEvent],
+    *,
+    client: Any = None,
+    enable_llm: bool = True,
+    hard_rules: str = "",
+    limit: int = 3,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """
+    Top3：weekly_score 定候选池 → LLM 选最重要三条 → 失败则回退分数 Top3。
+    """
+    candidates = build_top3_llm_candidate_rows(db, period_start, list(pool_events))
+    selection_audit: dict[str, Any] = {
+        "candidate_count": len(candidates),
+        "candidate_event_ids": [r.get("event_id") for r in candidates],
+    }
+
+    picked_ids: list[int] = []
+    if enable_llm and candidates:
+        picked_ids, llm_audit = select_top3_event_ids_with_llm(
+            client, candidates, limit=limit, hard_rules=hard_rules
+        )
+        selection_audit["llm"] = llm_audit
+
+    if picked_ids:
+        picked_ids = _fill_top3_ids_from_weekly_score(
+            db, period_start, primary_ids=picked_ids, limit=limit
+        )
+        selection_audit["method"] = "llm_with_score_backfill"
+        top3_rows = build_normal_top3_payload_rows_for_event_ids(db, period_start, picked_ids)
+    else:
+        selection_audit["method"] = "weekly_score_fallback"
+        top3_rows = build_normal_top3_payload_rows(db, period_start, limit=limit)
+        picked_ids = [int(r["event_id"]) for r in top3_rows if r.get("event_id") is not None]
+
+    selection_audit["final_event_ids"] = picked_ids
+    selection_audit["final_count"] = len(top3_rows)
+    return top3_rows, selection_audit
+
+
 def build_normal_top3_payload_rows(db: Session, period_start: date, *, limit: int = 3) -> list[dict[str, Any]]:
     """按 weekly_score 降序取前 limit 条，组装 PRD normal.top3 行（含扩展字段）。"""
     rows = db.scalars(
@@ -411,37 +676,7 @@ def build_normal_top3_payload_rows(db: Session, period_start: date, *, limit: in
         ge = db.get(GlobalEvent, wes.global_event_id)
         if not ge:
             continue
-        eid = int(ge.id)
-        title = (ge.title_zh or "").strip() or (ge.canonical_title or "").strip()
-        url = (ge.canonical_url or "").strip() or f"/events/{eid}"
-        wh = (ge.what_happened or "").strip() or (ge.summary or "")[:800]
-        wy = (ge.why_important or "").strip()
-        wu = (ge.what_it_means_for_you or "").strip()
-        pulse = round(float(stable_pulse_score_for_global_event(ge)), 2)
-        _, merged = _independent_sources_from_event(db, ge)
-        source_urls = [str(x.get("url") or "").strip() for x in merged if str(x.get("url") or "").strip()][:12]
-        reasons = wes.score_reasons if isinstance(wes.score_reasons, dict) else {}
-
-        out.append(
-            {
-                "event_id": eid,
-                "title": title[:200],
-                "url": url[:2048],
-                "what_happened": wh[:800],
-                "why_important": wy[:800],
-                "what_it_means_for_you": wu[:800],
-                "attention_level": _attention_level_from_action(ge.action_suggestion),
-                "category": (ge.category or "").strip()[:64],
-                "category_slug": (ge.category or "").strip()[:64],
-                "pulse_score": pulse,
-                "ranking_score": round(float(ge.ranking_score or 0.0), 2),
-                "weekly_score": round(float(wes.weekly_score or 0.0), 2),
-                "weekly_rank": rank,
-                "detail_url": f"/events/{eid}",
-                "source_urls": source_urls,
-                "weekly_score_reasons": reasons,
-            }
-        )
+        out.append(build_normal_top3_payload_row(db, period_start, ge, wes, weekly_rank=rank))
     return out
 
 
