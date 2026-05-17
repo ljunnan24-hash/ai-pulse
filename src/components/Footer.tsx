@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 
+import { ShortcutButton } from './pwa/ShortcutButton';
+
 export function Footer() {
   const year = new Date().getFullYear();
   return (
@@ -15,6 +17,7 @@ export function Footer() {
           <Link className="text-slate-500 transition hover:text-primary" to="/subscribe">
             订阅周报
           </Link>
+          <ShortcutButton variant="footer" />
           <Link className="text-slate-500 transition hover:text-primary" to="/privacy">
             隐私政策
           </Link>

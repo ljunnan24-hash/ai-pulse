@@ -5,6 +5,7 @@ import { HomeTopFiveTable } from '../components/home/HomeTopFiveTable';
 import { InformationQualityWorkflow } from '../components/home/InformationQualityWorkflow';
 import { TodayFocusCard } from '../components/home/TodayFocusCard';
 import { EmptyState } from '../components/common/EmptyState';
+import { ShortcutButton } from '../components/pwa/ShortcutButton';
 import { estimateReadingMinutes } from '../components/weekly/weeklyPayloadUtils';
 import { formatSlashDateFromIso } from '../lib/homeRankingsDisplay';
 
@@ -162,6 +163,7 @@ export default function HomePage() {
               >
                 订阅周报
               </Link>
+              <ShortcutButton variant="hero" />
             </div>
           </div>
           <TodayFocusCard item={top5[0] ?? null} rankUpdatedAt={rankUpdatedAt} loaded={topLoaded} />

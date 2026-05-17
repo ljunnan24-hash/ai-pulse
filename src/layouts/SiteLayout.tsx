@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { Footer } from '../components/Footer';
+import { InstallPrompt } from '../components/pwa/InstallPrompt';
+import { PwaInstallProvider } from '../contexts/PwaInstallContext';
 
 function navActive(pathname: string, to: string): boolean {
   if (to === '/') return pathname === '/';
@@ -21,6 +23,7 @@ function NavLink({ to, children }: { to: string; children: ReactNode }) {
 
 export function SiteLayout() {
   return (
+    <PwaInstallProvider>
     <div className="flex min-h-screen flex-col bg-page-canvas selection:bg-primary-container selection:text-on-primary-container">
       <nav className="fixed top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between gap-2 px-4 md:gap-4 md:px-6">
@@ -57,6 +60,8 @@ export function SiteLayout() {
       </main>
 
       <Footer />
+      <InstallPrompt />
     </div>
+    </PwaInstallProvider>
   );
 }

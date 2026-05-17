@@ -1,8 +1,10 @@
 import type { FormEvent, ReactNode } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, CalendarDays, FileText, Heart, Layers2 } from 'lucide-react';
+import { Archive, CalendarDays, FileText, Layers2 } from 'lucide-react';
 
+import { AboutParticipateSection } from '../components/about/AboutParticipateSection';
+import { AboutQrModal } from '../components/about/AboutQrModal';
 import { apiBase } from '../config';
 import { getVisitorId } from '../lib/analytics';
 
@@ -13,19 +15,29 @@ const cardPlain =
 const tagCls =
   'inline-flex items-center rounded-full border border-[#D8E2F0] bg-white px-3 py-1 text-[13px] font-medium text-slate-600';
 
-/** 静态资源路径：`public/reward-author-qrcode.png`；未部署该文件时请把开关改为 false，仅保留文案 */
-const SHOW_REWARD_QR = true;
+/** 静态资源：`public/wechat-group-qrcode.png`（微信交流群） */
+const WECHAT_GROUP_QR_SRC = '/wechat-group-qrcode.png';
+/** 静态资源：`public/reward-author-qrcode.png`（打赏）；未部署时弹窗内图片会 404 */
 const REWARD_QR_SRC = '/reward-author-qrcode.png';
+
 
 function MiniIcon({ children }: { children: ReactNode }) {
   return <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center text-slate-500">{children}</span>;
 }
+
+type QrModalKind = 'wechat-group' | 'reward' | null;
 
 export default function AboutPage() {
   const [content, setContent] = useState('');
   const [contact, setContact] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [qrModal, setQrModal] = useState<QrModalKind>(null);
+  const suggestFormRef = useRef<HTMLElement>(null);
+
+  function scrollToSuggestForm() {
+    suggestFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   async function onSubmitSuggest(e: FormEvent) {
     e.preventDefault();
@@ -84,17 +96,20 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* 二、我们为什么做这个产品 */}
+        {/* 二、我们为什么做 AI Pulse */}
         <section className={cardPlain} aria-labelledby="about-why">
           <h2 id="about-why" className="heading-section text-slate-900">
-            我们为什么做这个产品
+            我们为什么做 AI Pulse
           </h2>
           <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600 md:text-[15px] md:leading-[1.75]">
             <p>
-              AI 行业的信息更新很快，但真正值得普通用户、小团队和创业者关注的变化并不多。
+              AI 行业变化很快，但真正值得普通用户、小团队和创业者关注的信号，并没有那么多。
             </p>
             <p>
-              问题不只是信息太多，而是信息经常重复、来源分散、标题夸张、上下文不足。AI Pulse 希望把这些信息先整理成更清楚的事件，再提供轻量判断，帮助用户减少无效阅读。
+              今天的问题不是信息太少，而是信息太散、太重复、太缺少判断。用户看了很多 AI 新闻，却仍然不知道哪些值得关注，哪些可以忽略。
+            </p>
+            <p>
+              AI Pulse 希望把分散的信息整理成清楚的事件，再提供克制、轻量的判断，帮助用户用更少时间看清 AI 行业真正重要的变化。
             </p>
           </div>
         </section>
@@ -254,119 +269,21 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* 七、联系我们 */}
-        <section className={cardPlain} aria-labelledby="about-contact">
-          <h2 id="about-contact" className="heading-section text-slate-900">
-            联系我们
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed text-slate-600 md:text-[15px] md:leading-relaxed">
-            如果你对 AI Pulse 有建议、反馈、合作想法，或希望推荐信息源，可以通过邮箱联系我们。
-          </p>
-          <p className="mt-4 text-sm text-slate-600">
-            <span className="mr-1">邮箱：</span>
-            <a
-              href="mailto:2089128910@qq.com"
-              className="break-all font-medium text-[#2563EB] underline-offset-2 hover:underline"
-            >
-              2089128910@qq.com
-            </a>
-          </p>
-        </section>
+        <AboutParticipateSection
+          suggestFormRef={suggestFormRef}
+          content={content}
+          contact={contact}
+          submitting={submitting}
+          msg={msg}
+          onContentChange={setContent}
+          onContactChange={setContact}
+          onSubmitSuggest={onSubmitSuggest}
+          onOpenWechatGroup={() => setQrModal('wechat-group')}
+          onOpenReward={() => setQrModal('reward')}
+          onScrollToSuggestForm={scrollToSuggestForm}
+        />
 
-        {/* 八、打赏作者 */}
-        <section className={cardPlain} aria-labelledby="about-reward">
-          <div
-            className={
-              SHOW_REWARD_QR ? 'flex flex-col gap-5 sm:flex-row sm:gap-6' : 'flex flex-col'
-            }
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex gap-3">
-                <MiniIcon>
-                  <Heart className="h-4 w-4" strokeWidth={2} aria-hidden />
-                </MiniIcon>
-                <h2 id="about-reward" className="heading-section text-slate-900">
-                  打赏作者
-                </h2>
-              </div>
-              <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600 md:text-[15px] md:leading-[1.75]">
-                <p>如果 AI Pulse 对你有帮助，欢迎打赏支持作者。</p>
-                <p>你的认可是我持续维护、优化和更新这个网站的重要动力。</p>
-              </div>
-            </div>
-            {SHOW_REWARD_QR ? (
-              <div className="flex shrink-0 flex-col items-center sm:items-end sm:pt-1">
-                <img
-                  src={REWARD_QR_SRC}
-                  alt="微信打赏二维码"
-                  width={220}
-                  height={220}
-                  loading="lazy"
-                  decoding="async"
-                  className="mx-auto aspect-square w-[min(220px,calc(100vw-2.5rem))] rounded-lg border border-[#E8EDF5] bg-white object-contain p-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:mx-0 sm:w-[220px]"
-                />
-                <p className="mt-2 text-center text-[13px] text-slate-500 sm:text-right">微信打赏</p>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        {/* 九、给 AI Pulse 提建议 */}
-        <section className={cardPlain} aria-labelledby="about-suggest">
-          <h2 id="about-suggest" className="heading-section text-slate-900">
-            给 AI Pulse 提建议
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed text-slate-600 md:text-[15px] md:leading-relaxed">
-            如果你有产品建议、信息源推荐、错误反馈或合作想法，欢迎告诉我们。
-          </p>
-          <form onSubmit={onSubmitSuggest} className="mt-5 space-y-4">
-            <div>
-              <label htmlFor="suggest-content" className="block text-sm font-medium text-slate-700">
-                建议内容 <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                id="suggest-content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                rows={5}
-                maxLength={1000}
-                placeholder="至少 5 个字，最多 1000 字"
-                className="mt-2 w-full rounded-xl border border-[#D8E2F0] bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-offset-2 focus:border-[#94A3B8] focus:ring-2 focus:ring-[#1463FF]/20"
-              />
-            </div>
-            <div>
-              <label htmlFor="suggest-contact" className="block text-sm font-medium text-slate-700">
-                联系方式（选填）
-              </label>
-              <input
-                id="suggest-contact"
-                type="text"
-                value={contact}
-                onChange={(e) => setContact(e.target.value)}
-                maxLength={120}
-                placeholder="邮箱或微信号，便于我们必要时回复"
-                className="mt-2 w-full rounded-xl border border-[#D8E2F0] bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-[#94A3B8] focus:ring-2 focus:ring-[#1463FF]/20"
-              />
-            </div>
-            {msg ? (
-              <p
-                className={`text-sm ${msg.kind === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}
-                role="status"
-              >
-                {msg.text}
-              </p>
-            ) : null}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="btn-primary-lg px-6 py-2.5 text-sm font-semibold disabled:opacity-60"
-            >
-              {submitting ? '提交中…' : '提交建议'}
-            </button>
-          </form>
-        </section>
-
-        {/* 十、底部 CTA */}
+        {/* 九、底部 CTA */}
         <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap">
           <Link to="/rankings" className="btn-primary-lg px-6 text-center no-underline md:px-8">
             查看今日榜单
@@ -376,6 +293,23 @@ export default function AboutPage() {
           </Link>
         </div>
       </div>
+
+      <AboutQrModal
+        open={qrModal === 'wechat-group'}
+        title="加入微信交流群"
+        description="扫码添加微信，备注「AI Pulse」，邀请你加入交流群。"
+        imageSrc={WECHAT_GROUP_QR_SRC}
+        imageAlt="AI Pulse 微信交流群二维码"
+        onClose={() => setQrModal(null)}
+      />
+      <AboutQrModal
+        open={qrModal === 'reward'}
+        title="支持作者"
+        description="微信扫码，自愿支持作者持续维护 AI Pulse。"
+        imageSrc={REWARD_QR_SRC}
+        imageAlt="微信打赏二维码"
+        onClose={() => setQrModal(null)}
+      />
     </div>
   );
 }
