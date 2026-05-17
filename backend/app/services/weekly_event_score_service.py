@@ -567,9 +567,11 @@ def build_normal_top3_payload_row(
     wes: WeeklyEventScore | None,
     *,
     weekly_rank: int,
+    primary_source_name: str | None = None,
 ) -> dict[str, Any]:
     eid = int(ge.id)
-    title = (ge.title_zh or "").strip() or (ge.canonical_title or "").strip()
+    canon = (ge.canonical_title or "").strip()
+    title_zh = (ge.title_zh or "").strip()
     url = (ge.canonical_url or "").strip() or f"/events/{eid}"
     wh = (ge.what_happened or "").strip() or (ge.summary or "")[:800]
     wy = (ge.why_important or "").strip()
@@ -579,9 +581,16 @@ def build_normal_top3_payload_row(
     source_urls = [str(x.get("url") or "").strip() for x in merged if str(x.get("url") or "").strip()][:12]
     reasons = wes.score_reasons if wes and isinstance(wes.score_reasons, dict) else {}
     wscore = round(float(wes.weekly_score or 0.0), 2) if wes else 0.0
+    psn = (primary_source_name or "").strip()
+    if not psn and merged:
+        psn = str(merged[0].get("source_name") or "").strip()
+    if not psn:
+        psn = fallback_primary_source_label(ge)
     return {
         "event_id": eid,
-        "title": title[:200],
+        "title": canon[:200],
+        "title_zh": title_zh[:200],
+        "primary_source_name": psn[:128],
         "url": url[:2048],
         "what_happened": wh[:800],
         "why_important": wy[:800],
@@ -669,14 +678,31 @@ def build_normal_top3_payload_rows(db: Session, period_start: date, *, limit: in
         .order_by(WeeklyEventScore.weekly_score.desc(), WeeklyEventScore.global_event_id.asc())
         .limit(limit)
     ).all()
+    ge_ids: list[int] = []
+    wes_list = list(rows)
+    for wes in wes_list:
+        ge = db.get(GlobalEvent, wes.global_event_id)
+        if ge:
+            ge_ids.append(int(ge.id))
+    labels = batch_primary_source_labels(db, ge_ids)
+
     out: list[dict[str, Any]] = []
     rank = 0
-    for wes in rows:
+    for wes in wes_list:
         rank += 1
         ge = db.get(GlobalEvent, wes.global_event_id)
         if not ge:
             continue
-        out.append(build_normal_top3_payload_row(db, period_start, ge, wes, weekly_rank=rank))
+        out.append(
+            build_normal_top3_payload_row(
+                db,
+                period_start,
+                ge,
+                wes,
+                weekly_rank=rank,
+                primary_source_name=labels.get(int(ge.id)),
+            )
+        )
     return out
 
 

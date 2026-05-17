@@ -73,12 +73,15 @@ export function PulseRankScoreCell({ score, compact }: { score: number | null; c
 export function PulseRankEventTitles({
   titleZh,
   titleEn,
+  sourceLabel,
   titleZhClassName = pulseRankTitleZhCls,
   titleEnClassName = pulseRankTitleEnCls,
   hintOverflowTitle,
 }: {
   titleZh: string;
   titleEn?: string;
+  /** 标题左上角：来源媒体 / 站点名 */
+  sourceLabel?: string;
   /** 默认中等字重；排行榜页可传入 {@link pulseRankTitleZhBoldCls} */
   titleZhClassName?: string;
   /** 英文副标题样式（周报可 {@link pulseRankTitleEnWeeklyCls}） */
@@ -86,8 +89,17 @@ export function PulseRankEventTitles({
   /** 悬停显示完整标题（截断样式下辅助阅读） */
   hintOverflowTitle?: boolean;
 }) {
+  const src = (sourceLabel ?? '').trim();
   return (
     <div className="min-w-0 space-y-1">
+      {src ? (
+        <p
+          className="truncate text-[11px] font-medium leading-tight text-slate-500"
+          title={hintOverflowTitle ? src : undefined}
+        >
+          {src}
+        </p>
+      ) : null}
       <h3 className={titleZhClassName} title={hintOverflowTitle ? titleZh : undefined}>
         {titleZh}
       </h3>

@@ -1,6 +1,9 @@
-# 事件评分机制（v1）
+# 事件评分机制（v1）— raw_items 入库规则分
 
-本文件定义 AI Pulse 对“事件（event）”的百分制评分与推送选取流程，用于产品/工程对齐与后续迭代。
+> **重要**：本文档描述的是 **单条抓取条目 `raw_items.score_total`**（入库前 6 维规则分），**不是** 日榜 **Pulse**、API **综合分**，也不是周刊 **`weekly_score`**。  
+> 榜单 / 周刊 / `published_at` 首发语义见：**[`docs/SCORE_AND_RANKING.md`](SCORE_AND_RANKING.md)**。
+
+本文件定义 AI Pulse 对“单条素材（raw item）”的百分制评分，结果写入 `raw_items`，并间接影响 `global_events.user_value_score`（经 `user_value_from_raw_score`）。
 
 ## 0. 目标与原则
 

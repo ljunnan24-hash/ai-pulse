@@ -27,8 +27,8 @@ from app.services.phase35_compat import compute_weekly_quality_v2_audit, weekly_
 from app.services.publish_weekly_page import publish_weekly_report, weekly_report_public_url
 from app.services.slim_weekly_render import merge_phase35_into_payload
 from app.services.weekly_event_score_service import (
+    build_normal_top3_payload_rows,
     recompute_weekly_event_scores_for_period,
-    resolve_global_weekly_top3_rows,
 )
 from app.services.weekly_from_rankings_service import global_events_to_orchestrator_dicts
 
@@ -59,9 +59,29 @@ def _simple_lines_from_top3(top3: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _compact_pool_for_llm(pool_events: list[Any], *, top_n: int) -> list[dict[str, Any]]:
-    """GlobalEvent → 轻量 dict，供 Thesis / Capability / Glossary 引用。"""
+    """GlobalEvent → 轻量 dict，供 Thesis / Capability 引用。"""
     dicts = global_events_to_orchestrator_dicts(list(pool_events))
     return dicts[: max(1, top_n)]
+
+
+def _compact_top3_for_glossary(top3_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Top3 payload 行 → 术语表 LLM 输入（仅用户可见的三条）。"""
+    out: list[dict[str, Any]] = []
+    for row in top3_rows:
+        if not isinstance(row, dict):
+            continue
+        out.append(
+            {
+                "event_id": row.get("event_id"),
+                "title_zh": row.get("title_zh") or row.get("title"),
+                "title_en": row.get("title"),
+                "what_happened": row.get("what_happened"),
+                "why_important": row.get("why_important"),
+                "what_it_means_for_you": row.get("what_it_means_for_you"),
+                "category": row.get("category"),
+            }
+        )
+    return out
 
 
 def _deterministic_thesis(top3: list[dict[str, Any]]) -> dict[str, Any]:
@@ -74,7 +94,7 @@ def _deterministic_thesis(top3: list[dict[str, Any]]) -> dict[str, Any]:
             }
         }
     t0 = top3[0]
-    title = str(t0.get("title") or "本周重点事件")[:80]
+    title = str(t0.get("title_zh") or t0.get("title") or "本周重点事件")[:80]
     return {
         "weekly_thesis": {
             "headline": f"本周最值得跟进的线索集中在：{title} 等相关动态。",
@@ -95,24 +115,23 @@ def build_global_weekly_payload(
     """
   生成周刊 payload（global_events 路径）。
 
-  - Top3：weekly_score 定候选池，LLM 选最重要 3 条（失败则分数 Top3）；字段来自 GlobalEvent / 日榜 Insight
-  - LLM（可选）：Top3 选题 + weekly_thesis、capability_boundaries、glossary
+  - Top3：weekly_score 前 3；字段来自 GlobalEvent / 日榜 Insight（与日榜展示一致）
+  - LLM（可选）：weekly_thesis、capability_boundaries、glossary（3 次）
   - 校验：finalize_payload_v3、validate_payload、邮件送达率（若开启）
     """
     settings = get_settings()
     recompute_weekly_event_scores_for_period(db, period_start, report_date=period_start)
 
+    top3_rows = build_normal_top3_payload_rows(db, period_start, limit=3)
+    top3_selection_audit: dict[str, Any] = {
+        "method": "weekly_score_top3",
+        "final_event_ids": [r.get("event_id") for r in top3_rows],
+        "final_count": len(top3_rows),
+    }
+
     client = LlmJsonClient()
-    top3_rows, top3_selection_audit = resolve_global_weekly_top3_rows(
-        db,
-        period_start,
-        list(pool_events),
-        client=client,
-        enable_llm=enable_llm,
-        hard_rules=weekly_prompt_hard_rules(),
-        limit=3,
-    )
     pool_compact = _compact_pool_for_llm(pool_events, top_n=top_n_llm)
+    top3_for_glossary = _compact_top3_for_glossary(top3_rows)
 
     thesis_block: dict[str, Any] = {}
     capability_block: dict[str, Any] = {}
@@ -147,9 +166,10 @@ def build_global_weekly_payload(
             system="You output JSON only. You write a concise Chinese glossary.",
             user=(
                 weekly_prompt_hard_rules()
-                + "\n\n基于候选事件输出 glossary 5-8 条，每条 {term, explain<=50字}。\n"
+                + "\n\n仅根据下列「本周 Top3」三条事件（用户页面上只会看到这三条）输出 glossary 5-8 条，"
+                "每条 {term, explain<=50字}。术语必须能在 Top3 正文里找到依据。\n"
                 "只允许技术/能力概念；禁止公司名、活动名、新闻标题。\n\n"
-                f"候选事件：\n{_safe_json(pool_compact)}\n\n"
+                f"本周 Top3：\n{_safe_json(top3_for_glossary)}\n\n"
                 '输出 JSON：{ "glossary": [ ... ] }\n'
             ),
             temperature=0.3,
@@ -217,7 +237,7 @@ def build_global_weekly_payload(
         "pipeline": [
             "recompute_weekly_event_scores",
             "select_pool_by_weekly_score",
-            "select_top3_llm_from_weekly_score_pool",
+            "build_top3_from_weekly_score",
             "thesis_agent",
             "capability_boundaries",
             "glossary",

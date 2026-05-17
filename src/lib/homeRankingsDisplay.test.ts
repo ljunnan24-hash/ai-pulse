@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 import type { EventDetailResponse } from '../api/public';
-import { eventDetailPulseScore, pulseDisplayScore } from './homeRankingsDisplay';
+import { eventDetailPulseScore, pulseDisplayScore, rankingsDisplayScore } from './homeRankingsDisplay';
+
+describe('rankingsDisplayScore', () => {
+  it('7d uses effective_ranking_score when present', () => {
+    const item = {
+      pulse_score: 90,
+      effective_ranking_score: 55.2,
+    } as Parameters<typeof rankingsDisplayScore>[0];
+    expect(rankingsDisplayScore(item, '7d')).toBe(55.2);
+    expect(rankingsDisplayScore(item, 'today')).toBe(90);
+  });
+});
 
 describe('pulseDisplayScore', () => {
   it('prefers pulse_score over ranking_score when they diverge (Case 5)', () => {

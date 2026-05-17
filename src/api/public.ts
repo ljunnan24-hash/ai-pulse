@@ -8,6 +8,8 @@ export type RankingsResponse = {
   /** 搜索关键词回显；未搜索时为 null */
   q?: string | null;
   updated_at: string;
+  /** pulse_score | effective_ranking_score（7d/30d 为后者） */
+  sort_by?: string;
   items: Array<{
     id: number;
     title: string;
@@ -16,6 +18,8 @@ export type RankingsResponse = {
     url: string;
     category: string;
     source_type: string;
+    /** 主来源名称（RSS 源名 / 媒体名）；无则前端用域名或来源类型兜底 */
+    primary_source_name?: string;
     source_count: number;
     published_at: string | null;
     /** 最近抓取 / 合并时间（ISO） */

@@ -21,8 +21,8 @@ flowchart LR
   ER[enrich_rankings 可选] --> GE
   GW[generate_weekly] --> WS[recompute weekly_event_scores]
   WS --> POOL[候选池: weekly_score TopN]
-  POOL --> T3[Top3: LLM 从池中选 3]
-  POOL --> LLM[4× LLM: top3 + thesis / capability / glossary]
+  POOL --> T3[Top3: weekly_score 前 3]
+  POOL --> LLM[3× LLM: thesis / capability / glossary]
   T3 --> P[payload v3 + validate + publish]
   LLM --> P
 ```
@@ -30,16 +30,16 @@ flowchart LR
 | 环节 | 说明 |
 |------|------|
 | 候选池 | `select_global_events_by_weekly_score`：按 **`weekly_score` 降序**，上限 `GLOBAL_EVENTS_POOL_LIMIT`（默认 40） |
-| Top3 | **`resolve_global_weekly_top3_rows`**：LLM 从候选池选 3 条 `event_id`；失败或未配置豆包时 **回退** 分数 Top3；正文来自 `GlobalEvent` / 日榜 Insight，**不跑 Impact Analyst** |
-| LLM | **4 次**：Top3 选题 + `weekly_thesis` + `capability_boundaries` + `glossary`（见 `weekly_global_pipeline.py`） |
+| Top3 | **`weekly_score` 前 3**（`build_normal_top3_payload_rows`）；展示字段与日榜一致（来源、中英文标题、对你意味着什么）；**不跑 Impact Analyst** |
+| LLM | **3 次**：`weekly_thesis`、`capability_boundaries` 基于候选池 `pool_compact`；**`glossary` 仅基于 Top3 三条**（`top3_for_glossary`） |
 | 已停用 | Impact、EventCards、Trend、Composer 的 `sections` / `category_recap` / `tools` / `noise` 等（省 token） |
 | 审核 | `finalize_payload_v3`、`validate_payload`、`weekly_quality_v2_audit`；可选邮件 **Deliverability**（与 legacy 相同开关） |
 
 入口：`python -m app.jobs.generate_weekly` 在 `WEEKLY_SOURCE=global_events` 且 `MULTI_AGENT_WEEKLY=true` 时调用 `build_global_weekly_payload`；`audit_report_YYYY-MM-DD.json` 中 `weekly_quality_summary.mode` = `weekly_global_slim`。
 
-`MULTI_AGENT_WEEKLY=false` 时仍走 global 路径，但 **Top3 与 thesis 均不走 LLM**（Top3 用分数前 3，thesis 用确定性兜底）。
+`MULTI_AGENT_WEEKLY=false` 时仍走 global 路径，但 **thesis 等不走 LLM**（thesis 用确定性兜底；Top3 仍为分数前 3）。
 
-审计：`audit_report_*.json` 内 **`top3_selection`** 记录候选 id、LLM 选定 id、`method`（`llm_with_score_backfill` / `weekly_score_fallback`）。
+审计：`audit_report_*.json` 内 **`top3_selection.method`** = `weekly_score_top3`。
 
 ### 0.3 环境变量（与 `backend/.env.example` 一致）
 
@@ -53,13 +53,26 @@ GLOBAL_EVENTS_MIN_CANDIDATES=8
 
 前置：本周内已跑过 `daily_rankings`（表 `global_events` 有数据）。操作命令见 `docs/command.md`「周刊生成」小节。
 
-### 0.4 Legacy 全量多 Agent（`WEEKLY_SOURCE=legacy`）
+**Insight 与周刊正文**：周刊 Top3 **不另跑 Impact LLM**；卡片上的「发生了什么 / 对你意味着什么」等来自日榜 **`enrich_rankings`**（Ranking Insight）已写入的 `global_events` 字段。Insight 限额未覆盖的事件仍可能进 Top3，但文案偏短。详见 [`SCORE_AND_RANKING.md`](SCORE_AND_RANKING.md) §5。
+
+**`published_at` 首发日**：合并多源时 `global_events.published_at = min(各来源)`；跟进报道只抬 `source_count` / Pulse，不把日期刷成最新稿。旧库若仍是改代码前的 max 日期，需批量重算，见 `command.md`。
+
+### 0.4 废弃路径（legacy，勿与 global slim 混用）
+
+| 项 | 说明 |
+|----|------|
+| `WEEKLY_SOURCE=legacy` | 每期 RSS + 全量 `MultiAgentOrchestrator` |
+| `top3_score` / `top3_selector.select_top3` | legacy 周刊选题；global slim **不用** |
+| `weekly_from_rankings_service.select_global_events_for_weekly` | 未接生产；生产用 `select_global_events_by_weekly_score` |
+| `resolve_global_weekly_top3_rows`（LLM 选 Top3） | 存在但未默认；生产为 `weekly_score` 前 3 |
+
+### 0.5 Legacy 全量多 Agent（`WEEKLY_SOURCE=legacy`）
 
 仍走 `MultiAgentOrchestrator`（Cleaner → Verifier → Impact → … → Composer）。仅在你需要旧「每期 RSS + issue_events」行为时启用。新功能与页面展示以 **§0** 为准。
 
 ---
 
-## 0.5 目标与约束（通用）
+## 0.6 目标与约束（通用）
 
 - **输入（global）**：过去 N 天 `global_events` + `weekly_event_scores`；**输入（legacy）**：本周期 RSS/issue_events 候选 Top20。
 - **输出**：
@@ -71,7 +84,8 @@ GLOBAL_EVENTS_MIN_CANDIDATES=8
 
 相关文档：
 
-- 评分规范：`docs/SCORING_V1.md`
+- **分数与榜单口径（权威）**：[`docs/SCORE_AND_RANKING.md`](SCORE_AND_RANKING.md)
+- raw 入库 6 维规则分：`docs/SCORING_V1.md`（≠ Pulse / weekly_score）
 - 社媒白名单：`docs/SOCIAL_SOURCES.md`
 
 ## 1. 总体流程（legacy 每周批处理）
@@ -215,7 +229,7 @@ flowchart TD
 ### Agent B：Impact Analyst（非技术影响解读）
 
 - **legacy**：见下述职责。
-- **global_events / weekly_global_slim**：**已移除**；Top3 **名单**由 LLM 在 `weekly_score` 候选池内选定（`select_top3_event_ids_with_llm`），正文行由 `build_normal_top3_payload_rows_for_event_ids` 从日榜字段组装。
+- **global_events / weekly_global_slim**：**已移除**；Top3 按 `weekly_score` 取前 3，正文由 `build_normal_top3_payload_rows` 从日榜字段组装。
 
 - **输入**：fact_sheet + Top20 事件摘要
 - **输出**：`impact_notes.json`
@@ -281,7 +295,7 @@ flowchart TD
 
 ### 4.3 TopN 选择
 
-- **global_events（推荐）**：候选池按 **`weekly_score`**；Top3 由 **LLM 在池内决策**（失败则分数 Top3）；`event_id` 必须为真实 `global_events.id`。
+- **global_events（推荐）**：候选池与 Top3 均按 **`weekly_score`**；`event_id` 必须为真实 `global_events.id`。
 - **legacy**：
   - **候选池**：Top20（按基础分 S）
   - **Simple**：从 Top20 选 5 条（可结合“关键词优先”逻辑）

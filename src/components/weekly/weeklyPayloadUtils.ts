@@ -5,6 +5,8 @@ import {
   gatherWeeklyTopThreeCandidateRaws,
   pickMergedWeeklyTopThree,
 } from '../../lib/weeklyTopThreeDedupe';
+import type { WeeklyCategoryResolved } from '../../lib/weeklyCategoryDisplay';
+import { resolveWeeklyCategoryDisplay } from '../../lib/weeklyCategoryDisplay';
 
 export function fmtBoundaryField(v: unknown): string {
   if (v == null) return '';
@@ -99,6 +101,16 @@ export function pickWeeklyCategoryRaw(row: WeeklyLooseRow): string {
   return '';
 }
 
+/** 周报 Top3 分类解析（测试与兼容导出） */
+export function resolveWeeklyTopThreeCategory(
+  row: WeeklyLooseRow,
+  apiCategory?: string,
+): WeeklyCategoryResolved | null {
+  const raw = pickWeeklyCategoryRaw(row).trim() || (apiCategory ?? '').trim();
+  if (!raw) return null;
+  return resolveWeeklyCategoryDisplay(raw);
+}
+
 export function normalizeWeeklyRow(raw: unknown): WeeklyLooseRow | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
@@ -122,6 +134,7 @@ export function normalizeWeeklyRow(raw: unknown): WeeklyLooseRow | null {
     theme: String(o.theme ?? o.category ?? '').trim() || cat,
     event_id: String(o.event_id ?? (o as { global_event_id?: unknown }).global_event_id ?? '').trim(),
     source_name: String(o.source_name ?? '').trim(),
+    primary_source_name: String(o.primary_source_name ?? o.source_name ?? '').trim(),
   };
   const su = o.source_urls;
   if (Array.isArray(su) && su.length > 0) {

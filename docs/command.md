@@ -25,13 +25,15 @@ $env:WEEKLY_SOURCE="global_events"
 .\.venv\Scripts\python.exe -m app.jobs.generate_weekly --force
 ```
 
+**分数口径**（Pulse / 综合分 / weekly_score / 首发 `published_at`）：见 **`docs/SCORE_AND_RANKING.md`**。
+
 **周刊流水线说明**（详见 `docs/MULTI_AGENT_V1.md` §0）：
 
 | 步骤 | 说明 |
 |------|------|
 | 前置 | 本周窗内已跑 `daily_rankings`（`global_events` 有数据）；Insight 可选 `enrich_rankings` |
-| 选题 | `weekly_score` 定候选池；**LLM 从池里选 Top3**（失败则分数前 3） |
-| LLM | Top3 选题 + thesis + capability + glossary（4 次）；无 Impact、无 sections |
+| 选题 | `weekly_score` 定候选池；**Top3 = 分数前 3** |
+| LLM | thesis + capability（候选池摘要）；**glossary 仅 Top3 三条**；无 Impact、无 sections |
 | 产物 | `payload` + `audit_report_YYYY-MM-DD.json`（`mode=weekly_global_slim`） |
 | 页面 | `/weekly/日期`：本周判断、Top3（链 `/events/:id`）、能力边界、术语 |
 
@@ -93,6 +95,17 @@ cd /opt/ai-pulse/backend
 .venv/bin/python -m app.jobs.enrich_rankings --limit 10
 .venv/bin/python -m app.jobs.enrich_rankings --limit 10 --force
 ```
+
+**批量重算 global_events**（纠正 `published_at=min(来源)`、`ranking_score`、Pulse 分量；改代码前的旧库建议跑一次）：
+
+```bash
+cd /opt/ai-pulse/backend
+.venv/bin/python -m app.jobs.recalculate_global_events --dry-run
+.venv/bin/python -m app.jobs.recalculate_global_events --apply
+# 可选：.venv/bin/python -m app.jobs.recalculate_global_events --apply --limit 500
+```
+
+Windows 本地将 `python` 换为 `.\.venv\Scripts\python.exe`。
 
 SELECT COUNT(*) FROM raw_items WHERE issue_id IS NULL;
 SELECT COUNT(*) FROM global_events;

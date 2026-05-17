@@ -208,6 +208,18 @@ export function computeThreeMetrics(item: HomeRankingItem): {
   return { freshness, heat, userValue };
 }
 
+/**
+ * 榜单分数列：7d/30d 用 effective（Pulse×时间衰减，与排序一致）；今日仍用 Pulse。
+ */
+export function rankingsDisplayScore(item: HomeRankingItem, range: string): number {
+  const r = (range || '').trim().toLowerCase();
+  if (r === '7d' || r === '30d') {
+    const e = toFiniteNumber(item.effective_ranking_score);
+    if (e !== null) return Math.round(e * 10) / 10;
+  }
+  return pulseDisplayScore(item);
+}
+
 /** 展示用 Pulse 数值：与榜单一致的排序分优先 */
 export function pulseDisplayScore(item: HomeRankingItem): number {
   const p = toFiniteNumber(item.pulse_score) ?? toFiniteNumber(item.score);

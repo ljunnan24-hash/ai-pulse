@@ -83,6 +83,21 @@ def compute_ranking_score(
     return float(max(0.0, min(100.0, total)))
 
 
+def primary_story_published_at(ge: Any) -> datetime | None:
+    """
+    时间衰减用的「故事首发」时间。
+
+    应与 GlobalEvent.published_at 一致：各来源里**最早**的 published_at；
+    后续同题报道只增加 source_count（Pulse 的 source_mix），不把跟进稿日期当作新故事。
+    """
+    pa = getattr(ge, "published_at", None)
+    if pa is None:
+        return None
+    if pa.tzinfo is None:
+        return pa.replace(tzinfo=timezone.utc)
+    return pa
+
+
 def decay_multiplier_for_range(
     published_at: datetime | None,
     range_key: RangeKey,
@@ -90,7 +105,7 @@ def decay_multiplier_for_range(
     now: datetime | None = None,
 ) -> float:
     """
-    在存储的 ranking_score 基础上再乘衰减因子（列表接口使用）。
+    Pulse 的时间衰减乘子（7d/30d 榜单用）。刻意做得较轻，避免老高分事件被压得过低。
     """
     if published_at is None:
         return 1.0
@@ -98,6 +113,7 @@ def decay_multiplier_for_range(
     if published_at.tzinfo is None:
         published_at = published_at.replace(tzinfo=timezone.utc)
     age = now - published_at
+    days = age.total_seconds() / 86400.0
 
     if range_key == "today":
         if age <= timedelta(hours=24):
@@ -106,14 +122,15 @@ def decay_multiplier_for_range(
         return float(max(0.35, 1.0 - min(over, 120.0) * 0.008))
 
     if range_key == "7d":
-        if age <= timedelta(hours=72):
+        # 7 日窗内：前 6 天满分，仅第 7 天略调（最低约 0.96）
+        if days <= 6.0:
             return 1.0
-        over_h = (age - timedelta(hours=72)).total_seconds() / 3600.0
-        return float(max(0.4, 1.0 - min(over_h, 200.0) * 0.004))
+        if days <= 7.0:
+            return float(max(0.96, 1.0 - (days - 6.0) * 0.04))
+        return 0.96
 
-    # 30d：按天轻度衰减
-    days = age.total_seconds() / 86400.0
-    return float(max(0.3, 1.0 - min(days, 30.0) * 0.018))
+    # 30d：每天约 0.4% 下调，30 天仍不低于约 0.88
+    return float(max(0.88, 1.0 - min(days, 30.0) * 0.004))
 
 
 def effective_ranking_score(
@@ -126,9 +143,27 @@ def effective_ranking_score(
     """
     时间衰减后的「有效排序分」。base_ranking 在周期榜单场景应为 stable_pulse_score，
     而非含 freshness 的 ge.ranking_score，否则会与时间因子双重叠加。
+
+    published_at 应为故事首发时间（见 primary_story_published_at / recalculate_global_event）。
     """
     m = decay_multiplier_for_range(published_at, range_key, now=now)
     return float(max(0.0, min(100.0, base_ranking * m)))
+
+
+def effective_ranking_score_for_event(
+    ge: Any,
+    pulse: float,
+    range_key: RangeKey,
+    *,
+    now: datetime | None = None,
+) -> float:
+    """7d/30d 榜单：Pulse × 衰减（首发 published_at）。"""
+    return effective_ranking_score(
+        pulse,
+        primary_story_published_at(ge),
+        range_key,
+        now=now,
+    )
 
 
 def _float_from_breakdown(breakdown: dict[str, Any], key: str) -> float | None:

@@ -5,6 +5,7 @@ import {
   pulseEventTitleZh,
   pulseWhatItMeans,
 } from '../../lib/homeRankingsDisplay';
+import { rankingSourceLabel } from '../../lib/rankingSourceLabel';
 import { PulseRankingsTableLayout, type PulseRankingsTableRow } from '../pulse/PulseRankingsTableLayout';
 
 type Props = {
@@ -21,6 +22,7 @@ export function HomeTopFiveTable({ items }: Props) {
     score: pulseDisplayScore(item),
     titleZh: pulseEventTitleZh(item),
     titleEn: pulseEventTitleEn(item),
+    sourceLabel: rankingSourceLabel(item),
     meaning: pulseWhatItMeans(item),
     categorySlug: item.category ?? '',
     detailTo: `/events/${item.id}`,

@@ -192,7 +192,7 @@ export default function RankingsPage() {
 
       {!err && items.length > 0 ? (
         <div className="min-w-0">
-          <RankingsPageTable items={items} />
+          <RankingsPageTable items={items} range={range} />
           <p className="mt-4 text-center text-[13px] text-[#64748B]">
             共 {items.length} 条 · 可调整时间范围与分类
           </p>

@@ -33,13 +33,31 @@ def test_effective_ranking_decay():
     assert eff < base
 
 
-def test_case1_seven_day_effective_equals_pulse_when_under_72h():
-    """7d 窗口：pulse 底分为稳定分时，72h 内不衰减。"""
+def test_case1_seven_day_effective_equals_pulse_within_six_days():
+    """7d 窗口：首发 6 天内不衰减。"""
     now = datetime.now(timezone.utc)
     pub = now - timedelta(hours=48)
     pulse = 90.0
     eff = effective_ranking_score(pulse, pub, "7d", now=now)
     assert abs(eff - 90.0) < 1e-9
+
+
+def test_7d_decay_gentle_at_day_seven():
+    """7d：第 7 天仍保留绝大部分 Pulse（约 ≥96%）。"""
+    now = datetime.now(timezone.utc)
+    pulse = 90.0
+    pub = now - timedelta(days=7)
+    m = decay_multiplier_for_range(pub, "7d", now=now)
+    assert m >= 0.96
+    assert effective_ranking_score(pulse, pub, "7d", now=now) >= pulse * 0.96
+
+
+def test_30d_decay_gentle_at_two_weeks():
+    now = datetime.now(timezone.utc)
+    pulse = 80.0
+    pub = now - timedelta(days=14)
+    m = decay_multiplier_for_range(pub, "30d", now=now)
+    assert m >= 0.94
 
 
 def test_case2_today_old_event_effective_below_pulse():

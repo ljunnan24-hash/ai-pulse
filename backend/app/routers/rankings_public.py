@@ -13,14 +13,22 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import GlobalEvent
 from app.utils.time_windows import get_yesterday_window_utc
-from app.services.global_event_service import build_deduped_sources_for_api
+from app.services.global_event_service import (
+    batch_primary_source_labels,
+    build_deduped_sources_for_api,
+    fallback_primary_source_label,
+)
 from app.services.rankings_search_utils import (
     industry_tags_from_metrics,
     normalize_rankings_q,
     sql_like_pattern,
 )
 from app.services.ranking_insight_service import CAPABILITY_KEYS, resolve_one_liner_for_api
-from app.services.ranking_score import RangeKey, effective_ranking_score, stable_pulse_score_for_global_event
+from app.services.ranking_score import (
+    RangeKey,
+    effective_ranking_score_for_event,
+    stable_pulse_score_for_global_event,
+)
 
 router = APIRouter(prefix="/api", tags=["rankings"])
 
@@ -84,22 +92,37 @@ def list_rankings(
     rows = db.scalars(stmt.limit(800)).all()
 
     def _sort_ts(ge: GlobalEvent) -> datetime:
-        if ge.published_at is not None:
-            return ge.published_at
-        return ge.last_seen_at
+        """同分 tiebreak：7d/30d 用最近活跃，today 用首发日。"""
+        t = ge.last_seen_at if use_effective_sort else ge.published_at
+        if t is None:
+            t = ge.published_at if use_effective_sort else ge.last_seen_at
+        if t is None:
+            t = now
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return t
 
-    scored_rows: list[tuple[float, datetime, int, GlobalEvent]] = []
+    use_effective_sort = rk in ("7d", "30d")
+
+    scored_rows: list[tuple[float, datetime, int, float, GlobalEvent]] = []
     for ge in rows:
         pulse = stable_pulse_score_for_global_event(ge)
-        scored_rows.append((pulse, _sort_ts(ge), int(ge.source_count or 0), ge))
+        sort_score = (
+            effective_ranking_score_for_event(ge, pulse, rk, now=now)
+            if use_effective_sort
+            else pulse
+        )
+        scored_rows.append((sort_score, _sort_ts(ge), int(ge.source_count or 0), pulse, ge))
 
     scored_rows.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
     scored_rows = scored_rows[: max(1, min(limit, 50))]
 
+    source_labels = batch_primary_source_labels(db, [ge.id for _, _, _, _, ge in scored_rows])
+
     items: list[dict[str, Any]] = []
-    for pulse, _ts, _sc, ge in scored_rows:
+    for _sort_score, _ts, _sc, pulse, ge in scored_rows:
         stored = float(ge.ranking_score or 0)
-        eff = effective_ranking_score(pulse, ge.published_at, rk, now=now)
+        eff = effective_ranking_score_for_event(ge, pulse, rk, now=now)
         delta_score = 0.0
         try:
             m = json.loads(ge.metrics_json or "{}")
@@ -116,6 +139,8 @@ def list_rankings(
                 "url": ge.canonical_url,
                 "category": ge.category,
                 "source_type": ge.source_type,
+                "primary_source_name": source_labels.get(int(ge.id))
+                or fallback_primary_source_label(ge),
                 "source_count": ge.source_count,
                 "published_at": ge.published_at.isoformat() if ge.published_at else None,
                 "last_seen_at": ge.last_seen_at.isoformat() if ge.last_seen_at else None,
@@ -137,6 +162,7 @@ def list_rankings(
         "category": category or "all",
         "q": q_term,
         "updated_at": now.isoformat(),
+        "sort_by": "effective_ranking_score" if use_effective_sort else "pulse_score",
         "items": items,
     }
 
@@ -151,7 +177,7 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
     pulse = stable_pulse_score_for_global_event(ge)
     pulse_r = round(pulse, 2)
     stored_r = round(float(ge.ranking_score or 0), 2)
-    eff_r = round(float(effective_ranking_score(pulse, ge.published_at, "7d", now=now)), 2)
+    eff_r = round(float(effective_ranking_score_for_event(ge, pulse, "7d", now=now)), 2)
 
     sources_out = build_deduped_sources_for_api(db, ge)
 

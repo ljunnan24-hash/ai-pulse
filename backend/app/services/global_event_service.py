@@ -7,9 +7,11 @@ from __future__ import annotations
 import json
 import hashlib
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import Any
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -201,6 +203,75 @@ def build_deduped_sources_for_api(db: Session, ge: GlobalEvent) -> list[dict[str
     return out
 
 
+_SOURCE_TYPE_CN: dict[str, str] = {
+    "official": "官方",
+    "media": "媒体",
+    "github": "GitHub",
+    "rss": "RSS",
+    "community": "社区",
+    "social": "社交",
+    "meta": "Meta",
+    "product": "产品",
+    "x": "X",
+}
+
+
+def _label_source_type_cn(source_type: str) -> str:
+    k = (source_type or "").strip().lower()
+    if not k:
+        return "来源"
+    return _SOURCE_TYPE_CN.get(k, (source_type or "").strip()[:32] or "来源")
+
+
+def _host_label_from_url(url: str) -> str:
+    try:
+        h = (urlparse((url or "").strip()).hostname or "").lower()
+        if h.startswith("www."):
+            h = h[4:]
+        return h[:64]
+    except Exception:
+        return ""
+
+
+def fallback_primary_source_label(ge: GlobalEvent) -> str:
+    """列表展示用：无具名来源时的 hostname / 来源类型。"""
+    host = _host_label_from_url(str(ge.canonical_url or ""))
+    if host:
+        return host
+    return _label_source_type_cn(str(ge.source_type or ""))
+
+
+def batch_primary_source_labels(db: Session, ge_ids: list[int]) -> dict[int, str]:
+    """批量解析主来源名称（global_event_sources 中可信度最高的一条）。"""
+    if not ge_ids:
+        return {}
+    id_set = sorted({int(i) for i in ge_ids if i})
+    rows = list(
+        db.scalars(select(GlobalEventSource).where(GlobalEventSource.global_event_id.in_(id_set))).all()
+    )
+    by_ge: dict[int, list[GlobalEventSource]] = defaultdict(list)
+    for ges in rows:
+        by_ge[int(ges.global_event_id)].append(ges)
+
+    out: dict[int, str] = {}
+    for gid in id_set:
+        srcs = by_ge.get(gid, [])
+        if not srcs:
+            continue
+        best = max(
+            srcs,
+            key=lambda s: (
+                source_type_trust_rank(s.source_type),
+                _published_at_sort_key(s.published_at),
+                int(s.id or 0),
+            ),
+        )
+        name = (best.source_name or "").strip()
+        if name:
+            out[gid] = name[:128]
+    return out
+
+
 def merge_raw_into_global(db: Session, ge: GlobalEvent, raw: RawItem) -> None:
     dup_same_raw = db.execute(
         select(GlobalEventSource.id).where(
@@ -250,7 +321,7 @@ def merge_raw_into_global(db: Session, ge: GlobalEvent, raw: RawItem) -> None:
                 rp = rp.replace(tzinfo=timezone.utc)
             if gp and gp.tzinfo is None:
                 gp = gp.replace(tzinfo=timezone.utc)
-            if rp and (gp is None or rp > gp):
+            if rp and (gp is None or rp < gp):
                 ges.published_at = raw.published_at
             if source_type_trust_rank(raw.source_type) > source_type_trust_rank(ges.source_type):
                 ges.source_type = str(raw.source_type or "")[:32]
@@ -411,13 +482,21 @@ def recalculate_global_event(db: Session, global_event_id: int) -> None:
         dedupe_keys.add(n if n else f"empty:{s.id}")
     ge.source_count = len(dedupe_keys)
     ge.heat_score = max(heats) if heats else 0
-    pub_max = max(pubs) if pubs else ge.published_at
-    ge.published_at = pub_max
+    pub_earliest: datetime | None
+    if pubs:
+        norm_pubs = [p if p.tzinfo else p.replace(tzinfo=timezone.utc) for p in pubs]
+        pub_earliest = min(norm_pubs)
+        ge.published_at = pub_earliest
+    else:
+        pub_earliest = ge.published_at
+        if pub_earliest and pub_earliest.tzinfo is None:
+            pub_earliest = pub_earliest.replace(tzinfo=timezone.utc)
+            ge.published_at = pub_earliest
 
     dom_type = max(set(types), key=types.count) if types else "rss"
     ge.source_type = dom_type[:32]
     trust = trust_from_source_type(dom_type)
-    fresh = freshness_from_published(pub_max)
+    fresh = freshness_from_published(pub_earliest)
     heat_n = heat_normalized(ge.heat_score)
     if insight_applied and insight_uv is not None:
         uv = float(max(0.0, min(100.0, insight_uv)))

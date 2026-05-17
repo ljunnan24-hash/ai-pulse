@@ -1,7 +1,8 @@
 """
 Phase 3：从 global_events 构造周报 Orchestrator 候选池（候选池 ≠ 最终 Top3）。
 
-时间窗内预排序用于充实候选池；最终三条簇由 top3_selector.select_top3（top3_score + 同簇合并 + 分类上限）决定。
+时间窗内预排序（select_global_events_for_weekly）**未接生产**；生产周刊用 weekly_event_scores.select_global_events_by_weekly_score。
+Legacy 多 Agent 周刊仍由 top3_selector.select_top3（top3_score）定 Top3。
 """
 
 from __future__ import annotations
@@ -15,7 +16,10 @@ from sqlalchemy.orm import Session
 
 from app.models import GlobalEvent
 from app.services.phase35_compat import parse_metrics_ranking_insight_applied
-from app.services.ranking_score import effective_ranking_score
+from app.services.ranking_score import (
+    effective_ranking_score_for_event,
+    stable_pulse_score_for_global_event,
+)
 
 _STRONG_KW = (
     "ai",
@@ -143,9 +147,9 @@ def _insight_bonus(ge: GlobalEvent) -> float:
 
 
 def _sort_score(ge: GlobalEvent, *, now: datetime) -> float:
-    """候选池预排序分（不直接等于 Top3 的 top3_score）：effective_ranking_score(..., "7d") + 文案/来源/相关性等。"""
-    pub = ge.published_at or ge.last_seen_at
-    eff = effective_ranking_score(float(ge.ranking_score or 0.0), pub, "7d", now=now)
+    """候选池预排序分（不直接等于 Top3 的 top3_score）：Pulse×7d 衰减 + 文案/来源/相关性等。"""
+    pulse = stable_pulse_score_for_global_event(ge)
+    eff = effective_ranking_score_for_event(ge, pulse, "7d", now=now)
     bonus = _insight_bonus(ge)
     sc = min(int(ge.source_count or 1), 20) * 0.25
     blob = _blob_for_phase35(ge)

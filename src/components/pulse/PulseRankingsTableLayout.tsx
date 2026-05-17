@@ -29,6 +29,8 @@ export type PulseRankingsTableRow = {
   score: number | null;
   titleZh: string;
   titleEn?: string;
+  /** 标题上方来源（媒体名 / 域名） */
+  sourceLabel?: string;
   meaning: string;
   categorySlug: string;
   /** 站内 `/events/:id` */
@@ -177,6 +179,7 @@ export function PulseRankingsTableLayout({
                 <PulseRankEventTitles
                   titleZh={r.titleZh}
                   titleEn={r.titleEn}
+                  sourceLabel={r.sourceLabel}
                   titleZhClassName={r.titleZhClassName ?? pulseRankTitleZhBoldCls}
                   titleEnClassName={r.titleEnClassName}
                   hintOverflowTitle={r.overflowHints}
@@ -216,6 +219,7 @@ export function PulseRankingsTableLayout({
               <PulseRankEventTitles
                 titleZh={r.titleZh}
                 titleEn={r.titleEn}
+                sourceLabel={r.sourceLabel}
                 titleZhClassName={r.titleZhClassName ?? pulseRankTitleZhBoldCls}
                 titleEnClassName={r.titleEnClassName}
                 hintOverflowTitle={r.overflowHints}

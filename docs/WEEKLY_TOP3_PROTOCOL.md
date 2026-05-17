@@ -25,16 +25,18 @@ This document is the **canonical contract** for weekly Top3 rows in API payloads
 ## 生产路径（`WEEKLY_SOURCE=global_events`，推荐）
 
 1. **候选池**：本周窗内 `global_events` 计算 **`weekly_score`**（`weekly_event_scores` 表），按分数降序取前 N 条（默认 N=40，见 `GLOBAL_EVENTS_POOL_LIMIT`）。
-2. **Top3 名单**：主编 LLM 从候选池中选出 **3 个 `event_id`**（`select_top3_event_ids_with_llm`）；只允许池内 id，禁止编造。
-3. **回退**：LLM 失败、未配置或返回非法 id 时，Top3 = **`weekly_score` 前 3**。
-4. **补齐**：LLM 只选出 1–2 条时，按分数从高到低补齐至 3 条（不重复）。
-5. **payload 行**：`build_normal_top3_payload_rows_for_event_ids` 按选定顺序写入 `normal.top3`（含 `event_id`、`detail_url`、`weekly_score` 等）。
+2. **Top3 名单**：**`weekly_score` 降序前 3**（`build_normal_top3_payload_rows`），无 LLM 选题。
+3. **payload 行**：含 `event_id`、`title`（英文原标题）、`title_zh`、`primary_source_name`、`detail_url`、`weekly_score` 等；前端展示与日榜 `PulseRankingsTableLayout` 一致。
 
-实现：`backend/app/services/weekly_event_score_service.py`（`resolve_global_weekly_top3_rows`）、`weekly_global_pipeline.py`。
+实现：`weekly_event_score_service.build_normal_top3_payload_rows`、`weekly_global_pipeline.build_global_weekly_payload`。
 
-## top3_score（legacy 周报选题分）
+**文案来源**：Top3 行的 `what_happened` / `why_important` / `what_it_means_for_you` 来自日榜 **Ranking Insight** 写入的 `global_events` 字段（未 enrich 时可能较薄）。见 [`docs/SCORE_AND_RANKING.md`](SCORE_AND_RANKING.md) §5。
 
-**Legacy**（`WEEKLY_SOURCE=legacy`、全量多 Agent）周报 Top3 使用 **`top3_score`** 作为选题分。**Global slim 路径不使用 `top3_score` 定 Top3 名单**（仅用 `weekly_score` 定池 + LLM 选题）。
+**可选（非默认）**：`resolve_global_weekly_top3_rows` 支持 LLM 在池内选 Top3；生产 `weekly_global_pipeline` **未调用**，Top3 固定为 `weekly_score` 前 3。
+
+## top3_score（legacy 周报选题分，deprecated for global）
+
+**Legacy**（`WEEKLY_SOURCE=legacy`、全量多 Agent）周报 Top3 使用 **`top3_score`** 作为选题分。**Global slim 路径不使用 `top3_score`**；候选池与 Top3 均按 **`weekly_score`**，LLM 仅写 thesis / capability / glossary，**不改 Top3 名单**。
 
 **`top3_score` 不等于 `ranking_score`，也不是七天平均分。** 它是在基础重要性、用户价值、AI 相关性、行动价值、来源可信、新鲜度和热度之间做加权，用来判断某个事件是否适合作为本周代表性事件。
 

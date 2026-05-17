@@ -1,17 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { fetchEventDetail } from '../../api/public';
-import type { WeeklyCategoryResolved } from '../../lib/weeklyCategoryDisplay';
-import { resolveWeeklyCategoryDisplay } from '../../lib/weeklyCategoryDisplay';
+import { weeklyTopThreeToPulseTableRow, type WeeklyTopThreeEventPatch } from '../../lib/weeklyTopThreeRankingRow';
 import type { WeeklyLooseRow } from './weeklyPayloadUtils';
-import {
-  pickWeeklyCategoryRaw,
-  weeklyPulseMeaning,
-  weeklyPulseTitleEn,
-  weeklyPulseTitleZh,
-  weeklyTopThreeDisplayScore,
-} from './weeklyPayloadUtils';
-import { PulseRankingsTableLayout, type PulseRankingsTableRow } from '../pulse/PulseRankingsTableLayout';
+export { resolveWeeklyTopThreeCategory } from './weeklyPayloadUtils';
+import { PulseRankingsTableLayout } from '../pulse/PulseRankingsTableLayout';
 
 /** 站内 `/events/:id` 仅接受正整数 GlobalEvent.id（导出供单测与调试）。 */
 export function resolveWeeklyNumericEventId(row: WeeklyLooseRow): number | null {
@@ -43,26 +36,11 @@ function detailHrefForWeeklyRow(row: WeeklyLooseRow, eid: number | null): string
 }
 
 /**
- * 周报专用：合并 payload 行与详情 API 的分类原始串，解析为 slug + 中文 label。
- * 无可用分类时返回 null（对应 UI「未分类」pill，不使用「—」）。
- */
-export function resolveWeeklyTopThreeCategory(
-  row: WeeklyLooseRow,
-  apiCategory?: string,
-): WeeklyCategoryResolved | null {
-  const raw = pickWeeklyCategoryRaw(row).trim() || (apiCategory ?? '').trim();
-  if (!raw) return null;
-  return resolveWeeklyCategoryDisplay(raw);
-}
-
-type EventPatch = { category: string; ranking_score: number };
-
-/**
- * 周报 Top3：与排行榜同款表格样式（粗标题、摘要三行截断、分类 pill）。
- * 若 payload 缺分类/分数，对有合法 GlobalEvent.id 的行请求 `/api/events/:id` 补齐。
+ * 周报 Top3：与日榜 / 首页 Top5 同款表格（来源 + 中英文标题 + 对你意味着什么）。
+ * 分类与 industry_tags 对有 event_id 的行请求详情 API 补齐。
  */
 export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
-  const [eventById, setEventById] = useState<Record<number, EventPatch>>({});
+  const [eventById, setEventById] = useState<Record<number, WeeklyTopThreeEventPatch>>({});
 
   const fetchIdsSig = useMemo(
     () =>
@@ -90,14 +68,27 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
         ids.map(async (id) => {
           try {
             const d = await fetchEventDetail(id);
-            return [id, { category: d.category ?? '', ranking_score: d.ranking_score }] as const;
+            const primary = d.sources?.[0]?.source_name?.trim();
+            return [
+              id,
+              {
+                category: d.category ?? '',
+                title: d.title ?? '',
+                title_zh: d.title_zh ?? '',
+                url: d.url ?? '',
+                primary_source_name: primary,
+                what_happened: d.what_happened ?? '',
+                what_it_means_for_you: d.what_it_means_for_you ?? '',
+                industry_tags: d.industry_tags,
+              },
+            ] as const;
           } catch {
             return null;
           }
         }),
       );
       if (cancelled) return;
-      const next: Record<number, EventPatch> = {};
+      const next: Record<number, WeeklyTopThreeEventPatch> = {};
       for (const e of entries) {
         if (e) next[e[0]] = e[1];
       }
@@ -113,27 +104,14 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
     return <p className="text-[14px] text-slate-500">本期暂无上榜条目。</p>;
   }
 
-  const pulseRows: PulseRankingsTableRow[] = rows.map((row, i) => {
+  const pulseRows = rows.map((row, i) => {
     const eid = resolveWeeklyNumericEventId(row);
     const api = eid !== null ? eventById[eid] : undefined;
-
     const detailTo = detailHrefForWeeklyRow(row, eid);
-
-    const weeklyCategoryResolved = resolveWeeklyTopThreeCategory(row, api?.category);
-
-    return {
-      key: `${row.title}-${i}`,
-      rank: i + 1,
-      score: weeklyTopThreeDisplayScore(row),
-      titleZh: weeklyPulseTitleZh(row),
-      titleEn: weeklyPulseTitleEn(row),
-      meaning: weeklyPulseMeaning(row),
-      /** 周报固定走 weeklyCategoryResolved 分支，禁止回落到 categoryLabel 的「—」 */
-      weeklyCategoryResolved,
-      categorySlug: weeklyCategoryResolved?.slug ?? '',
-      detailTo,
-      weeklyUi: true,
-    };
+    if (eid === null) {
+      return weeklyTopThreeToPulseTableRow(row, i + 1, 0, api, detailTo);
+    }
+    return weeklyTopThreeToPulseTableRow(row, i + 1, eid, api, detailTo);
   });
 
   return <PulseRankingsTableLayout rows={pulseRows} scoreColumnLabel="本周分" />;

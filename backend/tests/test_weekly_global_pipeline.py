@@ -6,7 +6,31 @@ from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from app.services.weekly_global_pipeline import _simple_lines_from_top3, build_global_weekly_payload
+from app.services.weekly_global_pipeline import (
+    _compact_top3_for_glossary,
+    _simple_lines_from_top3,
+    build_global_weekly_payload,
+)
+
+
+def test_compact_top3_for_glossary_uses_top3_fields_only() -> None:
+    rows = _compact_top3_for_glossary(
+        [
+            {
+                "event_id": 9,
+                "title": "English",
+                "title_zh": "中文",
+                "what_happened": "发生",
+                "why_important": "重要",
+                "what_it_means_for_you": "意味",
+                "category": "model",
+            }
+        ]
+    )
+    assert len(rows) == 1
+    assert rows[0]["event_id"] == 9
+    assert rows[0]["title_zh"] == "中文"
+    assert rows[0]["title_en"] == "English"
 
 
 def test_simple_lines_from_top3_uses_event_fields() -> None:
@@ -64,22 +88,22 @@ def test_build_global_weekly_payload_structure_without_llm() -> None:
     with (
         patch("app.services.weekly_global_pipeline.recompute_weekly_event_scores_for_period", return_value=1),
         patch(
-            "app.services.weekly_global_pipeline.resolve_global_weekly_top3_rows",
-            return_value=(
-                [
-                    {
-                        "event_id": 1,
-                        "title": "事件A",
-                        "url": "https://example.com/a",
-                        "what_happened": "WH",
-                        "why_important": "WI",
-                        "what_it_means_for_you": "WM",
-                        "weekly_score": 88.5,
-                        "detail_url": "/events/1",
-                    }
-                ],
-                {"method": "weekly_score_fallback"},
-            ),
+            "app.services.weekly_global_pipeline.build_normal_top3_payload_rows",
+            return_value=[
+                {
+                    "event_id": 1,
+                    "title": "Event A",
+                    "title_zh": "事件A",
+                    "primary_source_name": "OpenAI Blog",
+                    "url": "https://example.com/a",
+                    "what_happened": "WH",
+                    "why_important": "WI",
+                    "what_it_means_for_you": "WM",
+                    "weekly_score": 88.5,
+                    "detail_url": "/events/1",
+                    "category": "model",
+                }
+            ],
         ),
         patch(
             "app.services.weekly_global_pipeline.publish_weekly_report",

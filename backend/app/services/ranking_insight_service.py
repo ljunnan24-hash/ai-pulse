@@ -18,7 +18,7 @@ from app.config import get_settings
 from app.models import GlobalEvent
 from app.utils.time_windows import get_yesterday_window_utc
 from app.services.llm_json_client import LlmJsonClient
-from app.services.ranking_score import effective_ranking_score
+from app.services.ranking_score import stable_pulse_score_for_global_event
 from app.services.global_event_service import recalculate_global_event
 
 _log = logging.getLogger("uvicorn.error")
@@ -79,8 +79,7 @@ def needs_ranking_insight_refresh(ge: GlobalEvent) -> bool:
 
 
 def _today_effective_top_ids(db: Session, top_n: int) -> list[int]:
-    """与公开排行榜 today 范围一致的有效分 Top N（用于 Insight 候选）。"""
-    now = datetime.now(timezone.utc)
+    """与公开排行榜 today 范围一致：昨日上海自然日窗口内按 pulse_score 取 Top N。"""
     start_utc, end_utc, _ = get_yesterday_window_utc("Asia/Shanghai")
     q = select(GlobalEvent).where(GlobalEvent.status == "active")
     q = q.where(
@@ -91,8 +90,7 @@ def _today_effective_top_ids(db: Session, top_n: int) -> list[int]:
     rows = db.scalars(q.limit(800)).all()
     scored: list[tuple[float, int]] = []
     for ge in rows:
-        eff = effective_ranking_score(float(ge.ranking_score or 0), ge.published_at, "today", now=now)
-        scored.append((eff, ge.id))
+        scored.append((stable_pulse_score_for_global_event(ge), ge.id))
     scored.sort(key=lambda x: x[0], reverse=True)
     return [x[1] for x in scored[:top_n]]
 
