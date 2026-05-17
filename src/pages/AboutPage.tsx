@@ -1,7 +1,6 @@
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent } from 'react';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, CalendarDays, FileText, Layers2 } from 'lucide-react';
 
 import { AboutParticipateSection } from '../components/about/AboutParticipateSection';
 import { AboutQrModal } from '../components/about/AboutQrModal';
@@ -14,17 +13,8 @@ const aboutBodyStack = `mt-3 space-y-3 ${aboutBody}`;
 const tagCls =
   'inline-flex items-center rounded-full border border-[#D8E2F0] bg-white px-3 py-1 text-[13px] font-medium text-slate-600';
 
-const boundaryCard =
-  'rounded-[var(--radius-card)] border border-[#D8E2F0] border-l-4 border-l-amber-300/90 bg-white p-7 shadow-[0_1px_3px_rgba(15,23,42,0.06)] md:p-8';
-
-const audienceList = `${aboutBody} mt-3 space-y-1.5`;
-
 const WECHAT_GROUP_QR_SRC = '/wechat-group-qrcode.png';
 const REWARD_QR_SRC = '/reward-author-qrcode.png';
-
-function MiniIcon({ children }: { children: ReactNode }) {
-  return <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center text-slate-500">{children}</span>;
-}
 
 type QrModalKind = 'wechat-group' | 'reward' | null;
 
@@ -36,13 +26,6 @@ const PIPELINE_STEPS = [
   { n: '05', title: '输出', body: '形成每日榜单、事件详情、能力边界和每周周报。' },
 ] as const;
 
-const SEE_CARDS = [
-  { icon: CalendarDays, title: '每日榜单', body: '每天快速看到最值得关注的 AI 行业动态。' },
-  { icon: FileText, title: '事件详情', body: '理解一件事情的背景、价值和可能影响。' },
-  { icon: Layers2, title: '每周周报', body: '把一周内的重要事件收敛成 Top3、能力边界和术语解释。' },
-  { icon: Archive, title: '历史归档', body: '保留过往榜单和周报，方便回看。' },
-] as const;
-
 export default function AboutPage() {
   const [content, setContent] = useState('');
   const [contact, setContact] = useState('');
@@ -50,10 +33,6 @@ export default function AboutPage() {
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [qrModal, setQrModal] = useState<QrModalKind>(null);
   const suggestFormRef = useRef<HTMLElement>(null);
-
-  function scrollToSuggestForm() {
-    suggestFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
 
   async function onSubmitSuggest(e: FormEvent) {
     e.preventDefault();
@@ -154,60 +133,6 @@ export default function AboutPage() {
             </ol>
           </section>
 
-          <section aria-labelledby="about-see">
-            <h2 id="about-see" className="heading-section mb-4 text-slate-900">
-              你可以在 AI Pulse 看到什么
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {SEE_CARDS.map(({ icon: Icon, title, body }) => (
-                <article key={title} className={`${aboutCard} flex gap-3 md:flex-col md:gap-2`}>
-                  <MiniIcon>
-                    <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
-                  </MiniIcon>
-                  <div>
-                    <h3 className="font-headline text-[15px] font-semibold text-slate-900">{title}</h3>
-                    <p className={`mt-1.5 ${aboutBody}`}>{body}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className={boundaryCard} aria-labelledby="about-not">
-            <h2 id="about-not" className="heading-section text-slate-900">
-              我们的边界
-            </h2>
-            <ul className={`${audienceList} list-none`}>
-              {[
-                '我们不追求全网资讯搬运。',
-                '我们不追逐夸张标题和情绪化结论。',
-                '我们不替用户做投资、职业或安全决策。',
-                'Pulse Score 只是排序和判断参考，不代表绝对价值。',
-              ].map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="grid gap-3 md:grid-cols-2 md:items-start" aria-label="适合与不适合">
-            <div className={aboutCard}>
-              <h2 className="font-headline text-lg font-bold text-slate-900">适合谁</h2>
-              <ul className={audienceList}>
-                <li>需要快速了解 AI 行业变化的人。</li>
-                <li>想用 AI 辅助产品、创业、内容或开发决策的人。</li>
-                <li>希望减少信息噪音，只看结构化判断的人。</li>
-              </ul>
-            </div>
-            <div className={aboutCard}>
-              <h2 className="font-headline text-lg font-bold text-slate-900">不适合谁</h2>
-              <ul className={audienceList}>
-                <li>需要毫秒级实时新闻推送的人。</li>
-                <li>希望获得投资、法律或职业决策结论的人。</li>
-                <li>只想浏览未经整理的原始信息流的人。</li>
-              </ul>
-            </div>
-          </section>
-
           <AboutParticipateSection
             suggestFormRef={suggestFormRef}
             content={content}
@@ -219,7 +144,6 @@ export default function AboutPage() {
             onSubmitSuggest={onSubmitSuggest}
             onOpenWechatGroup={() => setQrModal('wechat-group')}
             onOpenReward={() => setQrModal('reward')}
-            onScrollToSuggestForm={scrollToSuggestForm}
           />
 
           <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap">

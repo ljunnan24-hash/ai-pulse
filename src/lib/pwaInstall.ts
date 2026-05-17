@@ -16,6 +16,17 @@ export function isMobileUserAgent(): boolean {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
+export function isAndroidDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
+/** 微信、QQ 等内置浏览器无法直接 PWA 添加快捷方式 */
+export function isInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /MicroMessenger|Weibo|(QQ\/|MQQBrowser)|DingTalk|AlipayClient/i.test(navigator.userAgent);
+}
+
 export function detectPwaPlatform(): PwaPlatform {
   if (typeof navigator === 'undefined') return 'desktop';
   const ua = navigator.userAgent;

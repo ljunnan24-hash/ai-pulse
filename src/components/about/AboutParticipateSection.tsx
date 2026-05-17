@@ -9,9 +9,6 @@ const participateSubCard =
 const btnPrimarySm =
   'mt-auto inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-[#0052cc] sm:w-auto';
 
-const btnOutlineSm =
-  'mt-auto inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#BFD3FF] bg-white px-4 text-sm font-semibold text-[#1463FF] transition-colors hover:bg-[#F8FAFF] sm:w-auto';
-
 const CONTACT_EMAIL = '2089128910@qq.com';
 
 type AboutParticipateSectionProps = {
@@ -25,7 +22,6 @@ type AboutParticipateSectionProps = {
   onSubmitSuggest: (e: FormEvent) => void;
   onOpenWechatGroup: () => void;
   onOpenReward: () => void;
-  onScrollToSuggestForm: () => void;
 };
 
 export function AboutParticipateSection({
@@ -39,7 +35,6 @@ export function AboutParticipateSection({
   onSubmitSuggest,
   onOpenWechatGroup,
   onOpenReward,
-  onScrollToSuggestForm,
 }: AboutParticipateSectionProps) {
   return (
     <div className="space-y-7 md:space-y-9">
@@ -47,12 +42,8 @@ export function AboutParticipateSection({
         <h2 id="about-participate" className="heading-section text-slate-900">
           一起参与 AI Pulse
         </h2>
-        <p className={`mt-3 max-w-3xl ${aboutBody}`}>
-          AI Pulse 还在持续迭代中。我们希望和真实用户一起校准信息源、排序标准和判断方式，让它成为更有价值的 AI
-          信号系统。
-        </p>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3 md:items-stretch">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 md:items-stretch">
           <article className={participateSubCard}>
             <h3 className="font-headline text-[15px] font-semibold text-slate-900">加入微信交流群</h3>
             <p className={`mt-2 flex-1 ${aboutBody}`}>
@@ -60,16 +51,6 @@ export function AboutParticipateSection({
             </p>
             <button type="button" className={btnPrimarySm} onClick={onOpenWechatGroup}>
               扫码添加微信
-            </button>
-          </article>
-
-          <article className={participateSubCard}>
-            <h3 className="font-headline text-[15px] font-semibold text-slate-900">给 AI Pulse 提建议</h3>
-            <p className={`mt-2 flex-1 ${aboutBody}`}>
-              发现信息源遗漏、分类不准、判断不清或页面体验问题，都可以直接告诉我们。
-            </p>
-            <button type="button" className={btnOutlineSm} onClick={onScrollToSuggestForm}>
-              提交建议
             </button>
           </article>
 
@@ -161,7 +142,7 @@ export function AboutParticipateSection({
             </h2>
           </div>
           <p className={`mt-2 ${aboutBody}`}>
-            如果 AI Pulse 对你有帮助，也欢迎自愿支持作者持续维护和优化这个产品。
+            如果 AI Pulse 对你有帮助，欢迎支持作者，你的支持是我维护和优化这个网站的重要动力。
           </p>
         </div>
         <button
