@@ -6,7 +6,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import insert, or_, select, update
 from sqlalchemy.orm import Session
@@ -18,9 +18,20 @@ from app.schemas import SubscribeIn, SubscribeOut, ManageUpdateIn
 from app.services.digest_builder import append_subscription_footer
 from app.services.email_notification import try_render_stored_notification
 from app.services.email_service import send_email
+from app.services.site_identity import enforce_sliding_ip_limit, enforce_sliding_limit, hash_email
 
 router = APIRouter(prefix="/api", tags=["api"])
 logger = logging.getLogger("uvicorn.error")
+
+
+def _mask_email(email: str) -> str:
+    e = email.strip()
+    if "@" not in e:
+        return "***"
+    local, domain = e.split("@", 1)
+    if len(local) <= 1:
+        return f"*@{domain}"
+    return f"{local[0]}***@{domain}"
 
 
 def _tokens() -> tuple[str, str, str]:
@@ -69,7 +80,22 @@ def _issue_key(issue: WeeklyIssue) -> str:
 
 
 @router.post("/subscribe", response_model=SubscribeOut)
-def subscribe(body: SubscribeIn, db: Session = Depends(get_db)) -> SubscribeOut:
+def subscribe(body: SubscribeIn, request: Request, db: Session = Depends(get_db)) -> SubscribeOut:
+    enforce_sliding_ip_limit(
+        request,
+        bucket="sub",
+        max_events=6,
+        window_sec=600.0,
+        detail="提交过于频繁，请稍后再试。",
+    )
+    enforce_sliding_limit(
+        f"em:{hash_email(str(body.email))}",
+        bucket="sub_em",
+        max_events=3,
+        window_sec=3600.0,
+        detail="该邮箱提交过于频繁，请稍后再试。",
+    )
+
     settings = get_settings()
     kws = [k.strip() for k in body.keywords if k.strip()][:3]
     keywords_json = json.dumps(kws, ensure_ascii=False)
@@ -211,7 +237,7 @@ def confirm(
 ):
     settings = get_settings()
     email = email.strip()
-    logger.warning("confirm hit: token=%s email=%s", token, email)
+    logger.info("confirm hit: email=%s", _mask_email(email))
     q = select(Subscriber).where(Subscriber.confirm_token == token)
     q = q.where(Subscriber.email == email)
     subs = db.execute(q.order_by(Subscriber.created_at.desc())).scalars().all()

@@ -10,10 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
 from app.database import get_db
 from app.models import UserFeedback
-from app.services.site_identity import allow_sliding, client_ip, hash_ip
+from app.services.site_identity import enforce_sliding_limit, ip_hash_from_request
 
 router = APIRouter(prefix="/api", tags=["feedback"])
 logger = logging.getLogger("uvicorn.error")
@@ -25,7 +24,6 @@ class FeedbackIn(BaseModel):
     content: str = Field(min_length=5, max_length=1000)
     contact: str | None = Field(default=None, max_length=120)
     source_page: str | None = Field(default=None, max_length=512)
-    visitor_id: str | None = Field(default=None, max_length=40)
     visitor_id: str | None = Field(default=None, max_length=40)
 
 
@@ -40,15 +38,16 @@ def post_feedback(
     request: Request,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    settings = get_settings()
-    pepper = (getattr(settings, "analytics_ip_pepper", None) or settings.admin_jwt_secret or "aipulse-analytics").strip()
-    ip = client_ip(request)
-    ip_h = hash_ip(ip, pepper)
-
+    ip_h = ip_hash_from_request(request)
     vid = (body.visitor_id or "").strip()[:40] if body.visitor_id else ""
     rate_key = f"{ip_h}:{vid}" if vid else ip_h
-    if not allow_sliding(rate_key, bucket="fb", max_events=4, window_sec=600.0):
-        raise HTTPException(status_code=429, detail="提交过于频繁，请稍后再试。")
+    enforce_sliding_limit(
+        rate_key,
+        bucket="fb",
+        max_events=4,
+        window_sec=600.0,
+        detail="提交过于频繁，请稍后再试。",
+    )
 
     content = _clean(body.content, 1000)
     contact = _clean(body.contact or "", 120) or None

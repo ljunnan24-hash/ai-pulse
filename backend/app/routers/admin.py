@@ -22,6 +22,7 @@ from app.routers.api import _fresh_tokens  # reuse collision-safe token generati
 from app.services.email_service import send_email
 from app.services.digest_builder import append_subscription_footer
 from app.services.email_notification import try_render_stored_notification
+from app.services.site_identity import enforce_sliding_ip_limit
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -222,7 +223,14 @@ def require_admin(request: Request) -> dict[str, Any]:
 
 
 @router.post("/auth/login", response_model=TokenOut)
-def login(body: LoginIn, db: Session = Depends(get_db)) -> TokenOut:
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)) -> TokenOut:
+    enforce_sliding_ip_limit(
+        request,
+        bucket="admin_login",
+        max_events=10,
+        window_sec=600.0,
+        detail="登录尝试过于频繁，请 10 分钟后再试。",
+    )
     u = (
         db.execute(select(AdminUser).where(AdminUser.username == body.username.strip()))
         .scalars()
