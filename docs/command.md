@@ -53,6 +53,19 @@ sudo rm -rf /var/www/aipulse/*
 sudo cp -r dist/* /var/www/aipulse/
 sudo nginx -t && sudo systemctl reload nginx
 
+**Nginx 限流（勿在 nano 粘多行，用脚本 + 手改 2 行）**：
+
+```bash
+cd /opt/ai-pulse
+git pull --ff-only origin main
+sudo bash deploy/install-nginx-rate-limit.sh
+# 按脚本提示在 aipulse.conf 的 443 server 内手加：
+#   limit_req_status 429;
+#   include /etc/nginx/snippets/aipulse-rate-locations.conf;   # 写在 location /api/ 上一行
+#   location /api/ { 内第一行：limit_req zone=aipulse_api_read burst=80 nodelay;
+sudo nginx -t && sudo systemctl reload nginx
+```
+
 验收（两处 JS 哈希应一致）：
 
 grep -o 'assets/index-[^"]*\.js' /var/www/aipulse/index.html
