@@ -39,7 +39,7 @@ $env:WEEKLY_SOURCE="global_events"
 
 `.env` 建议：`WEEKLY_SOURCE=global_events`、`MULTI_AGENT_WEEKLY=true`。`--reuse-crawl` 对 global 路径无意义（本就不爬周刊 RSS），可省略。
 
-仅 legacy（`WEEKLY_SOURCE=legacy`）才需要 `--reuse-crawl` 复用本期 `issue_events`。
+`WEEKLY_SOURCE=legacy` 全量多 Agent **已停用**（见 `docs/archive/LEGACY_WEEKLY_MULTI_AGENT.md`）。
 
 重启后端：
 sudo systemctl restart aipulse-api

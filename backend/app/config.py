@@ -52,9 +52,8 @@ class Settings(BaseSettings):
     doubao_max_tokens: int = 16384
 
     # 周刊流水线（见 docs/MULTI_AGENT_V1.md）
-    # WEEKLY_SOURCE=global_events → weekly_global_slim（weekly_score + 3×LLM）
-    # WEEKLY_SOURCE=legacy + multi_agent_weekly=true → 全量多 Agent Orchestrator
-    # multi_agent_weekly=false → 单次 summarize（legacy）或 global 无 LLM 兜底
+    # WEEKLY_SOURCE 仅支持 global_events（legacy 已从 generate_weekly 移除）
+    # multi_agent_weekly=true → thesis/capability/glossary 3×LLM；false → 确定性 thesis，Top3 仍按分数
     multi_agent_weekly: bool = True
     multi_agent_digest_top_n: int = 20
     # Editor：多一次 LLM 润色 payload，延时长；Auditor：事实/安全审计，high/use_fallback 时回退确定性组装
@@ -121,9 +120,9 @@ class Settings(BaseSettings):
     ranking_insight_batch_size: int = Field(default=8)
     ranking_insight_timeout_seconds: float = Field(default=180.0, ge=15.0, le=600.0)
 
-    # Phase 3：周报选题来源 — legacy=RSS+issue_events；global_events=过去 N 天排行榜事件池
+    # Phase 3：周报选题来源（仅支持 global_events；legacy 已从 generate_weekly 移除）
     # .env 键名：WEEKLY_SOURCE、GLOBAL_EVENTS_*（见 pydantic-settings 默认大写映射）
-    weekly_source: str = Field(default="legacy")
+    weekly_source: str = Field(default="global_events")
     global_events_lookback_days: int = Field(default=7)
     global_events_min_candidates: int = Field(default=8)
     global_events_fallback_lookback_days: int = Field(default=14)

@@ -21,7 +21,12 @@ from app.services.deliverability_pipeline import (
 )
 from app.services.email_notification import validate_email_payload
 from app.services.llm_json_client import LlmJsonClient
-from app.services.multi_agent_orchestrator import MultiAgentResult, _force_replace_text, _now_iso, _safe_json
+from app.services.weekly_pipeline_shared import (
+    WeeklyPipelineResult,
+    force_replace_text,
+    now_iso,
+    safe_json,
+)
 from app.services.payload_schema import finalize_payload_v3, format_errors, validate_payload
 from app.services.phase35_compat import compute_weekly_quality_v2_audit, weekly_prompt_hard_rules
 from app.services.publish_weekly_page import publish_weekly_report, weekly_report_public_url
@@ -111,7 +116,7 @@ def build_global_weekly_payload(
     pool_events: list[Any],
     top_n_llm: int = 20,
     enable_llm: bool = True,
-) -> MultiAgentResult:
+) -> WeeklyPipelineResult:
     """
   生成周刊 payload（global_events 路径）。
 
@@ -146,8 +151,8 @@ def build_global_weekly_payload(
                 + "\n\n你是主编。根据下列「本周每日榜单高分事件」写主线判断，不是新闻摘要合集。\n"
                 '输出 JSON：{ "weekly_thesis": { "headline", "summary", "trend_lines": [] } }\n'
                 "headline 必须是一句判断式陈述；summary 2-3 句；trend_lines 最多 3 条。\n\n"
-                f"候选事件（已按 weekly_score 排序）：\n{_safe_json(pool_compact)}\n\n"
-                f"本周 Top3 已由主编选定（勿改 event_id/url）：\n{_safe_json(top3_rows)}\n"
+                f"候选事件（已按 weekly_score 排序）：\n{safe_json(pool_compact)}\n\n"
+                f"本周 Top3 已由主编选定（勿改 event_id/url）：\n{safe_json(top3_rows)}\n"
             ),
             temperature=0.35,
         )
@@ -157,7 +162,7 @@ def build_global_weekly_payload(
                 weekly_prompt_hard_rules()
                 + "\n\n从候选事件中选 1-2 个能力主题，输出 capability_boundaries：\n"
                 "每项含 question、conclusion（明确能不能）、can_do、cannot_do、best_for、recommendation、confidence（高|中|低）。\n\n"
-                f"候选事件：\n{_safe_json(pool_compact)}\n\n"
+                f"候选事件：\n{safe_json(pool_compact)}\n\n"
                 '输出 JSON：{ "capability_boundaries": [ ... ] }\n'
             ),
             temperature=0.35,
@@ -169,7 +174,7 @@ def build_global_weekly_payload(
                 + "\n\n仅根据下列「本周 Top3」三条事件（用户页面上只会看到这三条）输出 glossary 5-8 条，"
                 "每条 {term, explain<=50字}。术语必须能在 Top3 正文里找到依据。\n"
                 "只允许技术/能力概念；禁止公司名、活动名、新闻标题。\n\n"
-                f"本周 Top3：\n{_safe_json(top3_for_glossary)}\n\n"
+                f"本周 Top3：\n{safe_json(top3_for_glossary)}\n\n"
                 '输出 JSON：{ "glossary": [ ... ] }\n'
             ),
             temperature=0.3,
@@ -204,7 +209,7 @@ def build_global_weekly_payload(
         thesis_block=thesis_block if isinstance(thesis_block, dict) else _deterministic_thesis(top3_rows),
         noise_block=None,
     )
-    payload = _force_replace_text(payload)
+    payload = force_replace_text(payload)
     payload = finalize_payload_v3(payload)
 
     errors = validate_payload(payload)
@@ -232,7 +237,7 @@ def build_global_weekly_payload(
     ev_errors = validate_email_payload(payload.get("email_payload") or {}, settings=settings)
 
     audit: dict[str, Any] = {
-        "generated_at": _now_iso(),
+        "generated_at": now_iso(),
         "mode": "weekly_global_slim",
         "pipeline": [
             "recompute_weekly_event_scores",
@@ -270,4 +275,4 @@ def build_global_weekly_payload(
         "top3_selection": top3_selection_audit,
         "pool_compact": pool_compact,
     }
-    return MultiAgentResult(payload=payload, audit_report=audit, artifacts=artifacts)
+    return WeeklyPipelineResult(payload=payload, audit_report=audit, artifacts=artifacts)

@@ -16,6 +16,15 @@ def test_split_urls_strips_double_scheme() -> None:
     assert out[1] == "https://example.com/atom"
 
 
+def test_weekly_source_defaults_to_global_events() -> None:
+    s = Settings(
+        database_url="mysql+pymysql://u:p@127.0.0.1:3306/t?charset=utf8mb4",
+        doubao_api_key="",
+        doubao_model="ep-test",
+    )
+    assert s.weekly_source == "global_events"
+
+
 def test_settings_model_declares_phase_fields() -> None:
     names = Settings.model_fields.keys()
     assert "ranking_insight_enabled" in names

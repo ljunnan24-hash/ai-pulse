@@ -1,3 +1,12 @@
+"""
+【已停用 · Legacy】每期 RSS + IssueEvent 全量多 Agent 周刊流水线。
+
+生产环境请使用 `WEEKLY_SOURCE=global_events` + `app.services.weekly_global_pipeline`。
+本模块仅保留供对照、本地实验；`generate_weekly` 已不再调用 `MultiAgentOrchestrator`。
+
+详见 docs/archive/LEGACY_WEEKLY_MULTI_AGENT.md
+"""
+
 from __future__ import annotations
 
 import copy

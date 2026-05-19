@@ -371,43 +371,23 @@ Event = 同一事实的多来源聚合
   "action_suggestion": ""
 }
 
-6.3 多Agent处理流程（关键🔥）
+6.3 周刊生成流程（当前生产 · `weekly_global_slim`）
 
-实现代码：`backend/app/services/multi_agent_orchestrator.py`；入库阶段已完成 RawItem → IssueEvent 聚合，流水线从 Cleaner 起。
+**入口**：`python -m app.jobs.generate_weekly`（`WEEKLY_SOURCE=global_events`，见 `docs/MULTI_AGENT_V1.md` §0）。
 
-与「结构 vs 渲染」分层（避免模型一次性输出巨型嵌套 JSON 导致截断与解析失败）：
+**实现**：`backend/app/services/weekly_global_pipeline.py`；选题来自过去 N 天 **`global_events`** + **`weekly_score`**，不每期重抓周刊 RSS。
 
-Raw Data（候选池 TopN，来自 IssueEvent / 摘要字段）
-↓
-[Cleaner] 确定性清洗过滤（非 LLM）
-↓
-[Merger] 占位说明（重复合并已在入库 IssueEvent 阶段完成，此处不二次 LLM 合并）
-↓
-[Verifier] 事实校准（JSON）
-↓
-[Impact Analyst] 用户价值要点（JSON）
-↓
-[Scoring] 噪声 / 重复审计（JSON）
-↓
-[EventCards] 组装事件卡片池（JSON）
-↓
-[Capability Analyst] AI 能力边界（JSON）
-↓
-[Trend] 趋势摘要（JSON）
-↓
-[Glossary] 术语表草案（JSON）
-↓
-[Composer] **仅输出「精简结构化 JSON」**：`simple_lines`、`top3`、`sections`、`tools`、`footer`、`glossary`（可空）；**禁止**输出完整 PRD v3 巨型嵌套；**禁止**输出 HTML；所有 `url` 须从 event_cards 可追溯复制
-↓
-[Renderer] **确定性合并**（非 LLM）：`slim_merge_to_prd_v3`，注入上游 **Capability** 分析结果为 `normal.capabilities`，并与 Glossary 步骤对齐 → 得到 **PRD v3 payload**
-↓
-[Mail Renderer] **邮件 HTML / 纯文本** 仅由模板渲染：`digest_builder.render_issue_email`（非模型写 HTML）
-↓
-[Editor] 可选：对 PRD v3 JSON 做中文润色（`MULTI_AGENT_ENABLE_EDITOR`）
-↓
-[Quality Auditor] 可选：事实 / 编造风险（`MULTI_AGENT_ENABLE_AUDITOR`）
-↓
-[Email Deliverability Auditor + Rewriter] 默认开启（`MULTI_AGENT_ENABLE_DELIVERABILITY`）：URL tracking 参数清洗 → 基于 **渲染后的 HTML + 纯文本节选** 做送达率审核 → 必要时改写 **payload JSON**；达标后 `finalize_payload_v3` + 校验
+```
+daily_rankings → global_events（规则 Pulse Score）
+  → 可选 enrich_rankings（Ranking Insight，日榜/详情解读）
+generate_weekly → weekly_score 候选池 → Top3（分数前 3，非 LLM）
+  → 3× LLM：weekly_thesis / capability_boundaries / glossary
+  → finalize_payload_v3 + 发布 weekly_reports + 可选邮件 Deliverability
+```
+
+**邮件 HTML**：仅由 `digest_builder.render_issue_email` 模板渲染（非模型写 HTML）。送达率审核见 `deliverability_pipeline`（`MULTI_AGENT_ENABLE_DELIVERABILITY`）。
+
+**历史方案（已停用）**：每期 RSS + 全量多 Agent（Cleaner → Verifier → Impact → … → Composer），见 `docs/archive/LEGACY_WEEKLY_MULTI_AGENT.md`；代码保留于 `multi_agent_orchestrator.py`，**生产不再调用**。
 
 **周刊生成任务**（`app.jobs.generate_weekly`）：抓取 → 入库 → 可选 `--force` 在不改 `period_start` 前提下整期重跑。每期 **`weekly_issues`** 存当前最新一版；**`weekly_issue_snapshots`** 表对每次成功生成 **追加一行** 快照（含 `payload_json`、`audit_report_json`、`source`），便于追溯历史版本。
 

@@ -20,7 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import GlobalEvent, GlobalEventSource, RawItem, WeeklyEventScore
-from app.services.global_event_service import build_deduped_sources_for_api
+from app.services.global_event_service import batch_primary_source_labels, build_deduped_sources_for_api
 from app.services.ranking_score import stable_pulse_score_for_global_event
 
 _log = logging.getLogger("uvicorn.error")
@@ -476,7 +476,7 @@ def select_top3_event_ids_with_llm(
     从 weekly_score 候选池中由 LLM 选出最多 limit 条 event_id。
     返回 (ids, audit_fragment)；无 client / 失败 / 全非法时 ids 为空，由调用方回退分数 Top3。
     """
-    from app.services.multi_agent_orchestrator import _safe_json
+    from app.services.weekly_pipeline_shared import safe_json
 
     audit: dict[str, Any] = {"method": "llm", "limit": limit}
     allowed = {int(r["event_id"]) for r in candidate_rows if r.get("event_id") is not None}
@@ -511,7 +511,7 @@ def select_top3_event_ids_with_llm(
                 "- 只能使用候选中的 event_id，禁止编造；\n"
                 "- 禁止重复 event_id；\n"
                 "- 不要输出 title/url 等字段，只输出 id 列表。\n\n"
-                f"候选（weekly_score 降序）：\n{_safe_json(candidate_rows)}\n\n"
+                f"候选（weekly_score 降序）：\n{safe_json(candidate_rows)}\n\n"
                 '输出 JSON：{ "selected_event_ids": [ <int>, ... ], "rationale": "可选，1-2句" }\n'
             ),
             temperature=0.25,

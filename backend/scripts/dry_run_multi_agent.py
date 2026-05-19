@@ -1,3 +1,9 @@
+"""
+【Legacy 实验脚本】调用 MultiAgentOrchestrator，非生产路径。
+生产请用: python -m app.jobs.generate_weekly
+说明: docs/archive/LEGACY_WEEKLY_MULTI_AGENT.md
+"""
+
 from __future__ import annotations
 
 import argparse

@@ -1,6 +1,14 @@
-# 多 Agent 周报生产模式（v1，组装式）
+# 周刊生产架构（当前：`weekly_global_slim`）
 
-本文件定义 AI Pulse 的周报生产架构。**生产环境推荐 `WEEKLY_SOURCE=global_events`（精简流水线）**；下文 §1–§7 中的「全量多 Agent DAG」主要描述 **legacy**（`WEEKLY_SOURCE=legacy`）路径，供对照与回退。
+**唯一生产入口**：`python -m app.jobs.generate_weekly`（`WEEKLY_SOURCE=global_events`，配置默认已是该值）。
+
+实现：`backend/app/services/weekly_global_pipeline.py` + `backend/app/jobs/generate_weekly.py`。
+
+---
+
+**已停用（勿配置）**：`WEEKLY_SOURCE=legacy` 每期 RSS + `MultiAgentOrchestrator` 全量多 Agent。`generate_weekly` 遇到 legacy 会直接报错退出。旧方案说明与 DAG 见 **[`docs/archive/LEGACY_WEEKLY_MULTI_AGENT.md`](archive/LEGACY_WEEKLY_MULTI_AGENT.md)**；代码仍保留在 `multi_agent_orchestrator.py` 仅供对照。
+
+下文 **§0** 为当前生产说明；**§1–§7** 为历史文档（与 archive 同步，不再维护）。
 
 ## 0. 生产路径：基于日榜的 `weekly_global_slim`（推荐）
 
@@ -57,18 +65,14 @@ GLOBAL_EVENTS_MIN_CANDIDATES=8
 
 **`published_at` 首发日**：合并多源时 `global_events.published_at = min(各来源)`；跟进报道只抬 `source_count` / Pulse，不把日期刷成最新稿。旧库若仍是改代码前的 max 日期，需批量重算，见 `command.md`。
 
-### 0.4 废弃路径（legacy，勿与 global slim 混用）
+### 0.4 已移除的生产路径（仅档案）
 
 | 项 | 说明 |
 |----|------|
-| `WEEKLY_SOURCE=legacy` | 每期 RSS + 全量 `MultiAgentOrchestrator` |
-| `top3_score` / `top3_selector.select_top3` | legacy 周刊选题；global slim **不用** |
-| `weekly_from_rankings_service.select_global_events_for_weekly` | 未接生产；生产用 `select_global_events_by_weekly_score` |
-| `resolve_global_weekly_top3_rows`（LLM 选 Top3） | 存在但未默认；生产为 `weekly_score` 前 3 |
-
-### 0.5 Legacy 全量多 Agent（`WEEKLY_SOURCE=legacy`）
-
-仍走 `MultiAgentOrchestrator`（Cleaner → Verifier → Impact → … → Composer）。仅在你需要旧「每期 RSS + issue_events」行为时启用。新功能与页面展示以 **§0** 为准。
+| `WEEKLY_SOURCE=legacy` | **已从 `generate_weekly` 移除**；见 archive 文档 |
+| `python -m app.jobs.build_weekly_multi_agent` | **已停用**（exit 2） |
+| `top3_selector.select_top3`（周刊） | 仅 legacy 编排使用；生产 Top3 = `weekly_score` 前 3 |
+| `resolve_global_weekly_top3_rows`（LLM 选 Top3） | 代码存在，**未接生产** |
 
 ---
 
@@ -88,9 +92,9 @@ GLOBAL_EVENTS_MIN_CANDIDATES=8
 - raw 入库 6 维规则分：`docs/SCORING_V1.md`（≠ Pulse / weekly_score）
 - 社媒白名单：`docs/SOCIAL_SOURCES.md`
 
-## 1. 总体流程（legacy 每周批处理）
+## 1. 总体流程（legacy 每周批处理）【历史 · 已停用】
 
-> **global_events 路径**：跳过本节 1) 的周刊专用 RSS 抓取；选题见 **§0.2**。
+> **不要按本节操作。** 当前生产见 **§0**。Legacy 详情见 [`archive/LEGACY_WEEKLY_MULTI_AGENT.md`](archive/LEGACY_WEEKLY_MULTI_AGENT.md)。
 
 1) **Ingest + Normalize**（抓取与标准化）
    - 产出 `raw_items` 或 `event_candidates`（建议已去重/合并成事件实体）

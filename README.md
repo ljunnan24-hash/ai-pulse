@@ -13,7 +13,8 @@ English marketing SPA (Vite + React) plus a **Python (FastAPI)** backend: RSS in
 | `deploy/crontab.example` | Cron samples (`TZ=Asia/Shanghai`，上海/北京 UTC+8） |
 | `docs/SCORING_V1.md` | Event scoring spec (v1) |
 | `docs/SOCIAL_SOURCES.md` | Social sources whitelist (v1) |
-| `docs/MULTI_AGENT_V1.md` | Multi-agent newsletter workflow (v1) |
+| `docs/MULTI_AGENT_V1.md` | Weekly pipeline (`weekly_global_slim`, current) |
+| `docs/archive/LEGACY_WEEKLY_MULTI_AGENT.md` | Deprecated legacy multi-agent weekly (archived) |
 | `docs/WEEKLY_TOP3_PROTOCOL.md` | Weekly Top3 payload / detail-link protocol (EN + 中文; PR blurb) |
 | `docs/部署与数据说明.md` | 迁移步骤、环境配置要点、数据库存储说明（中文） |
 
