@@ -61,7 +61,7 @@ weekly_score = min(100, max_pulse_approx + source_boost + active_day_boost + aut
 | **today** | `published_at` 落在 **昨日上海自然日** `[00:00, 24:00)` | **Pulse** 降序 | Pulse |
 | **7d** | `published_at ≥ now-7d` **或** `last_seen_at ≥ now-7d` | **Pulse × 7d 衰减**（综合分） | 综合分（`effective_ranking_score`） |
 | **30d** | 同上，30 天 | **Pulse × 30d 衰减** | 综合分 |
-| **周刊 Top3** | 本周 `weekly_event_scores` 已计算 | **`weekly_score` 前 3** | 展示含 `weekly_score`、Pulse 等 |
+| **周刊 Top3** | 发行周一 `period_start` 对应 **上一自然周**（上周一～上周日）内 `last_seen_at` 的事件已算分 | **`weekly_score` 前 3** | 展示含 `weekly_score`、Pulse 等 |
 
 **today 产品语义**：「昨日 **新发** 的故事」，不是「今天又在被讨论的旧故事」。旧题新报道请用 7d/30d 或看详情页多源。
 

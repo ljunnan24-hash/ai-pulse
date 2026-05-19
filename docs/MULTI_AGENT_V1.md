@@ -15,7 +15,7 @@
 ### 0.1 产品定位
 
 - **日榜**：`daily_rankings` 每日写入 `global_events`，`enrich_rankings` 可选写入 Ranking Insight（事件详情页解读）。
-- **周刊**：不再每期重抓 RSS、不再对全量候选跑 Impact / EventCards / Composer sections；而是在 **本周窗内 `global_events`** 上二次分析，页面只展示四块：
+- **周刊**：不再每期重抓 RSS、不再对全量候选跑 Impact / EventCards / Composer sections；而是在 **上一自然周**（发行周一对应的 `period_start` 往前 7 天～发行周一前一日）的 `global_events` 上二次分析，页面只展示四块：
   1. **本周判断**（`weekly_thesis.headline`，前端不展示长 `summary`）
   2. **Top3**（`normal.top3`，`event_id` → `/events/:id`）
   3. **能力边界**（`capability_boundaries`）
@@ -37,6 +37,7 @@ flowchart LR
 
 | 环节 | 说明 |
 |------|------|
+| 内容时间窗 | 发行日 = 本周一 `period_start`；事件须 `last_seen_at` 落在 **上周一 00:00～本周一 00:00（上海，不含）**（即上周一至上周日） |
 | 候选池 | `select_global_events_by_weekly_score`：按 **`weekly_score` 降序**，上限 `GLOBAL_EVENTS_POOL_LIMIT`（默认 40） |
 | Top3 | **`weekly_score` 前 3**（`build_normal_top3_payload_rows`）；展示字段与日榜一致（来源、中英文标题、对你意味着什么）；**不跑 Impact Analyst** |
 | LLM | **3 次**：`weekly_thesis`、`capability_boundaries` 基于候选池 `pool_compact`；**`glossary` 仅基于 Top3 三条**（`top3_for_glossary`） |

@@ -138,12 +138,18 @@ def calculate_weekly_score(
 
 def shanghai_week_window_utc(period_start: date) -> tuple[datetime, datetime, date]:
     """
-    period_start：期刊周一（与 WeeklyIssue.period_start 一致，按上海日历）。
-    返回 [周一 00:00 上海, 下周一 00:00 上海) 的 UTC 边界，及 period_end（周日日期）。
+    period_start：本期周刊发行周一（与 WeeklyIssue.period_start 一致，上海日历）。
+
+    内容覆盖 **上一自然周**（不是发行当周）：
+    [发行周一 - 7 天, 发行周一) 即上周一 00:00 ～ 本周一 00:00（不含）= 上周一至上周日。
+
+    例：发行日 2026-05-18 → 内容窗 2026-05-11..2026-05-17，边界 UTC 为
+    2026-05-11 00:00 上海 .. 2026-05-18 00:00 上海。
     """
-    start_local = datetime.combine(period_start, time.min, tzinfo=SHANGHAI)
-    end_local = start_local + timedelta(days=7)
-    period_end = (period_start + timedelta(days=6))
+    content_week_monday = period_start - timedelta(days=7)
+    start_local = datetime.combine(content_week_monday, time.min, tzinfo=SHANGHAI)
+    end_local = datetime.combine(period_start, time.min, tzinfo=SHANGHAI)
+    period_end = period_start - timedelta(days=1)
     return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc), period_end
 
 

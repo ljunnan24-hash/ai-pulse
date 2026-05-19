@@ -9,6 +9,8 @@ from app.services.phase35_compat import apply_backward_compat_from_phase35
 from app.services.payload_schema import finalize_payload_v3, validate_payload
 
 try:
+    from datetime import date
+
     from sqlalchemy.orm import mapped_column as _SA2_MAPPED  # noqa: F401
 
     from app.services.weekly_event_score_service import (
@@ -17,6 +19,7 @@ try:
         authority_boost,
         calculate_weekly_score,
         independent_source_keys_from_merged,
+        shanghai_week_window_utc,
         source_boost_from_count,
     )
 
@@ -138,6 +141,15 @@ class TestWeeklyScoreFormula(unittest.TestCase):
         self.assertEqual(authority_boost(True, False), 5.0)
         self.assertEqual(authority_boost(False, True), 3.0)
         self.assertEqual(authority_boost(True, True), 8.0)
+
+    def test_shanghai_week_window_is_previous_calendar_week(self):
+        """发行周一 2026-05-18 → 内容覆盖 5/11～5/17（上周一至上周日）。"""
+        start_utc, end_utc, period_end = shanghai_week_window_utc(date(2026, 5, 18))
+        self.assertEqual(period_end, date(2026, 5, 17))
+        # 2026-05-11 00:00 Asia/Shanghai = 2026-05-10 16:00 UTC
+        self.assertEqual(start_utc, datetime(2026, 5, 10, 16, 0, tzinfo=timezone.utc))
+        # 2026-05-18 00:00 Asia/Shanghai = 2026-05-17 16:00 UTC
+        self.assertEqual(end_utc, datetime(2026, 5, 17, 16, 0, tzinfo=timezone.utc))
 
 
 if __name__ == "__main__":
