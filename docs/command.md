@@ -14,8 +14,11 @@ cd backend
 
 ```bash
 cd /opt/ai-pulse/backend
+# 须含 adb037f+（内容窗 = 发行周一的「上一自然周」）；重跑前会清空本期 weekly_event_scores
 WEEKLY_SOURCE=global_events .venv/bin/python -m app.jobs.generate_weekly --force
 ```
+
+若曾用**旧版**（发行当周 5/18～5/24）跑过 `--force`，Top3 可能仍是 Dell/PaddleOCR 等「本周一后」事件：先 `git pull`，再执行上面命令；或手动 `DELETE FROM weekly_event_scores WHERE period_start='2026-05-18';` 后重跑。
 
 Windows 本地：
 

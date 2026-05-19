@@ -16,7 +16,7 @@ from typing import Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models import GlobalEvent, GlobalEventSource, RawItem, WeeklyEventScore
@@ -322,6 +322,10 @@ def recompute_weekly_event_scores_for_period(db: Session, period_start: date, *,
     week_start_utc, week_end_utc, period_end = shanghai_week_window_utc(period_start)
     rd = report_date or period_start
 
+    # 修正时间窗或 --force 重跑时，须清掉旧口径残留行，否则 Top3 仍可能读到「发行当周」事件。
+    db.execute(delete(WeeklyEventScore).where(WeeklyEventScore.period_start == period_start))
+    db.flush()
+
     rows = db.scalars(
         select(GlobalEvent).where(
             GlobalEvent.status == "active",
@@ -373,12 +377,13 @@ def select_global_events_by_weekly_score(
     用于周刊候选池与多 Agent 上下文，与页面 Top3 同一套分数口径。
     """
     lim = max(1, min(int(limit), 200))
+    week_start_utc, week_end_utc, _ = shanghai_week_window_utc(period_start)
     rows = list(
         db.scalars(
             select(WeeklyEventScore)
             .where(WeeklyEventScore.period_start == period_start)
             .order_by(WeeklyEventScore.weekly_score.desc(), WeeklyEventScore.global_event_id.asc())
-            .limit(lim * 2)
+            .limit(lim * 4)
         ).all()
     )
     events: list[GlobalEvent] = []
@@ -387,6 +392,8 @@ def select_global_events_by_weekly_score(
         if not ge or ge.status != "active":
             continue
         if not (ge.canonical_title or "").strip():
+            continue
+        if not passes_weekly_top3_candidate(db, ge, week_start_utc, week_end_utc):
             continue
         events.append(ge)
         if len(events) >= lim:
@@ -678,18 +685,23 @@ def resolve_global_weekly_top3_rows(
 
 def build_normal_top3_payload_rows(db: Session, period_start: date, *, limit: int = 3) -> list[dict[str, Any]]:
     """按 weekly_score 降序取前 limit 条，组装 PRD normal.top3 行（含扩展字段）。"""
+    week_start_utc, week_end_utc, _ = shanghai_week_window_utc(period_start)
     rows = db.scalars(
         select(WeeklyEventScore)
         .where(WeeklyEventScore.period_start == period_start)
         .order_by(WeeklyEventScore.weekly_score.desc(), WeeklyEventScore.global_event_id.asc())
-        .limit(limit)
+        .limit(max(limit * 4, 12))
     ).all()
     ge_ids: list[int] = []
-    wes_list = list(rows)
-    for wes in wes_list:
+    wes_list: list[WeeklyEventScore] = []
+    for wes in rows:
         ge = db.get(GlobalEvent, wes.global_event_id)
-        if ge:
-            ge_ids.append(int(ge.id))
+        if not ge or not passes_weekly_top3_candidate(db, ge, week_start_utc, week_end_utc):
+            continue
+        wes_list.append(wes)
+        ge_ids.append(int(ge.id))
+        if len(wes_list) >= limit:
+            break
     labels = batch_primary_source_labels(db, ge_ids)
 
     out: list[dict[str, Any]] = []

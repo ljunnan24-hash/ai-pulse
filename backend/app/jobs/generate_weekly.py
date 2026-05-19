@@ -29,7 +29,10 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import IssueEvent, IssueStatus, RawItem, WeeklyIssue
-from app.services.weekly_event_score_service import select_global_events_by_weekly_score
+from app.services.weekly_event_score_service import (
+    recompute_weekly_event_scores_for_period,
+    select_global_events_by_weekly_score,
+)
 from app.services.weekly_global_pipeline import build_global_weekly_payload
 from app.services.weekly_issue_snapshot import append_weekly_issue_snapshot
 from app.services.summarizer_service import normalize_payload, payload_to_texts
@@ -185,6 +188,11 @@ def run(db: Session, *, force: bool = False, reuse_crawl: bool = False) -> None:
 
     pool_limit = max(1, int(getattr(settings, "global_events_pool_limit", 40) or 40))
     min_cand = max(0, int(getattr(settings, "global_events_min_candidates", 8) or 8))
+    n_scored = recompute_weekly_event_scores_for_period(db, period, report_date=period)
+    print(
+        f"generate_weekly: weekly_event_scores 已重算（上一自然周 last_seen），"
+        f"period={period}，写入 {n_scored} 条。"
+    )
     selected, selection_report_global = select_global_events_by_weekly_score(
         db,
         period_start=period,
