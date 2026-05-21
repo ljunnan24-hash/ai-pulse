@@ -29,7 +29,7 @@ export const pulseRankTitleEnWeeklyCls =
 export const pulseRankMeaningCls =
   'line-clamp-3 text-sm leading-relaxed text-slate-600 [overflow-wrap:anywhere]';
 
-/** 周报「对你意味着什么」：全文 + 舒适行距 */
+/** 周报「发生了什么」：全文 + 舒适行距 */
 export const pulseRankMeaningWeeklyFullCls =
   'text-sm leading-[1.65] text-slate-600 [overflow-wrap:anywhere]';
 

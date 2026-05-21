@@ -3,7 +3,7 @@ import {
   pulseDisplayScore,
   pulseEventTitleEn,
   pulseEventTitleZh,
-  pulseWhatItMeans,
+  pulseWhatHappened,
 } from '../../lib/homeRankingsDisplay';
 import { rankingSourceLabel } from '../../lib/rankingSourceLabel';
 import { PulseRankingsTableLayout, type PulseRankingsTableRow } from '../pulse/PulseRankingsTableLayout';
@@ -23,7 +23,7 @@ export function HomeTopFiveTable({ items }: Props) {
     titleZh: pulseEventTitleZh(item),
     titleEn: pulseEventTitleEn(item),
     sourceLabel: rankingSourceLabel(item),
-    meaning: pulseWhatItMeans(item),
+    meaning: pulseWhatHappened(item),
     categorySlug: item.category ?? '',
     detailTo: `/events/${item.id}`,
     industryTags: item.industry_tags?.slice(0, 2),

@@ -20,7 +20,7 @@ function looseStr(o: Record<string, unknown>, key: string): string {
  *    非机器逐句翻译；正式译文应由后端写入 `title_zh`）；
  * 4. 兜底：英文原标题一行展示。
  *
- * 不使用 one_liner / why 判断句作主标题，避免与「对你意味着什么」列抢语义。
+ * 不使用 one_liner / why 判断句作主标题，避免与「发生了什么」列抢语义。
  */
 export function pulseEventTitleZh(item: HomeRankingItem): string {
   const o = item as unknown as Record<string, unknown>;
@@ -105,6 +105,13 @@ export function whatItMeansCell(item: HomeRankingItem): string {
   const a = (item.action_suggestion ?? '').trim();
   if (a) return a;
   return '暂无明确用户影响，可查看详情了解来源信息';
+}
+
+/** 「发生了什么」：事实层 what_happened，与详情页一致 */
+export function pulseWhatHappened(item: HomeRankingItem): string {
+  const wh = (item.what_happened ?? '').trim();
+  if (wh) return wh;
+  return '暂无「发生了什么」正文，可查看详情了解来源。';
 }
 
 /** 「对你意味着什么」：按价值字段优先级，最后再用 action 建议等兜底 */

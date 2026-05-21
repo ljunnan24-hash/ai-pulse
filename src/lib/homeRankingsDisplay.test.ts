@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import type { EventDetailResponse } from '../api/public';
-import { eventDetailPulseScore, pulseDisplayScore, rankingsDisplayScore } from './homeRankingsDisplay';
+import {
+  eventDetailPulseScore,
+  pulseDisplayScore,
+  pulseWhatHappened,
+  rankingsDisplayScore,
+} from './homeRankingsDisplay';
+
+describe('pulseWhatHappened', () => {
+  it('returns what_happened when present', () => {
+    const item = { what_happened: 'OpenAI 在新加坡推出服务。' } as Parameters<typeof pulseWhatHappened>[0];
+    expect(pulseWhatHappened(item)).toBe('OpenAI 在新加坡推出服务。');
+  });
+
+  it('falls back when what_happened empty', () => {
+    const item = { what_happened: '' } as Parameters<typeof pulseWhatHappened>[0];
+    expect(pulseWhatHappened(item)).toContain('暂无');
+  });
+});
 
 describe('rankingsDisplayScore', () => {
   it('7d uses effective_ranking_score when present', () => {

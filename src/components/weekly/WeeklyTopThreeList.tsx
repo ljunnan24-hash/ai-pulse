@@ -36,7 +36,7 @@ function detailHrefForWeeklyRow(row: WeeklyLooseRow, eid: number | null): string
 }
 
 /**
- * 周报 Top3：与日榜 / 首页 Top5 同款表格（来源 + 中英文标题 + 对你意味着什么）。
+ * 周报 Top3：与日榜 / 首页 Top5 同款表格（来源 + 中英文标题 + 发生了什么）。
  * 分类与 industry_tags 对有 event_id 的行请求详情 API 补齐。
  */
 export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {

@@ -4,7 +4,7 @@ import type { WeeklyLooseRow } from '../components/weekly/weeklyPayloadUtils';
 import {
   pulseEventTitleEn,
   pulseEventTitleZh,
-  pulseWhatItMeans,
+  pulseWhatHappened,
 } from './homeRankingsDisplay';
 import { rankingSourceLabel } from './rankingSourceLabel';
 import type { PulseRankingsTableRow } from '../components/pulse/PulseRankingsTableLayout';
@@ -63,7 +63,7 @@ export function weeklyTopThreeToPulseTableRow(
     titleZh: pulseEventTitleZh(item),
     titleEn: pulseEventTitleEn(item),
     sourceLabel: rankingSourceLabel(item),
-    meaning: pulseWhatItMeans(item),
+    meaning: pulseWhatHappened(item),
     categorySlug: item.category || 'application',
     detailTo,
     industryTags: item.industry_tags?.slice(0, 2),

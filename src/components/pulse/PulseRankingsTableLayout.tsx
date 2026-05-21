@@ -14,7 +14,7 @@ import {
   pulseRankTitleZhBoldCls,
 } from './PulseRankItem';
 
-/** 排名 | Score | 事件 | 对你意味着什么 | 分类（含行业细分标签） | 操作（与排行榜页一致） */
+/** 排名 | Score | 事件 | 发生了什么 | 分类（含行业细分标签） | 操作（与排行榜页一致） */
 export const PULSE_RANKINGS_TABLE_GRID_COLUMNS =
   '72px minmax(56px, 68px) minmax(280px, 2.2fr) minmax(180px, 1.25fr) minmax(88px, 118px) 112px' as const;
 
@@ -41,7 +41,7 @@ export type PulseRankingsTableRow = {
   titleZhClassName?: string;
   /** 覆盖英文副标题样式 */
   titleEnClassName?: string;
-  /** 覆盖「对你意味着什么」段落样式（周报等可不截断全文） */
+  /** 覆盖「发生了什么」段落样式（周报等可不截断全文） */
   meaningClassName?: string;
   /** 为标题/摘要设置原生 title 悬停提示（窄屏截断时备用） */
   overflowHints?: boolean;
@@ -158,7 +158,7 @@ export function PulseRankingsTableLayout({
           <span className="text-center">排名</span>
           <span>{scoreColumnLabel}</span>
           <span>事件</span>
-          <span>对你意味着什么</span>
+          <span>发生了什么</span>
           <span className="text-center">分类</span>
           <span className={`text-left ${stickyActionWrap}`}>操作</span>
         </div>

@@ -2,7 +2,7 @@ import type { RankingItem } from './RankingCard';
 import {
   pulseEventTitleEn,
   pulseEventTitleZh,
-  pulseWhatItMeans,
+  pulseWhatHappened,
   rankingsDisplayScore,
 } from '../../lib/homeRankingsDisplay';
 import { rankingSourceLabel } from '../../lib/rankingSourceLabel';
@@ -27,7 +27,7 @@ export function RankingsPageTable({ items, range }: Props) {
     titleZh: pulseEventTitleZh(item),
     titleEn: pulseEventTitleEn(item),
     sourceLabel: rankingSourceLabel(item),
-    meaning: pulseWhatItMeans(item),
+    meaning: pulseWhatHappened(item),
     categorySlug: item.category ?? '',
     detailTo: `/events/${item.id}`,
     industryTags: item.industry_tags?.slice(0, 2),
