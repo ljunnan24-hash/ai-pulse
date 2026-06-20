@@ -757,7 +757,6 @@ def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: boo
     batch_size = int(settings.ranking_insight_batch_size or 8)
     batch_size = max(4, min(batch_size, 10))
     timeout_s = float(settings.ranking_insight_timeout_seconds)
-    model = settings.doubao_model
 
     if not force and not settings.ranking_insight_enabled:
         _log.info("ranking_insight: disabled (RANKING_INSIGHT_ENABLED=false)")
@@ -767,8 +766,9 @@ def enrich_ranking_insights(db: Session, limit: int | None = None, *, force: boo
 
     client = LlmJsonClient()
     if not client.is_configured():
-        _log.info("ranking_insight: skipped (DOUBAO_API_KEY / DOUBAO_MODEL not set)")
+        _log.info("ranking_insight: skipped (LLM_API_KEY / LLM_MODEL or legacy DOUBAO_* not set)")
         return 0
+    model = getattr(client, "model_name", settings.effective_llm_model)
 
     ids = _collect_candidate_ids(db, limit=lim, force=force)
     if not ids:

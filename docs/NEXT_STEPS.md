@@ -24,7 +24,7 @@
   - `PUBLIC_APP_URL`
   - `FRONTEND_URL`
   - `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `MAIL_FROM`
-  - `DOUBAO_API_KEY` / `DOUBAO_MODEL`（用于生成周报文稿）
+  - `LLM_API_KEY` / `LLM_MODEL`（用于生成周报文稿；旧部署也可继续用 `DOUBAO_API_KEY` / `DOUBAO_MODEL`）
 - **RSS 源（建议先用 RSS 跑通）**
   - `OFFICIAL_RSS_URLS=...`（公司官网/博客 RSS）
   - `MEDIA_RSS_URLS=...`（行业媒体 RSS）
@@ -75,4 +75,3 @@
 - 验证：
   - raw_items 是否有 score_total 写入
   - 邮件内容是否为 TopN（含关键词优先逻辑）
-

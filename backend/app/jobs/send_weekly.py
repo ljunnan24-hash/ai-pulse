@@ -2,7 +2,7 @@
 周一凌晨由 cron 调用（推荐北京时间 05:00，须晚于 generate_weekly，见 deploy/crontab.example）：
   cd backend && python -m app.jobs.send_weekly
 
-测试只发固定收件人（默认 2089128910@qq.com），无需改 .env：
+测试只发固定收件人（默认 test@example.com，可通过 WEEKLY_TEST_INBOX 覆盖），无需改生产收件人：
   python -m app.jobs.send_weekly --test
 """
 from __future__ import annotations
@@ -177,7 +177,7 @@ def main():
     ap.add_argument(
         "--test",
         action="store_true",
-        help="仅发给 weekly_test_inbox（默认 2089128910@qq.com）；生产 cron 不要带此参数",
+        help="仅发给 weekly_test_inbox（默认 test@example.com）；生产 cron 不要带此参数",
     )
     args = ap.parse_args()
     db = SessionLocal()

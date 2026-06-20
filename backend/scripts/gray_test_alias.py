@@ -24,7 +24,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base-email", required=True, help="e.g. ljunnan23@gmail.com")
     ap.add_argument("--count", type=int, default=100)
-    ap.add_argument("--api-base", required=True, help="e.g. https://www.aipulse.asia")
+    ap.add_argument("--api-base", required=True, help="e.g. https://www.example.com")
     ap.add_argument("--mode", default="normal", choices=["simple", "normal"])
     ap.add_argument("--keywords", default="", help="comma-separated, up to 3")
     ap.add_argument("--sleep-ms", type=int, default=80)
@@ -83,4 +83,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

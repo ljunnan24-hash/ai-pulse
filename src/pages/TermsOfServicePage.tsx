@@ -1,9 +1,13 @@
 import { Link } from 'react-router-dom';
 
+import { contactEmail } from '../config';
+
 const cardPlain =
   'rounded-[var(--radius-card)] border border-[#D8E2F0] bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] md:p-7';
 
 export default function TermsOfServicePage() {
+  const email = contactEmail();
+
   return (
     <div className="page-container pb-16 md:pb-20">
       <header className="mb-8 border-b border-[#E2E8F0] pb-6">
@@ -111,10 +115,10 @@ export default function TermsOfServicePage() {
           <p className="mt-3 text-sm leading-relaxed text-slate-600">
             如您对本条款有疑问，请联系：
             <a
-              href="mailto:2089128910@qq.com"
+              href={`mailto:${email}`}
               className="ml-1 font-medium text-[#2563EB] underline-offset-2 hover:underline"
             >
-              2089128910@qq.com
+              {email}
             </a>
           </p>
         </section>

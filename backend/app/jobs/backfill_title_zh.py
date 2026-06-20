@@ -1,6 +1,6 @@
 """
-为已有 GlobalEvent 补写 title_zh（豆包译英文标题；中文原标题则直接复制）。
-仅在 merge 上线前入库的事件需要跑一次；需配置 DOUBAO_API_KEY + DOUBAO_MODEL。
+为已有 GlobalEvent 补写 title_zh（LLM API 译英文标题；中文原标题则直接复制）。
+仅在 merge 上线前入库的事件需要跑一次；需配置 LLM_API_KEY + LLM_MODEL，或旧的 DOUBAO_*。
 
 用法：
   cd /opt/ai-pulse/backend && .venv/bin/python -m app.jobs.backfill_title_zh
@@ -26,9 +26,9 @@ _log = logging.getLogger("uvicorn.error")
 
 def run(db: Session, *, limit: int, pause_s: float) -> None:
     settings = get_settings()
-    if not settings.doubao_api_key or not settings.doubao_model:
+    if not settings.effective_llm_api_key or not settings.effective_llm_model:
         print(
-            "backfill_title_zh: WARN — DOUBAO_API_KEY / DOUBAO_MODEL unset; "
+            "backfill_title_zh: WARN — LLM_API_KEY / LLM_MODEL or legacy DOUBAO_* unset; "
             "events with Chinese canonical_title will still get title_zh; English-only rows stay empty."
         )
 

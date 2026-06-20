@@ -5,6 +5,8 @@ import re
 from typing import Any
 
 import httpx
+
+from app.config import get_settings
 from app.services.payload_schema import finalize_payload_v3
 
 
@@ -66,13 +68,13 @@ def build_prompt(items: list[dict[str, Any]]) -> str:
 
 def summarize_items(items: list[dict[str, Any]]) -> dict[str, Any]:
     settings = get_settings()
-    if not settings.doubao_api_key or not settings.doubao_model:
-        raise RuntimeError("Doubao / Ark not configured: set doubao_api_key and doubao_model.")
+    if not settings.effective_llm_api_key or not settings.effective_llm_model:
+        raise RuntimeError("LLM not configured: set LLM_API_KEY and LLM_MODEL, or legacy DOUBAO_*.")
 
     prompt = build_prompt(items)
-    url = f"{settings.doubao_api_base.rstrip('/')}/chat/completions"
+    url = f"{settings.effective_llm_api_base.rstrip('/')}/chat/completions"
     payload = {
-        "model": settings.doubao_model,
+        "model": settings.effective_llm_model,
         "messages": [
             {"role": "system", "content": "You output valid JSON only for Chinese newsletter generation."},
             {"role": "user", "content": prompt},
@@ -80,7 +82,7 @@ def summarize_items(items: list[dict[str, Any]]) -> dict[str, Any]:
         "temperature": 0.4,
     }
     headers = {
-        "Authorization": f"Bearer {settings.doubao_api_key}",
+        "Authorization": f"Bearer {settings.effective_llm_api_key}",
         "Content-Type": "application/json",
     }
     with httpx.Client(timeout=120.0) as client:

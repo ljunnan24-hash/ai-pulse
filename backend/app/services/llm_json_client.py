@@ -35,7 +35,7 @@ def _extract_json_block(text: str) -> dict[str, Any]:
 
 class LlmJsonClient:
     """
-    Thin wrapper over Volcengine Ark (Doubao) OpenAI-compatible endpoint.
+    Thin wrapper over an OpenAI-compatible chat completions endpoint.
     Enforces JSON-only output.
     """
 
@@ -43,7 +43,11 @@ class LlmJsonClient:
         self.settings = get_settings()
 
     def is_configured(self) -> bool:
-        return bool(self.settings.doubao_api_key and self.settings.doubao_model)
+        return bool(self.settings.effective_llm_api_key and self.settings.effective_llm_model)
+
+    @property
+    def model_name(self) -> str:
+        return self.settings.effective_llm_model
 
     def complete_json(
         self,
@@ -56,18 +60,21 @@ class LlmJsonClient:
         json_retries: int = 2,
     ) -> dict[str, Any]:
         if not self.is_configured():
-            raise RuntimeError("LLM not configured: set DOUBAO_API_KEY and DOUBAO_MODEL.")
+            raise RuntimeError(
+                "LLM not configured: set LLM_API_KEY and LLM_MODEL, "
+                "or legacy DOUBAO_API_KEY and DOUBAO_MODEL."
+            )
 
-        url = f"{self.settings.doubao_api_base.rstrip('/')}/chat/completions"
+        url = f"{self.settings.effective_llm_api_base.rstrip('/')}/chat/completions"
         mt = max_tokens
         if mt is None:
-            mt = int(getattr(self.settings, "doubao_max_tokens", 0) or 0)
+            mt = int(getattr(self.settings, "effective_llm_max_tokens", 0) or 0)
 
         last_decode_error: json.JSONDecodeError | None = None
         user_round = user
         for attempt in range(max(0, int(json_retries)) + 1):
             payload: dict[str, Any] = {
-                "model": self.settings.doubao_model,
+                "model": self.settings.effective_llm_model,
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_round},
@@ -78,7 +85,7 @@ class LlmJsonClient:
                 payload["max_tokens"] = mt
 
             headers = {
-                "Authorization": f"Bearer {self.settings.doubao_api_key}",
+                "Authorization": f"Bearer {self.settings.effective_llm_api_key}",
                 "Content-Type": "application/json",
             }
             data: dict[str, Any] | None = None
@@ -119,4 +126,3 @@ class LlmJsonClient:
 
         assert last_decode_error is not None
         raise last_decode_error
-

@@ -1,258 +1,228 @@
 # AI Pulse
 
-English marketing SPA (Vite + React) plus a **Python (FastAPI)** backend: RSS ingestion, Volcengine Ark (豆包) weekly summaries in **Chinese**, double opt-in email via **Aliyun DirectMail**, and MySQL (RDS) storage.
+AI Pulse 是一个面向 AI 行业信息整理的开源项目。它会从公开 RSS、GitHub 和可配置的信息源中收集 AI 动态，把多篇报道合并成清晰的事件，再通过评分、标签和 LLM 生成摘要，输出每日榜单、事件详情和中文周报。这个项目适合用来搭建自己的 AI 信息雷达，也适合学习一个从采集、去重、评分、LLM 增强到前端展示和邮件分发的完整内容系统。
 
-## Repo layout
+AI Pulse is an AI-industry signal tracker. It collects public RSS/GitHub sources, deduplicates related stories into events, scores them, and publishes a ranked web experience plus weekly Chinese digests.
 
-| Path | Role |
-|------|------|
-| `prd.md` | Product requirements (**canonical**; do not maintain parallel Word copies in repo) |
-| `src/` | Frontend: subscription UI, demo Simple/Normal views |
-| `backend/` | API + cron jobs (`generate_weekly`, `send_weekly`) |
-| `sql/schema.sql` | MySQL DDL |
-| `deploy/crontab.example` | Cron samples (`TZ=Asia/Shanghai`，上海/北京 UTC+8） |
-| `docs/SCORING_V1.md` | Event scoring spec (v1) |
-| `docs/SOCIAL_SOURCES.md` | Social sources whitelist (v1) |
-| `docs/MULTI_AGENT_V1.md` | Weekly pipeline (`weekly_global_slim`, current) |
-| `docs/archive/LEGACY_WEEKLY_MULTI_AGENT.md` | Deprecated legacy multi-agent weekly (archived) |
-| `docs/WEEKLY_TOP3_PROTOCOL.md` | Weekly Top3 payload / detail-link protocol (EN + 中文; PR blurb) |
-| `docs/部署与数据说明.md` | 迁移步骤、环境配置要点、数据库存储说明（中文） |
+The project contains a Vite + React frontend and a Python FastAPI backend. LLM calls use an OpenAI-compatible Chat Completions API, so providers such as DeepSeek, OpenAI-compatible gateways, or Volcengine Ark can be swapped by environment variables.
 
-## Local development
+## What It Does
 
-### 1) Database
+- Tracks public AI news from RSS/Atom feeds, optional HTML source pages, GitHub search/trending, and RSS bridges for social sources.
+- Normalizes, deduplicates, and scores events into a daily Pulse ranking.
+- Generates weekly reports from ranked events with a small LLM pipeline.
+- Supports email subscriptions, double opt-in confirmation, unsubscribe/manage links, and optional email tracking.
+- Includes an admin console for subscribers, analytics, and feedback.
 
-Create schema (local MySQL or RDS):
+## Architecture
 
-```bash
-mysql -h HOST -u USER -p < sql/schema.sql
+```text
+public sources -> backend crawler/jobs -> SQL database -> FastAPI public/admin APIs
+                                                |
+                                                v
+                                      LLM enrichment + weekly reports
+                                                |
+                                                v
+                                    React SPA + email delivery
 ```
 
-### 2) Backend
+Key paths:
 
-**Requires Python 3.10+** (FastAPI 0.115.x). Some ECS images default to `python3` 3.6 — use `python3.11 -m venv .venv` (or install `python3.11` / `python3.9` from your OS packages) before `pip install`.
+| Path | Purpose |
+| --- | --- |
+| `src/` | React frontend, public pages, admin UI, PWA helpers |
+| `backend/app/` | FastAPI app, routers, services, jobs |
+| `backend/tests/` | Python unit/regression tests |
+| `sql/schema.sql` | Full MySQL schema for a fresh database |
+| `sql/migrations/` | Incremental SQL migrations for existing databases |
+| `deploy/` | Example crontab and Nginx snippets |
+| `docs/` | Pipeline, scoring, source, and operations notes |
+| `docs/USAGE_GUIDE.md` | Chinese frontend usage guide with page screenshots |
+
+## Requirements
+
+- Node.js 20+
+- Python 3.10+
+- MySQL 8+ for production
+- Optional for local smoke testing: SQLite via `DATABASE_URL=sqlite:///./dev.db`
+
+## Quick Start
+
+Clone and install frontend dependencies:
+
+```bash
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Start the backend in another terminal:
 
 ```bash
 cd backend
-cp .env.example .env
-# Edit .env: DATABASE_URL, PUBLIC_APP_URL, FRONTEND_URL, DOUBAO_*, SMTP_*, MAIL_FROM
-
 python3 -m venv .venv
-# Windows: .venv\Scripts\activate
 source .venv/bin/activate
 pip install -U pip setuptools wheel
 pip install -r requirements.txt
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cp .env.example .env
 ```
 
-Manual jobs (Beijing week logic uses **server timezone** — set to `Asia/Shanghai` on ECS):
+For a quick local API boot without MySQL, set this in `backend/.env`:
 
 ```bash
-cd backend
-python -m app.jobs.generate_weekly
-python -m app.jobs.send_weekly
+DATABASE_URL=sqlite:///./dev.db
+PUBLIC_APP_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:3000
+WEEKLY_PUBLIC_BASE_URL=http://localhost:3000
+MAIL_DRY_RUN=true
+ADMIN_JWT_SECRET=dev_secret_change_me
 ```
 
-### 3) Frontend
+Then run:
 
 ```bash
-npm install
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Open:
+
+- Frontend: `http://localhost:3000`
+- API health: `http://127.0.0.1:8000/health`
+- Admin login page: `http://localhost:3000/admin/login`
+
+Vite proxies `/api`, `/manage`, and `/health` to the local backend when `VITE_API_BASE_URL` is empty.
+
+For a page-by-page walkthrough of the frontend, see `docs/USAGE_GUIDE.md`.
+
+## Environment
+
+Frontend variables live in `.env`:
+
+```bash
+VITE_API_BASE_URL=
+VITE_CONTACT_EMAIL=contact@example.com
+# Optional public image URLs for your own deployment.
+# VITE_WECHAT_GROUP_QR_SRC=/assets/wechat-group-qr.example.png
+# VITE_REWARD_QR_SRC=/assets/reward-qr.example.png
+```
+
+Backend variables live in `backend/.env`. Important groups:
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | SQLAlchemy database URL |
+| `PUBLIC_APP_URL` / `FRONTEND_URL` | Links used in confirmation, unsubscribe, and manage flows |
+| `WEEKLY_PUBLIC_BASE_URL` | Public weekly report base URL |
+| `LLM_API_KEY` / `LLM_API_BASE` / `LLM_MODEL` | OpenAI-compatible LLM provider |
+| `SMTP_*` / `MAIL_FROM` | Email delivery |
+| `*_RSS_URLS` / `OFFICIAL_PAGE_URLS` | Content source configuration |
+| `GITHUB_TOKEN` | Optional, raises GitHub API rate limits |
+| `ADMIN_JWT_SECRET` | Required for admin auth |
+
+DeepSeek example:
+
+```bash
+LLM_API_KEY=...
+LLM_API_BASE=https://api.deepseek.com
+LLM_MODEL=deepseek-v4-flash
+LLM_MAX_TOKENS=16384
+```
+
+OpenAI-compatible default:
+
+```bash
+LLM_API_BASE=https://api.openai.com/v1
+```
+
+Volcengine Ark compatibility is still available through either the generic `LLM_API_*` variables or the legacy `DOUBAO_*` variables. When `LLM_API_KEY` and `LLM_MODEL` are set, they take priority.
+
+## Database
+
+For a fresh MySQL database:
+
+```bash
+mysql -h HOST -u USER -p DATABASE_NAME < sql/schema.sql
+```
+
+For an existing deployment, apply the files in `sql/migrations/` as needed. See `docs/部署与数据说明.md` for migration notes.
+
+The FastAPI app calls `Base.metadata.create_all(...)` on startup, which is convenient for local SQLite smoke tests. Production MySQL deployments should still use `sql/schema.sql` or migrations so indexes and schema details stay explicit.
+
+## Common Commands
+
+Frontend:
+
+```bash
 npm run dev
-```
-
-Vite proxies `/api`, `/manage`, and `/health` to `http://127.0.0.1:8000`. Leave `VITE_API_BASE_URL` empty in dev.
-
-For production builds that talk to another origin, set `VITE_API_BASE_URL=https://api.yourdomain.com` before `npm run build`.
-
-## Admin console (后台管理系统)
-
-后台前端通过路由前缀 **`/admin/*`** 与官网完全隔离，确保不影响官网原功能。
-
-### Admin 本地开发（Windows + conda）
-
-如果本机无法访问 `https` 的 conda/pip 源，可用 `http` 镜像（本仓库在 Win11/conda 环境下已验证可用）。
-
-#### 1) 创建 conda 环境（使用 http 镜像）
-
-```bat
-conda create -n aipulse python=3.11 -y --override-channels ^
-  -c http://mirrors.ustc.edu.cn/anaconda/pkgs/main ^
-  -c http://mirrors.ustc.edu.cn/anaconda/cloud/conda-forge
-```
-
-#### 2) 安装后端依赖（pip 走 http 源）
-
-```bat
-conda run -n aipulse pip install -r backend/requirements.txt ^
-  -i http://pypi.tuna.tsinghua.edu.cn/simple ^
-  --trusted-host pypi.tuna.tsinghua.edu.cn
-```
-
-#### 3) 启动后端（本地建议用 sqlite，避免连接 RDS 超时）
-
-```bat
-cd backend
-set DATABASE_URL=sqlite:///./dev.db
-set ADMIN_JWT_SECRET=dev_secret_change_me
-conda run --no-capture-output -n aipulse python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --log-level info
-```
-
-验证健康检查：
-
-```text
-GET http://127.0.0.1:8000/health
-```
-
-#### 4) 初始化第一个管理员（本地脚本）
-
-通过脚本创建管理员（不会暴露 HTTP 初始化入口）：
-
-```bat
-cd backend
-set ADMIN_USERNAME=admin
-set ADMIN_PASSWORD=Admin12345678
-conda run --no-capture-output -n aipulse python scripts\create_admin_user.py
-```
-
-#### 5) 启动前端（已代理 /admin 到 8000）
-
-```bash
-npm run dev
-```
-
-访问后台：
-
-```text
-http://localhost:3000/admin/login
-```
-
-### Admin 生产环境配置（必填）
-
-在 `backend/.env`（或环境变量）里配置：
-
-- `ADMIN_JWT_SECRET`：JWT 签名密钥（强随机）
-- `ADMIN_JWT_EXPIRES_HOURS`：默认 24
-- `ADMIN_FRONTEND_URL`：例如 `https://admin.aipulse.asia`（用于 CORS）
-
-## Product rules (implemented)
-
-- **Subscribe**: `POST /api/subscribe` → confirmation email (Chinese).  
-- **Confirm**: `GET /api/confirm?token=…` → if latest `ready` issue exists, send it (keyword filter + mode); else welcome email.  
-- **Weekly**: Monday **00:30** generate issue; Monday **09:00** send to all active subscribers (idempotent per issue).  
-- **Manage**: `GET /POST /manage/{manage_token}` (minimal HTML).  
-- **Unsubscribe**: `GET /api/unsubscribe?token=…`.
-
-## Aliyun deployment (summary)
-
-- **ECS** (~2 vCPU / 2 GiB): Nginx + TLS (Aliyun certificate), reverse-proxy to Uvicorn, timezone `Asia/Shanghai`.  
-- **RDS MySQL**: run `sql/schema.sql`.  
-- **DirectMail**: verify domain, fill `SMTP_*` and `MAIL_FROM`.  
-- **Cron**: see `deploy/crontab.example`.  
-- **Secrets**: `backend/.env` (never commit).
-
-## Server runbook (ECS)
-
-Assumptions (current setup):
-
-- Project: `/opt/ai-pulse`
-- Frontend Nginx root: `/var/www/aipulse`
-- Nginx site config: `/etc/nginx/conf.d/aipulse.conf`
-- Backend: systemd service `aipulse-api` (Uvicorn on `127.0.0.1:8000`)
-
-### 1) Update code
-
-```bash
-cd /opt/ai-pulse
-git pull
-git log -1 --oneline
-```
-
-### 2) Backend (API) restart + logs
-
-```bash
-sudo systemctl restart aipulse-api
-sudo systemctl status aipulse-api --no-pager
-sudo journalctl -u aipulse-api -n 200 --no-pager
-```
-
-Follow logs in real time:
-
-```bash
-sudo journalctl -u aipulse-api -f
-```
-
-### 3) Frontend rebuild + deploy
-
-This repo currently does not require a lockfile on the server, so use `npm install` (not `npm ci`).
-
-```bash
-cd /opt/ai-pulse
-npm install
 npm run build
+npm run preview
+npm run lint
+npm test
+```
 
-sudo rm -rf /var/www/aipulse/*
-sudo cp -r dist/* /var/www/aipulse/
+Backend:
 
+```bash
+cd backend
+source .venv/bin/activate
+PYTHONPATH=. python -m pytest
+python -m app.jobs.daily_rankings
+python -m app.jobs.enrich_rankings --limit 10
+python -m app.jobs.generate_weekly --force
+python -m app.jobs.send_weekly --test
+```
+
+Create a local admin user:
+
+```bash
+cd backend
+ADMIN_USERNAME=admin ADMIN_PASSWORD=change_me python scripts/create_admin_user.py
+```
+
+## Deployment Notes
+
+A typical production deployment uses:
+
+- Nginx serving `dist/` and reverse proxying API routes to Uvicorn.
+- Uvicorn bound to `127.0.0.1:8000` behind systemd.
+- MySQL/RDS for persistent data.
+- Cron for daily rankings and weekly generation/sending.
+
+Example cron schedules are in `deploy/crontab.example`. Example Nginx rate-limit snippets are in `deploy/`.
+
+Minimal deployment flow:
+
+```bash
+git pull --ff-only
+
+cd backend
+source .venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart aipulse-api
+
+cd ..
+npm ci
+npm run build
+sudo rsync -a --delete dist/ /var/www/aipulse/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### 4) Nginx config view + reload
+## Security Before Publishing
+
+- Do not commit `.env`, API keys, SMTP credentials, database URLs, TLS files, or private QR codes.
+- Replace `ADMIN_JWT_SECRET` with a strong random value in production.
+- Keep `MAIL_DRY_RUN=true` until email credentials and DNS/domain verification are ready.
+- Review `docs/command.md` before publishing any personal operations notes.
+- Add a `LICENSE` file before announcing the repository as open source.
+
+## Tests And Quality
+
+Current checks:
 
 ```bash
-sudo sed -n '1,260p' /etc/nginx/conf.d/aipulse.conf
-sudo nginx -t && sudo systemctl reload nginx
+npm run lint
+npm test
+cd backend && PYTHONPATH=. .venv/bin/python -m pytest
 ```
 
-### 5) MySQL (RDS) login
-
-```bash
-mysql -h rm-j6cv7e2mg6bw443p1.mysql.rds.aliyuncs.com -P 3306 -u aipulse -p
-```
-
-Then:
-
-```sql
-USE aipulse;
-```
-
-Check latest issues:
-
-```sql
-SELECT id, period_start, status, ready_at
-FROM weekly_issues
-ORDER BY ready_at DESC, created_at DESC
-LIMIT 5;
-```
-
-### 6) Cron jobs (weekly)
-
-See `deploy/crontab.example`.
-
-List root crontab:
-
-```bash
-sudo crontab -l
-```
-
-Job logs (if using the example):
-
-```bash
-sudo tail -n 200 /var/log/aipulse-generate.log
-sudo tail -n 200 /var/log/aipulse-send.log
-```
-
-## Volcengine Ark (豆包)
-
-Create an API key and an **endpoint model ID** (`ep-…`). Set `DOUBAO_API_KEY`, `DOUBAO_MODEL`, and optionally `DOUBAO_API_BASE` in `backend/.env`.
-
-## Content sources (RSS / GitHub / X)
-
-- **RSS**: the backend aggregates multiple RSS/Atom feeds for weekly generation.
-  - Configure in `backend/.env`:
-    - `OFFICIAL_RSS_URLS` (AI 公司官网/博客 RSS)
-    - `MEDIA_RSS_URLS` (行业媒体 RSS)
-    - `X_RSS_URLS` (X/Twitter 账号 RSS)
-- **X/Twitter**: this repo intentionally does **not** depend on the paid X API.
-  - Recommended: use an RSS bridge (e.g. RSSHub or a Nitter instance) to generate RSS URLs for official accounts, then put them into `X_RSS_URLS`.
-- **GitHub**: optional "Trending" approximation uses the GitHub Search API.
-  - Set `GITHUB_TOKEN` for higher rate limits (cron stability).
+The repository has focused regression tests for ranking windows, score logic, URL dedupe, weekly payload shaping, and configuration loading.

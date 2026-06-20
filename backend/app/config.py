@@ -41,15 +41,44 @@ class Settings(BaseSettings):
 
     public_app_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
-    # 对外周报页与邮件 main_link 使用的站点根（须含协议与域名），如 https://aipulse.asia
-    weekly_public_base_url: str = "https://aipulse.asia"
+    # 对外周报页与邮件 main_link 使用的站点根（须含协议与域名）
+    weekly_public_base_url: str = "http://localhost:3000"
 
-    # Volcengine Ark (豆包) — OpenAI-compatible chat completions
+    # Generic OpenAI-compatible chat completions API.
+    # Preferred for new deployments. Override LLM_API_BASE for non-OpenAI providers.
+    llm_api_key: str = ""
+    llm_api_base: str = "https://api.openai.com/v1"
+    llm_model: str = ""
+    # 0 = do not send a default max_tokens value for the generic API.
+    llm_max_tokens: int = 0
+
+    # Volcengine Ark (豆包) — legacy fallback for existing deployments
     doubao_api_key: str = ""
     doubao_api_base: str = "https://ark.cn-beijing.volces.com/api/v3"
     doubao_model: str = ""
     # Composer 等大 JSON 输出默认上限；过小会导致截断、JSONDecodeError（设为 0 则请求里不传，走平台默认）
     doubao_max_tokens: int = 16384
+
+    @property
+    def use_generic_llm_api(self) -> bool:
+        """True when the new generic API key/model pair is complete."""
+        return bool(self.llm_api_key and self.llm_model)
+
+    @property
+    def effective_llm_api_key(self) -> str:
+        return self.llm_api_key if self.use_generic_llm_api else self.doubao_api_key
+
+    @property
+    def effective_llm_api_base(self) -> str:
+        return self.llm_api_base if self.use_generic_llm_api else self.doubao_api_base
+
+    @property
+    def effective_llm_model(self) -> str:
+        return self.llm_model if self.use_generic_llm_api else self.doubao_model
+
+    @property
+    def effective_llm_max_tokens(self) -> int:
+        return self.llm_max_tokens if self.use_generic_llm_api else self.doubao_max_tokens
 
     # 周刊流水线（见 docs/MULTI_AGENT_V1.md）
     # WEEKLY_SOURCE 仅支持 global_events（legacy 已从 generate_weekly 移除）
@@ -77,7 +106,7 @@ class Settings(BaseSettings):
     mail_dry_run: bool = False
     # 可选：仅用环境变量限制测试收件人（推荐改用命令行 send_weekly --test）
     weekly_send_test_mode: bool = False
-    weekly_test_inbox: str = "2089128910@qq.com"
+    weekly_test_inbox: str = "test@example.com"
     # 进阶：手动指定单收件人（仅当未开 weekly_send_test_mode 时生效）
     target_email: str = ""
 
@@ -112,7 +141,7 @@ class Settings(BaseSettings):
     github_trending_min_stars_growth: int = 500
     github_trending_language: str = ""  # empty = all
 
-    # Daily rankings — Phase 2.5 Ranking Insight Agent（需 DOUBAO_*；关闭或未配置时跳过）
+    # Daily rankings — Phase 2.5 Ranking Insight Agent（需 LLM_API_* 或 DOUBAO_*；关闭或未配置时跳过）
     # .env 键名：RANKING_INSIGHT_ENABLED / RANKING_INSIGHT_LIMIT / RANKING_INSIGHT_BATCH_SIZE /
     # RANKING_INSIGHT_TIMEOUT_SECONDS
     ranking_insight_enabled: bool = Field(default=False)
@@ -137,7 +166,7 @@ class Settings(BaseSettings):
     # Admin auth
     admin_jwt_secret: str = ""
     admin_jwt_expires_hours: int = 24
-    # Optional: admin console origin for CORS (e.g. https://admin.aipulse.asia)
+    # Optional: admin console origin for CORS (e.g. https://admin.example.com)
     admin_frontend_url: str = ""
 
     @staticmethod

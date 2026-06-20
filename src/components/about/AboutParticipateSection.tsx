@@ -7,16 +7,17 @@ const participateSubCard =
   'flex h-full min-w-0 flex-col rounded-xl border border-[#D8E2F0] bg-slate-50/50 p-4 transition-[border-color,box-shadow,background-color] hover:border-[#BFD3FF] hover:bg-white hover:shadow-[0_2px_8px_rgba(37,99,235,0.06)]';
 
 const btnPrimarySm =
-  'mt-auto inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-[#0052cc] sm:w-auto';
-
-const CONTACT_EMAIL = '2089128910@qq.com';
+  'mt-auto inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-[#0052cc] disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto';
 
 type AboutParticipateSectionProps = {
   suggestFormRef: RefObject<HTMLElement | null>;
   content: string;
+  contactEmail: string;
   contact: string;
   submitting: boolean;
   msg: { kind: 'ok' | 'err'; text: string } | null;
+  wechatGroupEnabled: boolean;
+  rewardEnabled: boolean;
   onContentChange: (value: string) => void;
   onContactChange: (value: string) => void;
   onSubmitSuggest: (e: FormEvent) => void;
@@ -27,9 +28,12 @@ type AboutParticipateSectionProps = {
 export function AboutParticipateSection({
   suggestFormRef,
   content,
+  contactEmail,
   contact,
   submitting,
   msg,
+  wechatGroupEnabled,
+  rewardEnabled,
   onContentChange,
   onContactChange,
   onSubmitSuggest,
@@ -49,7 +53,12 @@ export function AboutParticipateSection({
             <p className={`mt-2 flex-1 ${aboutBody}`}>
               和关注 AI 工具、AI 产品、个人效率和创业机会的人一起交流。重要更新也会优先在群里同步。
             </p>
-            <button type="button" className={btnPrimarySm} onClick={onOpenWechatGroup}>
+            <button
+              type="button"
+              className={btnPrimarySm}
+              onClick={onOpenWechatGroup}
+              disabled={!wechatGroupEnabled}
+            >
               扫码添加微信
             </button>
           </article>
@@ -62,10 +71,10 @@ export function AboutParticipateSection({
             <p className={`mt-auto pt-4 ${aboutBody}`}>
               <span className="text-slate-600">邮箱：</span>
               <a
-                href={`mailto:${CONTACT_EMAIL}`}
+                href={`mailto:${contactEmail}`}
                 className="break-all font-medium text-[#2563EB] underline-offset-2 hover:underline"
               >
-                {CONTACT_EMAIL}
+                {contactEmail}
               </a>
             </p>
           </article>
@@ -148,6 +157,7 @@ export function AboutParticipateSection({
         <button
           type="button"
           onClick={onOpenReward}
+          disabled={!rewardEnabled}
           className="btn-secondary w-full shrink-0 px-5 py-2 text-sm font-semibold sm:w-auto sm:self-center"
         >
           请作者喝杯咖啡

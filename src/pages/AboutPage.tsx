@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { AboutParticipateSection } from '../components/about/AboutParticipateSection';
 import { AboutQrModal } from '../components/about/AboutQrModal';
 import { aboutBody, aboutCard } from '../components/about/aboutStyles';
-import { apiBase } from '../config';
+import { apiBase, contactEmail, optionalAssetUrl } from '../config';
 import { getVisitorId } from '../lib/analytics';
 
 const aboutBodyStack = `mt-3 space-y-3 ${aboutBody}`;
@@ -13,8 +13,9 @@ const aboutBodyStack = `mt-3 space-y-3 ${aboutBody}`;
 const tagCls =
   'inline-flex items-center rounded-full border border-[#D8E2F0] bg-white px-3 py-1 text-[13px] font-medium text-slate-600';
 
-const WECHAT_GROUP_QR_SRC = '/wechat-group-qrcode.png';
-const REWARD_QR_SRC = '/reward-author-qrcode.png';
+const CONTACT_EMAIL = contactEmail();
+const WECHAT_GROUP_QR_SRC = optionalAssetUrl('VITE_WECHAT_GROUP_QR_SRC');
+const REWARD_QR_SRC = optionalAssetUrl('VITE_REWARD_QR_SRC');
 
 type QrModalKind = 'wechat-group' | 'reward' | null;
 
@@ -140,14 +141,17 @@ export default function AboutPage() {
           <AboutParticipateSection
             suggestFormRef={suggestFormRef}
             content={content}
+            contactEmail={CONTACT_EMAIL}
             contact={contact}
             submitting={submitting}
             msg={msg}
+            wechatGroupEnabled={Boolean(WECHAT_GROUP_QR_SRC)}
+            rewardEnabled={Boolean(REWARD_QR_SRC)}
             onContentChange={setContent}
             onContactChange={setContact}
             onSubmitSuggest={onSubmitSuggest}
-            onOpenWechatGroup={() => setQrModal('wechat-group')}
-            onOpenReward={() => setQrModal('reward')}
+            onOpenWechatGroup={() => WECHAT_GROUP_QR_SRC && setQrModal('wechat-group')}
+            onOpenReward={() => REWARD_QR_SRC && setQrModal('reward')}
           />
 
           <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap">

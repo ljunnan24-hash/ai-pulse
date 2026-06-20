@@ -75,7 +75,7 @@ export function WeeklyTopThreeList({ rows }: { rows: WeeklyLooseRow[] }) {
                 category: d.category ?? '',
                 title: d.title ?? '',
                 title_zh: d.title_zh ?? '',
-                url: d.url ?? '',
+                url: d.sources?.[0]?.url ?? '',
                 primary_source_name: primary,
                 what_happened: d.what_happened ?? '',
                 what_it_means_for_you: d.what_it_means_for_you ?? '',

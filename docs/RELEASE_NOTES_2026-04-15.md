@@ -41,7 +41,7 @@ GET http://127.0.0.1:8000/health
 cd backend
 set DATABASE_URL=sqlite:///./dev.db
 set ADMIN_USERNAME=admin
-set ADMIN_PASSWORD=Admin12345678
+set ADMIN_PASSWORD=change_me
 conda run --no-capture-output -n aipulse python scripts\create_admin_user.py
 ```
 
@@ -77,7 +77,7 @@ http://localhost:3000/admin/login
 - **Admin**
   - `ADMIN_JWT_SECRET`：强随机
   - `ADMIN_JWT_EXPIRES_HOURS`：默认 24
-  - `ADMIN_FRONTEND_URL`：限制 CORS（如 `https://admin.aipulse.asia`）
+  - `ADMIN_FRONTEND_URL`：限制 CORS（如 `https://admin.example.com`）
 
 ### 安全与运维
 - 生产环境**不要存在任何 bootstrap 初始化 HTTP 入口**（已移除）。
@@ -85,4 +85,3 @@ http://localhost:3000/admin/login
 - **密钥轮换**：如果 `backend/.env` 曾以截图/粘贴等方式外泄，立即轮换 DB/SMTP/API key。
 - 确认服务器时区 `Asia/Shanghai`（影响周报周期与 cron）。
 - Nginx/反代、systemd、cron 参照 `README.md` 的 ECS runbook。
-

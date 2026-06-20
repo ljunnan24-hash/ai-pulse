@@ -1,6 +1,6 @@
 """
-英文 canonical_title → 中文 title_zh（豆包 Ark），写入 GlobalEvent 时触发。
-未配置 DOUBAO_* 或调用失败时保留空字符串，前端仍走原有兜底。
+英文 canonical_title → 中文 title_zh，写入 GlobalEvent 时触发。
+未配置 LLM_API_* / DOUBAO_* 或调用失败时保留空字符串，前端仍走原有兜底。
 """
 
 from __future__ import annotations
@@ -50,18 +50,18 @@ def _get_cached_title_source_hash(ge: GlobalEvent) -> str | None:
 
 
 def translate_canonical_title_en_to_zh(title_en: str, *, timeout_s: float = 45.0) -> str:
-    """调用豆包将英文标题译为简洁中文（单行）。"""
+    """调用 LLM API 将英文标题译为简洁中文（单行）。"""
     settings = get_settings()
-    if not settings.doubao_api_key or not settings.doubao_model:
-        raise RuntimeError("Doubao not configured")
+    if not settings.effective_llm_api_key or not settings.effective_llm_model:
+        raise RuntimeError("LLM not configured")
 
     t = (title_en or "").strip()
     if not t:
         return ""
 
-    url = f"{settings.doubao_api_base.rstrip('/')}/chat/completions"
+    url = f"{settings.effective_llm_api_base.rstrip('/')}/chat/completions"
     payload = {
-        "model": settings.doubao_model,
+        "model": settings.effective_llm_model,
         "messages": [
             {
                 "role": "system",
@@ -79,7 +79,7 @@ def translate_canonical_title_en_to_zh(title_en: str, *, timeout_s: float = 45.0
         "max_tokens": 256,
     }
     headers = {
-        "Authorization": f"Bearer {settings.doubao_api_key}",
+        "Authorization": f"Bearer {settings.effective_llm_api_key}",
         "Content-Type": "application/json",
     }
     with httpx.Client(timeout=timeout_s) as client:
@@ -97,7 +97,7 @@ def ensure_global_event_title_zh(ge: GlobalEvent) -> None:
     """
     根据 canonical_title 填充 title_zh：
     - 已含中文：title_zh = canonical_title（整段），并记录 hash；
-    - 纯英文：豆包翻译；未配置或失败则不改写已有合理缓存，失败时 title_zh 可为空。
+    - 纯英文：LLM API 翻译；未配置或失败则不改写已有合理缓存，失败时 title_zh 可为空。
     - 通过 metrics_json.title_zh_source_sha256 避免同源标题重复调用 API。
     """
     ct = (ge.canonical_title or "").strip()
@@ -117,8 +117,8 @@ def ensure_global_event_title_zh(ge: GlobalEvent) -> None:
         return
 
     settings = get_settings()
-    if not settings.doubao_api_key or not settings.doubao_model:
-        _log.debug("title_zh skip: DOUBAO_API_KEY / DOUBAO_MODEL not set")
+    if not settings.effective_llm_api_key or not settings.effective_llm_model:
+        _log.debug("title_zh skip: LLM_API_KEY / LLM_MODEL or DOUBAO_* not set")
         return
 
     try:

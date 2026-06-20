@@ -4,3 +4,13 @@ export function apiBase(): string {
   if (v !== undefined && v !== '') return v.replace(/\/$/, '');
   return '';
 }
+
+export function contactEmail(): string {
+  const v = import.meta.env.VITE_CONTACT_EMAIL as string | undefined;
+  return (v || 'contact@example.com').trim();
+}
+
+export function optionalAssetUrl(key: 'VITE_WECHAT_GROUP_QR_SRC' | 'VITE_REWARD_QR_SRC'): string {
+  const v = import.meta.env[key] as string | undefined;
+  return (v || '').trim();
+}

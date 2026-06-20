@@ -41,6 +41,7 @@ export function weeklyTopThreeAsRankingItem(
     source_count: 0,
     published_at: null,
     ranking_score: 0,
+    score_delta: 0,
     what_happened: (r.what_happened ?? api?.what_happened ?? '').trim(),
     what_it_means_for_you: (r.what_it_means_for_you ?? api?.what_it_means_for_you ?? '').trim(),
     action_suggestion: '',
