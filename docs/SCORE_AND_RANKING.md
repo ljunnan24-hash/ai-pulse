@@ -175,6 +175,6 @@ flowchart LR
 | 文档 | 内容 |
 |------|------|
 | `docs/SCORING_V1.md` | **raw_items** 6 维 `score_total` |
-| `docs/MULTI_AGENT_V1.md` | 周刊 slim 流水线、LLM 次数 |
+| `docs/internal/MULTI_AGENT_V1.md` | 周刊 slim 流水线、LLM 次数（维护者参考） |
 | `docs/WEEKLY_TOP3_PROTOCOL.md` | Top3 payload 字段协议 |
 | `docs/command.md` | 运维命令、批量重算 |

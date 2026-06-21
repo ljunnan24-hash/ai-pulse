@@ -1,4 +1,6 @@
-# 定时任务审计（AI Pulse）
+# 定时任务审计（内部记录）
+
+> 当前推荐 cron 以 [`../../deploy/crontab.example`](../../deploy/crontab.example) 为准；完整链路说明见 [`../PIPELINE_AND_OBSERVABILITY.md`](../PIPELINE_AND_OBSERVABILITY.md)。
 
 以下为仓库内 **job 入口** 与 **推荐 crontab**（详见 `deploy/crontab.example`）。实际命令与路径以部署环境为准。
 

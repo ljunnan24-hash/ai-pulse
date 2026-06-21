@@ -1,4 +1,6 @@
-# AI Pulse Agent Skill / API 待办
+# AI Pulse Agent Skill / API 待办（内部规划）
+
+> 这是未来方向规划备忘，当前项目没有实现 `/api/v1`、MCP Server 或 Skill 分发。公开读者无需从这里开始。
 
 ## 目标
 

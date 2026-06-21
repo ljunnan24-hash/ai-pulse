@@ -1,4 +1,6 @@
-# 下一步你需要做的事情（Owner: 你）
+# 下一步你需要做的事情（内部备忘）
+
+> 这是维护者待办清单，不是开源读者的主线文档。公开阅读入口见 [`../README.md`](../README.md)。
 
 本清单只列“必须由你在环境/账号/服务器侧完成”的事项（我无法代替你操作的部分）。
 
@@ -13,7 +15,7 @@
   - `score_total`
   - `score_breakdown_json`
   - `extra_json`（新迁移）
-- 合并与选题依赖 `issue_events`：详见 `docs/部署与数据说明.md`
+- 合并与选题依赖 `issue_events`：详见 [`../部署与数据说明.md`](../部署与数据说明.md)
 
 ## 2) 环境变量（后端）
 
@@ -36,7 +38,7 @@
 
 ## 3) 社媒账号白名单（运营/策略）
 
-- 根据 `docs/SOCIAL_SOURCES.md` 补齐你认可的账号清单（官方/CEO/研究员/KOL）
+- 根据 [`../SOCIAL_SOURCES.md`](../SOCIAL_SOURCES.md) 补齐你认可的账号清单（官方/CEO/研究员/KOL）
 - 明确每个账号的 `account_trust_level`（3/2/1）
 
 > 说明：若暂时不做社媒抓取，可先只维护“官方/CEO”这层白名单用于未来扩展。
@@ -51,7 +53,7 @@
 
 ## 5) 信息源与抓取路线图（v1，开发任务）
 
-完整清单与表格见根目录 **`prd.md` 第五节（数据来源策略与信息源爬虫清单 v1）**。
+完整清单与表格见 **[`PRD_V3.md`](PRD_V3.md) 第五节（数据来源策略与信息源爬虫清单 v1）**。
 
 **第一阶段（与当前代码对齐：RSS + GitHub）**
 
@@ -65,7 +67,7 @@
 
 **第三阶段**
 
-- X 仅白名单：`X_RSS_URLS`（RSS 桥接）或独立采集通道；与 `docs/SOCIAL_SOURCES.md` / `docs/social_sources.v1.json` 一致。
+- X 仅白名单：`X_RSS_URLS`（RSS 桥接）或独立采集通道；与 [`../SOCIAL_SOURCES.md`](../SOCIAL_SOURCES.md) / `../social_sources.v1.json` 一致。
 
 ## 6) 验收（你需要跑一遍）
 

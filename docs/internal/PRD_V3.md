@@ -1,3 +1,7 @@
+# AI Pulse PRD v3（内部原稿）
+
+> 这是产品需求原稿和早期结构化方案，保留用于维护者回溯。当前开源读者应优先阅读 [`../README.md`](../README.md)、[`../PIPELINE_AND_OBSERVABILITY.md`](../PIPELINE_AND_OBSERVABILITY.md) 和 [`../SCORE_AND_RANKING.md`](../SCORE_AND_RANKING.md)。
+
 AI Pulse PRD v3（最终结构化版 · 可开发）
 （基于你的原文重构整理 ）
 
@@ -213,7 +217,7 @@ Yes / No
 - 首页 **`/`**：Top 5 上方 **「今日判断」**（Top1 `one_liner`），与 **`/weekly/latest`** 周报入口并存。
 - **移动端**：有 `one_liner` 时 **判断块置于 Rank + Pulse 之上**，弱化 Pulse  pill 视觉权重，避免英文标题抢占首屏。
 
-**说明**：本节不涉及 **Opportunity Score**（机会分）；周刊生成逻辑仍以 **`generate_weekly` / `weekly_issues` / `weekly_reports`** 为准，见 6.3 与 `docs/MULTI_AGENT_V1.md`。
+**说明**：本节不涉及 **Opportunity Score**（机会分）；周刊生成逻辑仍以 **`generate_weekly` / `weekly_issues` / `weekly_reports`** 为准，见 6.3 与 `MULTI_AGENT_V1.md`。
 
 五、数据来源策略与信息源爬虫清单（v1）
 
@@ -227,7 +231,7 @@ P4：社媒（可选，热度增强）
 社媒策略
 不作为核心依赖
 抓取失败不影响主流程
-仅作为热度增强信号；X 仅白名单账号（详见 `docs/SOCIAL_SOURCES.md`）
+仅作为热度增强信号；X 仅白名单账号（详见 `../SOCIAL_SOURCES.md`）
 
 5.2 MVP 必做源（官方）
 
@@ -373,7 +377,7 @@ Event = 同一事实的多来源聚合
 
 6.3 周刊生成流程（当前生产 · `weekly_global_slim`）
 
-**入口**：`python -m app.jobs.generate_weekly`（`WEEKLY_SOURCE=global_events`，见 `docs/MULTI_AGENT_V1.md` §0）。
+**入口**：`python -m app.jobs.generate_weekly`（`WEEKLY_SOURCE=global_events`，见 `MULTI_AGENT_V1.md` §0）。
 
 **实现**：`backend/app/services/weekly_global_pipeline.py`；选题来自过去 N 天 **`global_events`** + **`weekly_score`**，不每期重抓周刊 RSS。
 

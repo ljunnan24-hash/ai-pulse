@@ -1,4 +1,6 @@
-# 周刊生产架构（当前：`weekly_global_slim`）
+# 周刊生产架构实现笔记（内部/历史）
+
+> 这份文档包含当前周刊实现背景和较多 legacy 多 Agent 历史内容。开源读者建议优先阅读 [`../PIPELINE_AND_OBSERVABILITY.md`](../PIPELINE_AND_OBSERVABILITY.md)；本文件仅供维护者回溯实现取舍。
 
 **唯一生产入口**：`python -m app.jobs.generate_weekly`（`WEEKLY_SOURCE=global_events`，配置默认已是该值）。
 
@@ -6,7 +8,7 @@
 
 ---
 
-**已停用（勿配置）**：`WEEKLY_SOURCE=legacy` 每期 RSS + `MultiAgentOrchestrator` 全量多 Agent。`generate_weekly` 遇到 legacy 会直接报错退出。旧方案说明与 DAG 见 **[`docs/archive/LEGACY_WEEKLY_MULTI_AGENT.md`](archive/LEGACY_WEEKLY_MULTI_AGENT.md)**；代码仍保留在 `multi_agent_orchestrator.py` 仅供对照。
+**已停用（勿配置）**：`WEEKLY_SOURCE=legacy` 每期 RSS + `MultiAgentOrchestrator` 全量多 Agent。`generate_weekly` 遇到 legacy 会直接报错退出。旧方案说明与 DAG 见 **[`../archive/LEGACY_WEEKLY_MULTI_AGENT.md`](../archive/LEGACY_WEEKLY_MULTI_AGENT.md)**；代码仍保留在 `multi_agent_orchestrator.py` 仅供对照。
 
 下文 **§0** 为当前生产说明；**§1–§7** 为历史文档（与 archive 同步，不再维护）。
 
@@ -60,11 +62,11 @@ GLOBAL_EVENTS_POOL_LIMIT=40
 GLOBAL_EVENTS_MIN_CANDIDATES=8
 ```
 
-前置：本周内已跑过 `daily_rankings`（表 `global_events` 有数据）。操作命令见 `docs/command.md`「周刊生成」小节。
+前置：本周内已跑过 `daily_rankings`（表 `global_events` 有数据）。操作命令见 [`../command.md`](../command.md)「周刊生成」小节。
 
-**Insight 与周刊正文**：周刊 Top3 **不另跑 Impact LLM**；卡片上的「发生了什么 / 对你意味着什么」等来自日榜 **`enrich_rankings`**（Ranking Insight）已写入的 `global_events` 字段。Insight 限额未覆盖的事件仍可能进 Top3，但文案偏短。详见 [`SCORE_AND_RANKING.md`](SCORE_AND_RANKING.md) §5。
+**Insight 与周刊正文**：周刊 Top3 **不另跑 Impact LLM**；卡片上的「发生了什么 / 对你意味着什么」等来自日榜 **`enrich_rankings`**（Ranking Insight）已写入的 `global_events` 字段。Insight 限额未覆盖的事件仍可能进 Top3，但文案偏短。详见 [`../SCORE_AND_RANKING.md`](../SCORE_AND_RANKING.md) §5。
 
-**`published_at` 首发日**：合并多源时 `global_events.published_at = min(各来源)`；跟进报道只抬 `source_count` / Pulse，不把日期刷成最新稿。旧库若仍是改代码前的 max 日期，需批量重算，见 `command.md`。
+**`published_at` 首发日**：合并多源时 `global_events.published_at = min(各来源)`；跟进报道只抬 `source_count` / Pulse，不把日期刷成最新稿。旧库若仍是改代码前的 max 日期，需批量重算，见 [`../command.md`](../command.md)。
 
 ### 0.4 已移除的生产路径（仅档案）
 
@@ -89,13 +91,13 @@ GLOBAL_EVENTS_MIN_CANDIDATES=8
 
 相关文档：
 
-- **分数与榜单口径（权威）**：[`docs/SCORE_AND_RANKING.md`](SCORE_AND_RANKING.md)
-- raw 入库 6 维规则分：`docs/SCORING_V1.md`（≠ Pulse / weekly_score）
-- 社媒白名单：`docs/SOCIAL_SOURCES.md`
+- **分数与榜单口径（权威）**：[`../SCORE_AND_RANKING.md`](../SCORE_AND_RANKING.md)
+- raw 入库 6 维规则分：[`../SCORING_V1.md`](../SCORING_V1.md)（≠ Pulse / weekly_score）
+- 社媒白名单：[`../SOCIAL_SOURCES.md`](../SOCIAL_SOURCES.md)
 
 ## 1. 总体流程（legacy 每周批处理）【历史 · 已停用】
 
-> **不要按本节操作。** 当前生产见 **§0**。Legacy 详情见 [`archive/LEGACY_WEEKLY_MULTI_AGENT.md`](archive/LEGACY_WEEKLY_MULTI_AGENT.md)。
+> **不要按本节操作。** 当前生产见 **§0**。Legacy 详情见 [`../archive/LEGACY_WEEKLY_MULTI_AGENT.md`](../archive/LEGACY_WEEKLY_MULTI_AGENT.md)。
 
 1) **Ingest + Normalize**（抓取与标准化）
    - 产出 `raw_items` 或 `event_candidates`（建议已去重/合并成事件实体）
@@ -352,4 +354,3 @@ flowchart TD
 - **Agent D 失败**：趋势段落可省略或用 1 句“本周趋势以实用化/工具化为主（待补充）”占位。
 - **Agent E 失败**：术语表可降级为 0–3 条（从标题中抽取高频术语），并在 audit_report 标记“术语表未完善”。
 - **Agent F 失败**：由 Orchestrator 直接输出 payload 草稿（不做润色），但必须保证 JSON 可解析、结构合规。
-

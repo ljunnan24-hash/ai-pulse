@@ -1,7 +1,7 @@
 # Legacy 周刊：每期 RSS + 全量多 Agent（已停用）
 
 > **状态**：自 2026-05 起已从 `generate_weekly` 生产入口移除。  
-> **当前生产**：[`docs/MULTI_AGENT_V1.md`](../MULTI_AGENT_V1.md) §0（`WEEKLY_SOURCE=global_events` + `weekly_global_slim`）。
+> **当前生产**：[`docs/internal/MULTI_AGENT_V1.md`](../internal/MULTI_AGENT_V1.md) §0（`WEEKLY_SOURCE=global_events` + `weekly_global_slim`）。开源读者建议优先看 [`PIPELINE_AND_OBSERVABILITY.md`](../PIPELINE_AND_OBSERVABILITY.md)。
 
 ## 为什么停用
 
@@ -29,7 +29,7 @@
 
 1. 不要改生产 `.env` 的 `WEEKLY_SOURCE=global_events`。
 2. 可在开发机直接 import 并调用 `MultiAgentOrchestrator().build(...)`（需自行准备 `issue_events` 候选），或阅读 `backend/scripts/dry_run_multi_agent.py`（若仍保留）。
-3. 更完整的 Agent 职责与 Prompt 骨架见 [`MULTI_AGENT_V1.md`](../MULTI_AGENT_V1.md) §1–§7（标记为历史，不再更新）。
+3. 更完整的 Agent 职责与 Prompt 骨架见 [`MULTI_AGENT_V1.md`](../internal/MULTI_AGENT_V1.md) §1–§7（标记为历史，不再更新）。
 
 ## 与当前方案对照
 

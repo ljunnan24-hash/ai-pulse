@@ -37,6 +37,7 @@ Key paths:
 | `sql/migrations/` | Incremental SQL migrations for existing databases |
 | `deploy/` | Example crontab and Nginx snippets |
 | `docs/` | Pipeline, scoring, source, and operations notes |
+| `docs/README.md` | Documentation map and recommended reading order |
 | `docs/USAGE_GUIDE.md` | Chinese frontend usage guide with page screenshots |
 | `docs/PIPELINE_AND_OBSERVABILITY.md` | Chinese end-to-end pipeline, ranking, failure, and observability guide |
 
@@ -93,6 +94,7 @@ Open:
 
 Vite proxies `/api`, `/manage`, and `/health` to the local backend when `VITE_API_BASE_URL` is empty.
 
+For the documentation map and recommended reading order, see `docs/README.md`.
 For a page-by-page walkthrough of the frontend, see `docs/USAGE_GUIDE.md`.
 For the full ingestion → processing → ranking → weekly report chain, see `docs/PIPELINE_AND_OBSERVABILITY.md`.
 
@@ -214,7 +216,7 @@ sudo nginx -t && sudo systemctl reload nginx
 - Do not commit `.env`, API keys, SMTP credentials, database URLs, TLS files, or private QR codes.
 - Replace `ADMIN_JWT_SECRET` with a strong random value in production.
 - Keep `MAIL_DRY_RUN=true` until email credentials and DNS/domain verification are ready.
-- Review `docs/command.md` before publishing any personal operations notes.
+- Review `docs/README.md` and `docs/command.md` before publishing any personal operations notes.
 - Add a `LICENSE` file before announcing the repository as open source.
 
 ## Tests And Quality
