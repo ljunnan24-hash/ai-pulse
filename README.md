@@ -38,6 +38,7 @@ Key paths:
 | `deploy/` | Example crontab and Nginx snippets |
 | `docs/` | Pipeline, scoring, source, and operations notes |
 | `docs/USAGE_GUIDE.md` | Chinese frontend usage guide with page screenshots |
+| `docs/PIPELINE_AND_OBSERVABILITY.md` | Chinese end-to-end pipeline, ranking, failure, and observability guide |
 
 ## Requirements
 
@@ -93,6 +94,7 @@ Open:
 Vite proxies `/api`, `/manage`, and `/health` to the local backend when `VITE_API_BASE_URL` is empty.
 
 For a page-by-page walkthrough of the frontend, see `docs/USAGE_GUIDE.md`.
+For the full ingestion → processing → ranking → weekly report chain, see `docs/PIPELINE_AND_OBSERVABILITY.md`.
 
 ## Environment
 

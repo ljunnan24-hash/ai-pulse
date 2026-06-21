@@ -1,6 +1,6 @@
 # 分数与榜单口径对照表
 
-本文档是 **线上榜单 / 周刊 / API 展示** 的权威说明。实现以 `backend/app/services/ranking_score.py`、`rankings_public.py`、`weekly_event_score_service.py` 为准。
+本文档是 **线上榜单 / 周刊 / API 展示** 的权威说明。实现以 `backend/app/services/ranking_score.py`、`rankings_public.py`、`weekly_event_score_service.py` 为准。若需要理解从抓取到榜单/周报的完整链路、失败处理和可观测性，请先读 [`PIPELINE_AND_OBSERVABILITY.md`](PIPELINE_AND_OBSERVABILITY.md)。
 
 **与 `docs/SCORING_V1.md` 的关系**：`SCORING_V1.md` 描述的是 **单条 `raw_items` 入库前** 的 6 维规则分（`score_total`），**不是** 日榜 Pulse 或周刊 `weekly_score` 的公式。二者通过 `user_value_from_raw_score(score_total)` 间接关联。
 
