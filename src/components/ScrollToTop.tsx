@@ -12,6 +12,10 @@ export function setScrollPosition(key: string, y: number): void {
   scrollPositions.set(key, y);
 }
 
+export function clearScrollPositions(): void {
+  scrollPositions.clear();
+}
+
 /** 异步内容加载后页面高度可能变高，多次尝试以恢复到目标位置 */
 export function restoreScrollPosition(y: number, maxAttempts = 12): void {
   let attempts = 0;
@@ -32,14 +36,29 @@ export function restoreScrollPosition(y: number, maxAttempts = 12): void {
 export function ScrollToTop() {
   const location = useLocation();
   const navigationType = useNavigationType();
-  const prevLocationRef = useRef(location);
+  const currentKeyRef = useRef(location.key);
 
   useEffect(() => {
-    const prev = prevLocationRef.current;
-    if (prev.key !== location.key) {
-      setScrollPosition(prev.key, window.scrollY);
-    }
-    prevLocationRef.current = location;
+    const saveCurrentPosition = () => {
+      setScrollPosition(currentKeyRef.current, window.scrollY);
+    };
+
+    window.addEventListener('scroll', saveCurrentPosition, { passive: true });
+    window.addEventListener('click', saveCurrentPosition, true);
+    window.addEventListener('keydown', saveCurrentPosition, true);
+    window.addEventListener('pagehide', saveCurrentPosition);
+
+    return () => {
+      saveCurrentPosition();
+      window.removeEventListener('scroll', saveCurrentPosition);
+      window.removeEventListener('click', saveCurrentPosition, true);
+      window.removeEventListener('keydown', saveCurrentPosition, true);
+      window.removeEventListener('pagehide', saveCurrentPosition);
+    };
+  }, []);
+
+  useEffect(() => {
+    currentKeyRef.current = location.key;
 
     if (location.hash) return;
 
@@ -52,7 +71,7 @@ export function ScrollToTop() {
     }
 
     window.scrollTo(0, 0);
-  }, [location, navigationType]);
+  }, [location.hash, location.key, navigationType]);
 
   return null;
 }
