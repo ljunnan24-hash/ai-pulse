@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import type { RankingItem } from './RankingCard';
 import { buildDisplayJudgment } from './RankingCard';
@@ -50,6 +50,8 @@ function PulseScoreCell({
 }
 
 export function RowActionLink({ item }: { item: RankingItem }) {
+  const location = useLocation();
+  const from = `${location.pathname}${location.search}${location.hash}`;
   const sug = displayActionSuggestion(item.action_suggestion);
   const tryNow = sug.includes('试用');
   const cls = tryNow
@@ -58,6 +60,7 @@ export function RowActionLink({ item }: { item: RankingItem }) {
   return (
     <Link
       to={`/events/${item.id}`}
+      state={{ from }}
       className={`inline-flex rounded-full border px-2.5 py-1 text-[0.65rem] font-semibold no-underline transition-colors ${cls}`}
     >
       {tryNow ? '现在试用' : '继续阅读'}
@@ -92,6 +95,8 @@ type DesktopProps = {
 
 /** 桌面端：CSS Grid 一行；排行榜其余名次整行可点进详情；首页保留操作列 */
 export function RankingTableRow({ rank, item, variant }: DesktopProps) {
+  const location = useLocation();
+  const from = `${location.pathname}${location.search}${location.hash}`;
   const jd = buildDisplayJudgment(item);
   const means = displayInsightSummary(item.what_it_means_for_you, item.what_happened);
   const split = splitTitleForDisplay(item.title);
@@ -109,6 +114,7 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
     return (
       <Link
         to={`/events/${item.id}`}
+        state={{ from }}
         className={`ranking-table-grid--rankings-rest border-b border-slate-100 bg-white px-2 py-1.5 transition-colors last:border-b-0 hover:bg-slate-50/80 md:px-3 min-h-[68px] no-underline`}
         role="row"
       >

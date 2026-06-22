@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 
 /** AI Pulse 榜单事件列表 — 排行榜 / 首页 / 周报共用视觉语言 */
@@ -138,8 +138,11 @@ export function PulseRankDetailLink({
   className?: string;
   children?: ReactNode;
 }) {
+  const location = useLocation();
+  const from = `${location.pathname}${location.search}${location.hash}`;
+
   return (
-    <Link to={to} className={className ?? pulseRankDetailBtnCls}>
+    <Link to={to} state={{ from }} className={className ?? pulseRankDetailBtnCls}>
       {children}
     </Link>
   );

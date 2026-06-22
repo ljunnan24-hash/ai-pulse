@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { fetchEventDetail, type EventDetailResponse } from '../api/public';
 import { eventDetailPulseScore, relatedEventPulseScore } from '../lib/homeRankingsDisplay';
@@ -21,15 +21,24 @@ function safeHostname(raw: string): string {
 
 export default function EventDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { eventId: eventIdParam } = useParams<{ eventId: string }>();
   const eventId = Number(eventIdParam);
 
   const goBackToList = () => {
+    const state = location.state as { from?: unknown } | null;
+    const from = typeof state?.from === 'string' ? state.from : '';
+
+    if (from.startsWith('/rankings')) {
+      navigate(from, { replace: true, state: { restoreScroll: true } });
+      return;
+    }
+
     if (window.history.length > 1) {
       navigate(-1);
       return;
     }
-    navigate('/rankings');
+    navigate('/rankings', { state: { restoreScroll: true } });
   };
 
   const [data, setData] = useState<EventDetailResponse | null>(null);

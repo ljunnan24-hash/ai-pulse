@@ -1,8 +1,20 @@
 import { useEffect, useRef } from 'react';
+import type { Location } from 'react-router-dom';
 import { useLocation, useNavigationType } from 'react-router-dom';
 
 /** 各 history 条目对应的滚动位置（key 来自 React Router location.key） */
 const scrollPositions = new Map<string, number>();
+const pathScrollPositions = new Map<string, number>();
+const SCROLL_STORAGE_PREFIX = 'ai-pulse:scroll:';
+
+type RestoreLocationState = {
+  restoreScroll?: boolean;
+  restoreScrollY?: number;
+};
+
+export function scrollPathForLocation(location: Pick<Location, 'pathname' | 'search'>): string {
+  return `${location.pathname}${location.search}`;
+}
 
 export function getScrollPosition(key: string): number | undefined {
   return scrollPositions.get(key);
@@ -12,21 +24,59 @@ export function setScrollPosition(key: string, y: number): void {
   scrollPositions.set(key, y);
 }
 
+export function getPathScrollPosition(path: string): number | undefined {
+  const cached = pathScrollPositions.get(path);
+  if (cached !== undefined) return cached;
+
+  if (typeof window === 'undefined') return undefined;
+  const raw = window.sessionStorage.getItem(`${SCROLL_STORAGE_PREFIX}${path}`);
+  if (raw === null) return undefined;
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+export function setPathScrollPosition(path: string, y: number): void {
+  pathScrollPositions.set(path, y);
+
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(`${SCROLL_STORAGE_PREFIX}${path}`, String(y));
+  } catch {
+    // sessionStorage may be unavailable in private / restricted contexts.
+  }
+}
+
 export function clearScrollPositions(): void {
   scrollPositions.clear();
+  pathScrollPositions.clear();
 }
 
 /** 异步内容加载后页面高度可能变高，多次尝试以恢复到目标位置 */
-export function restoreScrollPosition(y: number, maxAttempts = 12): void {
+export function restoreScrollPosition(y: number, maxAttempts = 120): void {
   let attempts = 0;
   const tryRestore = () => {
     window.scrollTo(0, y);
     attempts += 1;
-    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
     if (y <= maxScroll + 2 || attempts >= maxAttempts) return;
-    requestAnimationFrame(tryRestore);
+    window.setTimeout(tryRestore, 50);
   };
   requestAnimationFrame(tryRestore);
+}
+
+function getRestoreState(state: unknown): RestoreLocationState {
+  if (!state || typeof state !== 'object') return {};
+  const s = state as Record<string, unknown>;
+  return {
+    restoreScroll: s.restoreScroll === true,
+    restoreScrollY: typeof s.restoreScrollY === 'number' && Number.isFinite(s.restoreScrollY) ? s.restoreScrollY : undefined,
+  };
+}
+
+function savedScrollForLocation(location: Location): number | undefined {
+  return getScrollPosition(location.key) ?? getPathScrollPosition(scrollPathForLocation(location));
 }
 
 /**
@@ -37,10 +87,13 @@ export function ScrollToTop() {
   const location = useLocation();
   const navigationType = useNavigationType();
   const currentKeyRef = useRef(location.key);
+  const currentPathRef = useRef(scrollPathForLocation(location));
 
   useEffect(() => {
     const saveCurrentPosition = () => {
-      setScrollPosition(currentKeyRef.current, window.scrollY);
+      const y = window.scrollY;
+      setScrollPosition(currentKeyRef.current, y);
+      setPathScrollPosition(currentPathRef.current, y);
     };
 
     window.addEventListener('scroll', saveCurrentPosition, { passive: true });
@@ -59,11 +112,14 @@ export function ScrollToTop() {
 
   useEffect(() => {
     currentKeyRef.current = location.key;
+    currentPathRef.current = scrollPathForLocation(location);
 
     if (location.hash) return;
 
-    if (navigationType === 'POP') {
-      const saved = getScrollPosition(location.key);
+    const restoreState = getRestoreState(location.state);
+
+    if (navigationType === 'POP' || restoreState.restoreScroll) {
+      const saved = restoreState.restoreScrollY ?? savedScrollForLocation(location);
       if (saved !== undefined) {
         restoreScrollPosition(saved);
         return;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, TrendingUp } from 'lucide-react';
 
 import { fetchRankings } from '../api/public';
@@ -22,6 +22,9 @@ const CATS = [
   { id: 'industry', label: '行业' },
   { id: 'open_source', label: '开源' },
 ] as const;
+
+type RangeId = (typeof RANGES)[number]['id'];
+type CategoryId = (typeof CATS)[number]['id'];
 
 const chipBase =
   'inline-flex h-9 shrink-0 items-center rounded-full border px-[14px] text-[14px] transition-colors';
@@ -54,19 +57,54 @@ function formatUpdatedAtLabel(iso: string | undefined): string {
   return `更新于 ${y} / ${m} / ${day} ${h}:${min}`;
 }
 
+function parseRange(value: string | null): RangeId {
+  return RANGES.some((r) => r.id === value) ? (value as RangeId) : 'today';
+}
+
+function parseCategory(value: string | null): CategoryId {
+  return CATS.some((c) => c.id === value) ? (value as CategoryId) : 'all';
+}
+
+function buildRankingSearchParams(range: RangeId, category: CategoryId, q: string): URLSearchParams {
+  const next = new URLSearchParams();
+  if (range !== 'today') next.set('range', range);
+  if (category !== 'all') next.set('category', category);
+  if (q) next.set('q', q);
+  return next;
+}
+
 export default function RankingsPage() {
-  const [range, setRange] = useState<(typeof RANGES)[number]['id']>('today');
-  const [category, setCategory] = useState<(typeof CATS)[number]['id']>('all');
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedQ, setDebouncedQ] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [range, setRange] = useState<RangeId>(() => parseRange(searchParams.get('range')));
+  const [category, setCategory] = useState<CategoryId>(() => parseCategory(searchParams.get('category')));
+  const [searchInput, setSearchInput] = useState(() => (searchParams.get('q') ?? '').trim());
+  const [debouncedQ, setDebouncedQ] = useState(() => (searchParams.get('q') ?? '').trim());
   const [items, setItems] = useState<RankingItem[]>([]);
   const [meta, setMeta] = useState<{ updated_at: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    const nextRange = parseRange(searchParams.get('range'));
+    const nextCategory = parseCategory(searchParams.get('category'));
+    const nextQ = (searchParams.get('q') ?? '').trim();
+
+    setRange((prev) => (prev === nextRange ? prev : nextRange));
+    setCategory((prev) => (prev === nextCategory ? prev : nextCategory));
+    setSearchInput((prev) => (prev === nextQ ? prev : nextQ));
+    setDebouncedQ((prev) => (prev === nextQ ? prev : nextQ));
+  }, [searchParams]);
+
+  useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQ(searchInput.trim()), 300);
     return () => window.clearTimeout(t);
   }, [searchInput]);
+
+  useEffect(() => {
+    const next = buildRankingSearchParams(range, category, debouncedQ);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [category, debouncedQ, range, searchParams, setSearchParams]);
 
   useEffect(() => {
     setErr(null);
