@@ -25,11 +25,47 @@ const CATS = [
 
 type RangeId = (typeof RANGES)[number]['id'];
 type CategoryId = (typeof CATS)[number]['id'];
+type RankingsMeta = { updated_at: string };
+type RankingsCacheEntry = { items: RankingItem[]; meta: RankingsMeta };
 
 const chipBase =
   'inline-flex h-9 shrink-0 items-center rounded-full border px-[14px] text-[14px] transition-colors';
 const chipInactive = `${chipBase} border-[#D8E2F0] bg-white font-semibold text-[#475569]`;
 const chipActive = `${chipBase} border-[#1463FF] bg-[#1463FF] font-bold text-white`;
+const rankingsCache = new Map<string, RankingsCacheEntry>();
+const RANKINGS_CACHE_PREFIX = 'ai-pulse:rankings:';
+
+function rankingsCacheKey(range: RangeId, category: CategoryId, q: string): string {
+  return `${range}|${category}|${q.trim()}`;
+}
+
+function readRankingsCache(key: string): RankingsCacheEntry | null {
+  const cached = rankingsCache.get(key);
+  if (cached) return cached;
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(`${RANKINGS_CACHE_PREFIX}${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RankingsCacheEntry;
+    if (!Array.isArray(parsed.items) || !parsed.meta?.updated_at) return null;
+    rankingsCache.set(key, parsed);
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeRankingsCache(key: string, entry: RankingsCacheEntry): void {
+  rankingsCache.set(key, entry);
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(`${RANKINGS_CACHE_PREFIX}${key}`, JSON.stringify(entry));
+  } catch {
+    // Best-effort cache only; quota/private-mode failures should not affect rankings.
+  }
+}
 
 function trendHints(items: RankingItem[]): string[] {
   const counts: Record<string, number> = {};
@@ -73,14 +109,48 @@ function buildRankingSearchParams(range: RangeId, category: CategoryId, q: strin
   return next;
 }
 
+function initialCacheFromSearchParams(searchParams: URLSearchParams): RankingsCacheEntry | null {
+  const range = parseRange(searchParams.get('range'));
+  const category = parseCategory(searchParams.get('category'));
+  const q = (searchParams.get('q') ?? '').trim();
+  return readRankingsCache(rankingsCacheKey(range, category, q));
+}
+
+function RankingsTableSkeleton() {
+  const rows = Array.from({ length: 8 }, (_, idx) => idx);
+  return (
+    <div className="overflow-hidden rounded-[22px] border border-[#D8E2F0] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.035)]">
+      <div className="hidden h-12 items-center gap-x-3 border-b border-[#E2E8F0] px-4 md:grid md:grid-cols-[72px_minmax(56px,68px)_minmax(280px,2.2fr)_minmax(180px,1.25fr)_minmax(88px,118px)_112px]">
+        {Array.from({ length: 6 }, (_, idx) => (
+          <span key={idx} className="h-3 rounded-full bg-slate-100" />
+        ))}
+      </div>
+      <div className="divide-y divide-[#E2E8F0]">
+        {rows.map((idx) => (
+          <div key={idx} className="grid gap-3 px-4 py-4 md:grid-cols-[72px_minmax(56px,68px)_minmax(280px,2.2fr)_minmax(180px,1.25fr)_minmax(88px,118px)_112px] md:items-center">
+            <span className="h-9 w-9 rounded-xl bg-slate-100" />
+            <span className="h-5 w-12 rounded-full bg-slate-100" />
+            <span className="h-12 rounded-xl bg-slate-100" />
+            <span className="h-12 rounded-xl bg-slate-100" />
+            <span className="h-6 rounded-full bg-slate-100" />
+            <span className="h-9 rounded-full bg-slate-100" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function RankingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialCache = initialCacheFromSearchParams(searchParams);
   const [range, setRange] = useState<RangeId>(() => parseRange(searchParams.get('range')));
   const [category, setCategory] = useState<CategoryId>(() => parseCategory(searchParams.get('category')));
   const [searchInput, setSearchInput] = useState(() => (searchParams.get('q') ?? '').trim());
   const [debouncedQ, setDebouncedQ] = useState(() => (searchParams.get('q') ?? '').trim());
-  const [items, setItems] = useState<RankingItem[]>([]);
-  const [meta, setMeta] = useState<{ updated_at: string } | null>(null);
+  const [items, setItems] = useState<RankingItem[]>(() => initialCache?.items ?? []);
+  const [meta, setMeta] = useState<RankingsMeta | null>(() => initialCache?.meta ?? null);
+  const [isLoading, setIsLoading] = useState(() => initialCache === null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,13 +177,40 @@ export default function RankingsPage() {
   }, [category, debouncedQ, range, searchParams, setSearchParams]);
 
   useEffect(() => {
+    let cancelled = false;
+    const key = rankingsCacheKey(range, category, debouncedQ);
+    const cached = readRankingsCache(key);
+
     setErr(null);
+    if (cached) {
+      setItems(cached.items);
+      setMeta(cached.meta);
+      setIsLoading(false);
+    } else {
+      setItems([]);
+      setMeta(null);
+      setIsLoading(true);
+    }
+
     fetchRankings({ range, category, limit: 50, q: debouncedQ || undefined })
       .then((r) => {
-        setItems(r.items);
-        setMeta({ updated_at: r.updated_at });
+        if (cancelled) return;
+        const next = { items: r.items, meta: { updated_at: r.updated_at } };
+        writeRankingsCache(key, next);
+        setItems(next.items);
+        setMeta(next.meta);
       })
-      .catch((e: Error) => setErr(e.message));
+      .catch((e: Error) => {
+        if (cancelled) return;
+        if (!cached) setErr(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [range, category, debouncedQ]);
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
@@ -241,7 +338,9 @@ export default function RankingsPage() {
         </div>
       ) : null}
 
-      {!err && items.length === 0 && debouncedQ ? (
+      {!err && isLoading && items.length === 0 ? <RankingsTableSkeleton /> : null}
+
+      {!err && !isLoading && items.length === 0 && debouncedQ ? (
         <EmptyState title="没有找到相关事件" description="试试更宽泛的关键词，例如「教育」「电商」「Agent」。也可切换时间范围与分类。">
           <button
             type="button"
@@ -256,7 +355,7 @@ export default function RankingsPage() {
         </EmptyState>
       ) : null}
 
-      {!err && items.length === 0 && !debouncedQ ? (
+      {!err && !isLoading && items.length === 0 && !debouncedQ ? (
         <EmptyState
           title="暂无匹配结果"
           description="当前筛选条件下没有可展示的榜单事件。可切换时间范围或分类，或确认后端已运行 daily_rankings。"

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { Location } from 'react-router-dom';
 import { useLocation, useNavigationType } from 'react-router-dom';
 
@@ -63,7 +63,7 @@ export function restoreScrollPosition(y: number, maxAttempts = 120): void {
     if (y <= maxScroll + 2 || attempts >= maxAttempts) return;
     window.setTimeout(tryRestore, 50);
   };
-  requestAnimationFrame(tryRestore);
+  tryRestore();
 }
 
 function getRestoreState(state: unknown): RestoreLocationState {
@@ -110,7 +110,7 @@ export function ScrollToTop() {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     currentKeyRef.current = location.key;
     currentPathRef.current = scrollPathForLocation(location);
 
@@ -127,7 +127,7 @@ export function ScrollToTop() {
     }
 
     window.scrollTo(0, 0);
-  }, [location.hash, location.key, navigationType]);
+  }, [location.hash, location.key, location.state, navigationType]);
 
   return null;
 }
