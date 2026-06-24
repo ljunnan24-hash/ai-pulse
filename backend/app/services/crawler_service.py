@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 import uuid
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urljoin
 
@@ -29,6 +31,10 @@ from app.services.source_labeling import (
 )
 
 _log = logging.getLogger("uvicorn.error")
+
+_FEED_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
+_FEED_MAX_ATTEMPTS = 3
+_FEED_RETRY_DELAYS_SECONDS = (2.0, 5.0)
 
 
 def _heat_from_entry(entry: dict[str, Any], idx: int) -> int:
@@ -62,6 +68,40 @@ def _feed_url_implies_social_bridge(feed_url: str) -> bool:
     if "rsshub" in u and ("/twitter/" in u or "/x/" in u):
         return True
     return False
+
+
+def _retry_after_seconds(value: str | None) -> float | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        delay = float(raw)
+    except ValueError:
+        try:
+            dt = parsedate_to_datetime(raw)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            delay = (dt - datetime.now(timezone.utc)).total_seconds()
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return None
+    if delay <= 0:
+        return 0.0
+    return min(delay, 30.0)
+
+
+def _feed_retry_delay(attempt: int, response: httpx.Response | None) -> float:
+    if response is not None:
+        retry_after = _retry_after_seconds(response.headers.get("retry-after"))
+        if retry_after is not None:
+            return retry_after
+    idx = max(0, min(attempt - 1, len(_FEED_RETRY_DELAYS_SECONDS) - 1))
+    return _FEED_RETRY_DELAYS_SECONDS[idx]
+
+
+def _should_retry_feed_fetch(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _FEED_RETRY_STATUS_CODES
+    return isinstance(exc, (httpx.TimeoutException, httpx.TransportError))
 
 
 _PAGE_HEADERS = {
@@ -236,16 +276,36 @@ def fetch_feed_items_with_report(
     httpx_ok = False
     httpx_err: str | None = None
 
-    try:
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
-            r = client.get(feed_url, headers=headers)
-            http_status = r.status_code
-            content_type = r.headers.get("content-type")
-            r.raise_for_status()
-            body = r.content
-            httpx_ok = True
-    except Exception as exc:
-        httpx_err = f"{type(exc).__name__}: {exc}"
+    attempts = 0
+    with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+        for attempt in range(1, _FEED_MAX_ATTEMPTS + 1):
+            attempts = attempt
+            try:
+                r = client.get(feed_url, headers=headers)
+                http_status = r.status_code
+                content_type = r.headers.get("content-type")
+                r.raise_for_status()
+                body = r.content
+                httpx_ok = True
+                httpx_err = None
+                break
+            except Exception as exc:
+                response = exc.response if isinstance(exc, httpx.HTTPStatusError) else None
+                if response is not None:
+                    http_status = response.status_code
+                    content_type = response.headers.get("content-type")
+                httpx_err = f"{type(exc).__name__} after {attempts} attempt(s): {exc}"
+                if attempt >= _FEED_MAX_ATTEMPTS or not _should_retry_feed_fetch(exc):
+                    break
+                delay = _feed_retry_delay(attempt, response)
+                _log.info(
+                    "feed fetch retry in %.1fs attempt=%s url=%s error=%s",
+                    delay,
+                    attempt + 1,
+                    feed_url,
+                    httpx_err,
+                )
+                time.sleep(delay)
 
     parsed: Any = None
     used_url_fallback = False
@@ -365,7 +425,7 @@ def fetch_feed_items_with_report(
         emitted_item_count=emitted,
         health_status=health,
         error_class=None,
-        error_message=("feedparser.parse(url) fallback" if used_url_fallback and httpx_err else None),
+        error_message=(f"feedparser.parse(url) fallback after {httpx_err}"[:2000] if used_url_fallback and httpx_err else None),
     )
 
 
