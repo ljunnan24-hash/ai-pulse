@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, ExternalLink, LayoutDashboard, LogOut, MessageSquare, RefreshCw, Users } from 'lucide-react';
+import { BarChart3, ExternalLink, LayoutDashboard, LogOut, MessageSquare, RefreshCw, Rocket, Rss, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { clearAdminToken } from '../auth/adminToken';
@@ -15,14 +15,18 @@ type AdminNavItem = {
 const navItems: AdminNavItem[] = [
   { to: '/admin', end: true, label: '概览', caption: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/subscribers', label: '订阅者', caption: 'Subscribers', icon: Users },
+  { to: '/admin/sources', label: '信源', caption: 'Sources', icon: Rss },
   { to: '/admin/analytics', label: '访问统计', caption: 'Analytics', icon: BarChart3 },
   { to: '/admin/feedback', label: '用户反馈', caption: 'Feedback', icon: MessageSquare },
+  { to: '/admin/deploy', label: '部署', caption: 'Deploy', icon: Rocket },
 ];
 
 function currentTitle(pathname: string): string {
   if (pathname.startsWith('/admin/subscribers')) return '订阅者';
+  if (pathname.startsWith('/admin/sources')) return '信源';
   if (pathname.startsWith('/admin/analytics')) return '访问统计';
   if (pathname.startsWith('/admin/feedback')) return '用户反馈';
+  if (pathname.startsWith('/admin/deploy')) return '部署';
   return '概览';
 }
 

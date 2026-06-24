@@ -3,7 +3,9 @@ import { AdminLayout } from './components/AdminLayout';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { AdminDeployPage } from './pages/AdminDeployPage';
 import { AdminFeedbackPage } from './pages/AdminFeedbackPage';
+import { AdminSourcesPage } from './pages/AdminSourcesPage';
 import { AdminSubscribersPage } from './pages/AdminSubscribersPage';
 import { AdminSubscriberDetailPage } from './pages/AdminSubscriberDetailPage';
 import { RequireAdminAuth } from './auth/RequireAdminAuth';
@@ -23,7 +25,9 @@ export function AdminApp() {
       >
         <Route index element={<AdminDashboardPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route path="deploy" element={<AdminDeployPage />} />
         <Route path="feedback" element={<AdminFeedbackPage />} />
+        <Route path="sources" element={<AdminSourcesPage />} />
         <Route path="subscribers" element={<AdminSubscribersPage />} />
         <Route path="subscribers/:id" element={<AdminSubscriberDetailPage />} />
       </Route>
@@ -32,4 +36,3 @@ export function AdminApp() {
     </Routes>
   );
 }
-

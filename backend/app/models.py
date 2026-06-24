@@ -351,3 +351,20 @@ class FeedCrawlRun(Base):
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class RssSource(Base):
+    """后台可管理 RSS 信源；为空时爬虫回退到 .env 配置。"""
+
+    __tablename__ = "rss_sources"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(256), default="")
+    url: Mapped[str] = mapped_column(String(2048), default="")
+    url_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    channel: Mapped[str] = mapped_column(String(64), default="official", index=True)
+    tier: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    is_enabled: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import Base, engine
-from app.routers import admin_site_ops, analytics_public, api, feedback_public, manage_page, rankings_public, tracking, weekly_json, weekly_public
+from app.routers import admin_deploy, admin_site_ops, admin_sources, analytics_public, api, feedback_public, manage_page, rankings_public, tracking, weekly_json, weekly_public
 from app.routers import admin as admin_router
 
 
@@ -43,6 +43,8 @@ app.include_router(manage_page.router)
 app.include_router(admin_router.router)
 # 运营统计 / 反馈 API 放在 /api/admin/*，避免与前端 SPA 路由 /admin/* 在生产环境争路径
 app.include_router(admin_site_ops.router, prefix="/api/admin")
+app.include_router(admin_sources.router, prefix="/api/admin")
+app.include_router(admin_deploy.router, prefix="/api/admin")
 
 
 @app.get("/health")

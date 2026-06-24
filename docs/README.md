@@ -11,7 +11,8 @@
 | 3 | [`PIPELINE_AND_OBSERVABILITY.md`](PIPELINE_AND_OBSERVABILITY.md) | 想理解项目的人、维护者 | 从抓取信息到处理、评分、日榜、周报 Top3 的完整链路；失败怎么办；怎么观测。 |
 | 4 | [`SCORE_AND_RANKING.md`](SCORE_AND_RANKING.md) | 维护者、二次开发者 | Pulse、7d/30d 综合分、`weekly_score` 的准确口径。 |
 | 5 | [`部署与数据说明.md`](部署与数据说明.md) | 部署者 | 数据库结构、迁移顺序、生产数据流。 |
-| 6 | [`command.md`](command.md) | 部署者、维护者 | 常用命令、cron、API smoke check、重算与排障命令。 |
+| 6 | [`ADMIN_OPERATIONS.md`](ADMIN_OPERATIONS.md) | 维护者、运营者 | 后台信源管理、抓取失败观测、一键部署按钮配置。 |
+| 7 | [`command.md`](command.md) | 部署者、维护者 | 常用命令、cron、API smoke check、重算与排障命令。 |
 
 ## 按场景阅读
 
@@ -25,6 +26,7 @@
 
 - [`../README.md`](../README.md) 的 Quick Start、Environment、Deployment Notes。
 - [`部署与数据说明.md`](部署与数据说明.md) 的数据库和迁移说明。
+- [`ADMIN_OPERATIONS.md`](ADMIN_OPERATIONS.md) 的后台部署按钮配置。
 - [`command.md`](command.md) 的运维命令和 smoke checks。
 - [`PIPELINE_AND_OBSERVABILITY.md`](PIPELINE_AND_OBSERVABILITY.md) 的“上线后最小巡检清单”。
 
@@ -46,6 +48,7 @@
 - [`SOCIAL_SOURCES.md`](SOCIAL_SOURCES.md)：社媒白名单策略。
 - [`国内大模型官方信源.md`](国内大模型官方信源.md)：国内模型厂商官方来源候选。
 - [`rss源治理记录.md`](rss源治理记录.md)：RSS 健康治理记录。
+- [`ADMIN_OPERATIONS.md`](ADMIN_OPERATIONS.md)：后台新增、启停、删除 RSS 源，以及查看抓取失败。
 - [`PIPELINE_AND_OBSERVABILITY.md`](PIPELINE_AND_OBSERVABILITY.md)：`feed_crawl_runs` 和 feed health 观测 SQL。
 
 ## 参考文档
@@ -53,6 +56,7 @@
 | 文档 | 用途 |
 | --- | --- |
 | [`SCORING_V1.md`](SCORING_V1.md) | raw 素材入库前的 6 维规则评分。 |
+| [`ADMIN_OPERATIONS.md`](ADMIN_OPERATIONS.md) | 后台信源管理、抓取健康和一键部署按钮配置。 |
 | [`SOCIAL_SOURCES.md`](SOCIAL_SOURCES.md) | 社媒信号源白名单和信任等级。 |
 | [`WEEKLY_TOP3_PROTOCOL.md`](WEEKLY_TOP3_PROTOCOL.md) | 周报 Top3 结构化字段协议。 |
 | [`去重机制说明.md`](去重机制说明.md) | RawItem 与抓取去重说明。 |

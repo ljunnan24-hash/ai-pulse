@@ -127,16 +127,22 @@ export function AdminEmpty({ children = '暂无数据。' }: { children?: ReactN
 
 export function AdminStatusBadge({ status }: { status: string }) {
   const normalized = status.toLowerCase();
-  const map =
-    normalized === 'active'
-      ? { label: 'Active', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200', dot: 'bg-emerald-500' }
-      : normalized === 'pending'
-        ? { label: 'Pending', cls: 'bg-amber-50 text-amber-700 ring-amber-200', dot: 'bg-amber-500' }
-        : normalized === 'reviewed'
-          ? { label: 'Reviewed', cls: 'bg-blue-50 text-blue-700 ring-blue-200', dot: 'bg-blue-500' }
-          : normalized === 'archived' || normalized === 'unsubscribed'
-            ? { label: normalized === 'archived' ? 'Archived' : 'Unsubscribed', cls: 'bg-slate-100 text-slate-600 ring-slate-200', dot: 'bg-slate-400' }
-            : { label: status || 'Unknown', cls: 'bg-slate-100 text-slate-600 ring-slate-200', dot: 'bg-slate-400' };
+  let map = { label: status || 'Unknown', cls: 'bg-slate-100 text-slate-600 ring-slate-200', dot: 'bg-slate-400' };
+  if (normalized === 'active' || normalized === 'ok') {
+    map = { label: normalized === 'ok' ? 'OK' : 'Active', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200', dot: 'bg-emerald-500' };
+  } else if (normalized === 'pending') {
+    map = { label: 'Pending', cls: 'bg-amber-50 text-amber-700 ring-amber-200', dot: 'bg-amber-500' };
+  } else if (normalized === 'warning' || normalized === 'empty_feed' || normalized === 'all_filtered') {
+    map = { label: status || 'Warning', cls: 'bg-amber-50 text-amber-700 ring-amber-200', dot: 'bg-amber-500' };
+  } else if (normalized === 'failing' || normalized === 'fetch_failed' || normalized === 'invalid_feed' || normalized === 'parse_failed') {
+    map = { label: status || 'Failing', cls: 'bg-rose-50 text-rose-700 ring-rose-200', dot: 'bg-rose-500' };
+  } else if (normalized === 'no_data') {
+    map = { label: 'No data', cls: 'bg-slate-100 text-slate-600 ring-slate-200', dot: 'bg-slate-400' };
+  } else if (normalized === 'reviewed') {
+    map = { label: 'Reviewed', cls: 'bg-blue-50 text-blue-700 ring-blue-200', dot: 'bg-blue-500' };
+  } else if (normalized === 'archived' || normalized === 'unsubscribed') {
+    map = { label: normalized === 'archived' ? 'Archived' : 'Unsubscribed', cls: 'bg-slate-100 text-slate-600 ring-slate-200', dot: 'bg-slate-400' };
+  }
   return (
     <span className={`inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ring-1 ${map.cls}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${map.dot}`} />

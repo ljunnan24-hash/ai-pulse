@@ -168,6 +168,11 @@ class Settings(BaseSettings):
     admin_jwt_expires_hours: int = 24
     # Optional: admin console origin for CORS (e.g. https://admin.example.com)
     admin_frontend_url: str = ""
+    # Admin deploy button: disabled by default. Configure a fixed executable script on the server.
+    admin_deploy_enabled: bool = False
+    admin_deploy_script_path: str = ""
+    admin_deploy_workdir: str = ""
+    admin_deploy_timeout_seconds: int = 180
 
     @staticmethod
     def _split_urls(s: str) -> list[str]:

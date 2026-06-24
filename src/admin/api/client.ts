@@ -163,3 +163,139 @@ export async function adminFeedbackPatch(
   });
 }
 
+export type AdminRssSource = {
+  id: number | null;
+  name: string;
+  url: string;
+  url_hash: string;
+  channel: string;
+  tier: number;
+  is_enabled: boolean;
+  note: string | null;
+  readonly: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type AdminRssSourcesOut = {
+  using_database: boolean;
+  items: AdminRssSource[];
+  env_items: AdminRssSource[];
+  effective_count: number;
+  effective_items: AdminRssSource[];
+  channels: Array<{ value: string; tier: number }>;
+};
+
+export async function adminRssSources(): Promise<AdminRssSourcesOut> {
+  return await http<AdminRssSourcesOut>('/api/admin/rss-sources');
+}
+
+export async function adminImportEnvRssSources(): Promise<{ ok: boolean; imported: number; total: number }> {
+  return await http<{ ok: boolean; imported: number; total: number }>('/api/admin/rss-sources/import-env', {
+    method: 'POST',
+  });
+}
+
+export async function adminCreateRssSource(body: {
+  name?: string;
+  url: string;
+  channel: string;
+  is_enabled?: boolean;
+  note?: string | null;
+}): Promise<AdminRssSource> {
+  return await http<AdminRssSource>('/api/admin/rss-sources', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminPatchRssSource(
+  id: number,
+  body: { name?: string; url?: string; channel?: string; is_enabled?: boolean; note?: string | null },
+): Promise<AdminRssSource> {
+  return await http<AdminRssSource>(`/api/admin/rss-sources/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminDeleteRssSource(id: number): Promise<{ ok: boolean }> {
+  return await http<{ ok: boolean }>(`/api/admin/rss-sources/${id}`, { method: 'DELETE' });
+}
+
+export type AdminRssHealthItem = {
+  feed_url: string;
+  source_id: number | null;
+  source_name: string;
+  feed_channel: string;
+  tier: number | null;
+  is_enabled: boolean | null;
+  severity: 'ok' | 'warning' | 'failing' | 'no_data' | string;
+  latest: null | {
+    id: number;
+    run_id: string;
+    job_name: string;
+    feed_url: string;
+    feed_channel: string;
+    http_status: number | null;
+    content_type: string | null;
+    fetch_ok: boolean;
+    parse_ok: boolean;
+    raw_entry_count: number;
+    emitted_item_count: number;
+    inserted_item_count: number | null;
+    health_status: string;
+    error_class: string | null;
+    error_message: string | null;
+    duration_ms: number;
+    run_at: string | null;
+  };
+  run_count: number;
+  ok_count: number;
+  warning_count: number;
+  failure_count: number;
+  consecutive_failures: number;
+  last_ok_at: string | null;
+};
+
+export type AdminRssHealthOut = {
+  days: number;
+  summary: { total: number; failing: number; warning: number; no_data: number; ok: number };
+  items: AdminRssHealthItem[];
+};
+
+export async function adminRssHealth(params?: { days?: number; only_unhealthy?: boolean }): Promise<AdminRssHealthOut> {
+  const usp = new URLSearchParams();
+  if (params?.days != null) usp.set('days', String(params.days));
+  if (params?.only_unhealthy != null) usp.set('only_unhealthy', String(params.only_unhealthy));
+  const qs = usp.toString();
+  return await http<AdminRssHealthOut>(`/api/admin/rss-health${qs ? `?${qs}` : ''}`);
+}
+
+export type AdminDeployResult = {
+  ok: boolean;
+  exit_code: number | null;
+  started_at: string;
+  finished_at: string;
+  stdout: string;
+  stderr: string;
+};
+
+export type AdminDeployStatus = {
+  enabled: boolean;
+  configured: boolean;
+  available: boolean;
+  script_path: string;
+  workdir: string;
+  timeout_seconds: number;
+  running: boolean;
+  last_result: AdminDeployResult | null;
+};
+
+export async function adminDeployStatus(): Promise<AdminDeployStatus> {
+  return await http<AdminDeployStatus>('/api/admin/deploy/status');
+}
+
+export async function adminDeployRun(): Promise<AdminDeployResult> {
+  return await http<AdminDeployResult>('/api/admin/deploy/run', { method: 'POST' });
+}

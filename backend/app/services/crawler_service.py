@@ -21,6 +21,7 @@ from app.services.feed_crawl_report import (
 )
 from app.utils.url_dedupe import item_stable_dedupe_key
 from app.services.github_service import collect_trending_repos, collect_trending_repos_weekly
+from app.services.rss_source_registry import effective_rss_sources_by_channel
 from app.services.source_labeling import (
     feed_source_name,
     prd_source_type_for_channel,
@@ -445,6 +446,7 @@ def collect_all_feed_items_with_reports(
     run_id = run_id or str(uuid.uuid4())
     run_at = run_at or utcnow()
     settings = get_settings()
+    rss_sources_by_channel, _rss_source_mode = effective_rss_sources_by_channel(settings)
     merged: list[dict[str, Any]] = []
     reports: list[FeedCrawlReport] = []
     seen: set[str] = set()
@@ -517,11 +519,10 @@ def collect_all_feed_items_with_reports(
             reports.append(gh_rep)
             append_items(gh_items)
             continue
-        tier, urls, channel = settings._feed_bucket(token)
-        for url in urls:
-            items, rep = _fetch_feed_once(url, channel)
+        for src in rss_sources_by_channel.get(token, []):
+            items, rep = _fetch_feed_once(src.url, src.channel)
             reports.append(rep)
-            append_items([{**it, "source_tier": int(tier)} for it in items])
+            append_items([{**it, "source_tier": int(src.tier)} for it in items])
 
     for page_url in settings._split_urls(settings.official_page_urls):
         feeds = discover_rss_links_from_page(page_url)
