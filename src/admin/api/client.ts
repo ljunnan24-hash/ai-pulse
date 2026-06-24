@@ -1,5 +1,5 @@
 import { apiBase } from '../../config';
-import { getAdminToken } from '../auth/adminToken';
+import { clearAdminToken, getAdminToken } from '../auth/adminToken';
 
 export type AdminTokenOut = {
   access_token: string;
@@ -36,6 +36,14 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 
   const res = await fetch(`${apiBase()}${path}`, { ...init, headers });
   if (!res.ok) {
+    if (res.status === 401) {
+      clearAdminToken();
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin') && window.location.pathname !== '/admin/login') {
+        const from = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        window.location.assign(`/admin/login?from=${encodeURIComponent(from)}`);
+      }
+      throw new Error('登录已过期，请重新登录。');
+    }
     const txt = await res.text().catch(() => '');
     throw new Error(txt || `Request failed (${res.status})`);
   }

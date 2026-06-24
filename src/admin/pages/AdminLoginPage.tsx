@@ -13,8 +13,12 @@ export function AdminLoginPage() {
     if (s && typeof s === 'object' && 'from' in s && typeof (s as { from: unknown }).from === 'string') {
       return (s as { from: string }).from;
     }
+    const fromQuery = new URLSearchParams(loc.search).get('from');
+    if (fromQuery && fromQuery.startsWith('/admin') && fromQuery !== '/admin/login') {
+      return fromQuery;
+    }
     return '/admin';
-  }, [loc.state]);
+  }, [loc.search, loc.state]);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
