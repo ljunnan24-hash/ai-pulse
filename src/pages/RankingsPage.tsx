@@ -171,8 +171,6 @@ export default function RankingsPage() {
 
   useEffect(() => {
     const next = buildRankingSearchParams(range, category, debouncedQ);
-    const eventId = searchParams.get('event');
-    if (eventId) next.set('event', eventId);
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
@@ -217,11 +215,7 @@ export default function RankingsPage() {
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
-  const detailHrefForItem = (item: RankingItem) => {
-    const next = buildRankingSearchParams(range, category, debouncedQ);
-    next.set('event', String(item.id));
-    return `/rankings?${next.toString()}`;
-  };
+  const detailHrefForItem = (item: RankingItem) => `/events/${item.id}`;
 
   return (
     <div className="page-container">

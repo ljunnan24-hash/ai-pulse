@@ -1,8 +1,7 @@
 export function eventDrawerHref(pathname: string, search: string, eventId: number): string {
-  const params = new URLSearchParams(search);
-  params.set('event', String(eventId));
-  const qs = params.toString();
-  return `${pathname}${qs ? `?${qs}` : ''}`;
+  void pathname;
+  void search;
+  return `/events/${eventId}`;
 }
 
 export function eventIdFromEventPath(path: string): number | null {
