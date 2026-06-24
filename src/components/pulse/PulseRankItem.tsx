@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
+import { eventDrawerHref, eventIdFromEventPath } from '../../lib/eventDrawerLink';
 
 /** AI Pulse 榜单事件列表 — 排行榜 / 首页 / 周报共用视觉语言 */
 
@@ -140,9 +141,11 @@ export function PulseRankDetailLink({
 }) {
   const location = useLocation();
   const from = `${location.pathname}${location.search}${location.hash}`;
+  const eventId = eventIdFromEventPath(to);
+  const detailTo = eventId === null ? to : eventDrawerHref(location.pathname, location.search, eventId);
 
   return (
-    <Link to={to} state={{ from }} className={className ?? pulseRankDetailBtnCls}>
+    <Link to={detailTo} state={{ from }} className={className ?? pulseRankDetailBtnCls}>
       {children}
     </Link>
   );

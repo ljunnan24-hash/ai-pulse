@@ -16,6 +16,18 @@ export function scrollPathForLocation(location: Pick<Location, 'pathname' | 'sea
   return `${location.pathname}${location.search}`;
 }
 
+function searchWithoutEvent(search: string): string {
+  const params = new URLSearchParams(search);
+  params.delete('event');
+  return params.toString();
+}
+
+function isEventOverlayChange(prev: Pick<Location, 'pathname' | 'search'>, next: Pick<Location, 'pathname' | 'search'>): boolean {
+  if (prev.pathname !== next.pathname) return false;
+  if (prev.search === next.search) return false;
+  return searchWithoutEvent(prev.search) === searchWithoutEvent(next.search);
+}
+
 export function getScrollPosition(key: string): number | undefined {
   return scrollPositions.get(key);
 }
@@ -88,6 +100,7 @@ export function ScrollToTop() {
   const navigationType = useNavigationType();
   const currentKeyRef = useRef(location.key);
   const currentPathRef = useRef(scrollPathForLocation(location));
+  const prevLocationRef = useRef(location);
 
   useEffect(() => {
     const saveCurrentPosition = () => {
@@ -111,8 +124,12 @@ export function ScrollToTop() {
   }, []);
 
   useLayoutEffect(() => {
+    const prevLocation = prevLocationRef.current;
     currentKeyRef.current = location.key;
     currentPathRef.current = scrollPathForLocation(location);
+    prevLocationRef.current = location;
+
+    if (isEventOverlayChange(prevLocation, location)) return;
 
     if (location.hash) return;
 

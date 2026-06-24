@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { eventDrawerHref } from '../../lib/eventDrawerLink';
 
 export type JudgmentRow = Record<string, string>;
 
@@ -45,11 +46,12 @@ function summaryLines(row: JudgmentRow): string {
  *（非独立大卡、无左侧粗边框「含义」框、不展开完整 URL）
  */
 export function TopJudgmentRow({ rank, row }: Props) {
+  const location = useLocation();
   const pulse = pulseScore(row);
   const tag = themeTag(row);
   const summary = summaryLines(row);
   const eventId = firstEventId(row);
-  const detailHref = eventId != null ? `/events/${eventId}` : null;
+  const detailHref = eventId != null ? eventDrawerHref(location.pathname, location.search, eventId) : null;
 
   return (
     <div className="border-b border-slate-100 bg-white last:border-b-0">

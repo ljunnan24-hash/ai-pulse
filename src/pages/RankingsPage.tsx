@@ -171,6 +171,8 @@ export default function RankingsPage() {
 
   useEffect(() => {
     const next = buildRankingSearchParams(range, category, debouncedQ);
+    const eventId = searchParams.get('event');
+    if (eventId) next.set('event', eventId);
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
@@ -215,6 +217,11 @@ export default function RankingsPage() {
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
+  const detailHrefForItem = (item: RankingItem) => {
+    const next = buildRankingSearchParams(range, category, debouncedQ);
+    next.set('event', String(item.id));
+    return `/rankings?${next.toString()}`;
+  };
 
   return (
     <div className="page-container">
@@ -327,7 +334,7 @@ export default function RankingsPage() {
 
       {!err && items.length > 0 ? (
         <div className="min-w-0">
-          <RankingsPageTable items={items} range={range} />
+          <RankingsPageTable items={items} range={range} detailHrefForItem={detailHrefForItem} />
           <p className="mt-4 text-center text-[13px] text-[#64748B]">
             共 {items.length} 条 · 可调整时间范围与分类
           </p>

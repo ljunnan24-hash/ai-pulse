@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import type { WeeklyLooseRow } from './weeklyPayloadUtils';
+import { eventDrawerHref } from '../../lib/eventDrawerLink';
 
 type Props = {
   rank: number;
@@ -28,8 +29,9 @@ function eventIdFromRow(row: WeeklyLooseRow): number | null {
  * 周报「信息条目」：标题 + 事实 + 价值层 + 来源（名称优先）。
  */
 export function WeeklyInfoDigestRow({ rank, row }: Props) {
+  const location = useLocation();
   const detailId = eventIdFromRow(row);
-  const detailHref = detailId != null ? `/events/${detailId}` : null;
+  const detailHref = detailId != null ? eventDrawerHref(location.pathname, location.search, detailId) : null;
   const srcName = (row.source_name || '').trim();
   const host = hostFromUrl(row.url || '');
 

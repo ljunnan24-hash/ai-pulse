@@ -7,6 +7,7 @@ import { pulseDisplayScore } from '../../lib/homeRankingsDisplay';
 import { displayActionSuggestion, displayInsightSummary } from '../../lib/insightFallback';
 import { formatRelativeTime } from '../../lib/formatRelativeTime';
 import { splitTitleForDisplay } from '../../lib/titleDisplay';
+import { eventDrawerHref } from '../../lib/eventDrawerLink';
 
 type Variant = 'home' | 'rankings';
 
@@ -52,6 +53,7 @@ function PulseScoreCell({
 export function RowActionLink({ item }: { item: RankingItem }) {
   const location = useLocation();
   const from = `${location.pathname}${location.search}${location.hash}`;
+  const to = eventDrawerHref(location.pathname, location.search, item.id);
   const sug = displayActionSuggestion(item.action_suggestion);
   const tryNow = sug.includes('试用');
   const cls = tryNow
@@ -59,7 +61,7 @@ export function RowActionLink({ item }: { item: RankingItem }) {
     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50';
   return (
     <Link
-      to={`/events/${item.id}`}
+      to={to}
       state={{ from }}
       className={`inline-flex rounded-full border px-2.5 py-1 text-[0.65rem] font-semibold no-underline transition-colors ${cls}`}
     >
@@ -97,6 +99,7 @@ type DesktopProps = {
 export function RankingTableRow({ rank, item, variant }: DesktopProps) {
   const location = useLocation();
   const from = `${location.pathname}${location.search}${location.hash}`;
+  const to = eventDrawerHref(location.pathname, location.search, item.id);
   const jd = buildDisplayJudgment(item);
   const means = displayInsightSummary(item.what_it_means_for_you, item.what_happened);
   const split = splitTitleForDisplay(item.title);
@@ -113,7 +116,7 @@ export function RankingTableRow({ rank, item, variant }: DesktopProps) {
   if (variant === 'rankings') {
     return (
       <Link
-        to={`/events/${item.id}`}
+        to={to}
         state={{ from }}
         className={`ranking-table-grid--rankings-rest border-b border-slate-100 bg-white px-2 py-1.5 transition-colors last:border-b-0 hover:bg-slate-50/80 md:px-3 min-h-[68px] no-underline`}
         role="row"

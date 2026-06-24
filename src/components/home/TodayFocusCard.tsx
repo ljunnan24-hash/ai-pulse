@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import { categoryLabel, categoryPillClass } from '../../lib/categoryLabels';
 import { IndustryTagPills } from '../pulse/PulseRankingsTableLayout';
@@ -11,6 +11,7 @@ import {
   pulseEventTitleEn,
   pulseEventTitleZh,
 } from '../../lib/homeRankingsDisplay';
+import { eventDrawerHref } from '../../lib/eventDrawerLink';
 
 function MetricIconFreshness() {
   return (
@@ -55,6 +56,7 @@ type Props = {
 };
 
 export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
+  const location = useLocation();
   const dateStr = focusCardDate(item ?? undefined, rankUpdatedAt);
   const pulse = item ? pulseDisplayScore(item) : null;
   const m = item ? computeThreeMetrics(item) : null;
@@ -130,7 +132,7 @@ export function TodayFocusCard({ item, rankUpdatedAt, loaded }: Props) {
           </div>
 
           <Link
-            to={`/events/${item.id}`}
+            to={eventDrawerHref(location.pathname, location.search, item.id)}
             className="mt-5 block border-t border-[#E5ECF5] pt-4 text-[15px] font-bold text-[#2563EB] hover:underline"
           >
             查看事件详情 →

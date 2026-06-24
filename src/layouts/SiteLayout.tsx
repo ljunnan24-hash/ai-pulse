@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useSearchParams } from 'react-router-dom';
 
 import { Footer } from '../components/Footer';
 import { InstallPrompt } from '../components/pwa/InstallPrompt';
 import { PwaInstallProvider } from '../contexts/PwaInstallContext';
+import { EventDetailDrawer } from '../components/events/EventDetailDrawer';
+import { eventIdFromSearch } from '../lib/eventDrawerLink';
 
 function navActive(pathname: string, to: string): boolean {
   if (to === '/') return pathname === '/';
@@ -18,6 +20,24 @@ function NavLink({ to, children }: { to: string; children: ReactNode }) {
     <Link to={to} className={`nav-link ${active ? 'nav-link-active' : ''}`}>
       {children}
     </Link>
+  );
+}
+
+function EventDrawerHost() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const eventId = eventIdFromSearch(searchParams.get('event'));
+
+  if (eventId === null) return null;
+
+  return (
+    <EventDetailDrawer
+      eventId={eventId}
+      onClose={() => {
+        const next = new URLSearchParams(searchParams);
+        next.delete('event');
+        setSearchParams(next, { replace: true });
+      }}
+    />
   );
 }
 
@@ -61,6 +81,7 @@ export function SiteLayout() {
 
       <Footer />
       <InstallPrompt />
+      <EventDrawerHost />
     </div>
     </PwaInstallProvider>
   );
