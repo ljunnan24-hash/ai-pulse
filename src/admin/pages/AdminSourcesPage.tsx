@@ -150,11 +150,11 @@ export function AdminSourcesPage() {
       {error ? <AdminError>{error}</AdminError> : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <AdminStatCard label="有效源" value={sources?.effective_count ?? 0} />
-        <AdminStatCard label="总配置" value={visibleSources.length} />
-        <AdminStatCard label="失败" value={health?.summary.failing ?? 0} />
-        <AdminStatCard label="警告" value={health?.summary.warning ?? 0} />
-        <AdminStatCard label="无数据" value={health?.summary.no_data ?? 0} />
+        <AdminStatCard label="有效源" value={sources?.effective_count ?? 0} tone="emerald" />
+        <AdminStatCard label="总配置" value={visibleSources.length} tone="blue" />
+        <AdminStatCard label="失败" value={health?.summary.failing ?? 0} tone="rose" />
+        <AdminStatCard label="警告" value={health?.summary.warning ?? 0} tone="amber" />
+        <AdminStatCard label="无数据" value={health?.summary.no_data ?? 0} tone="slate" />
       </div>
 
       {sources && !sources.using_database && sources.env_items.length > 0 ? (

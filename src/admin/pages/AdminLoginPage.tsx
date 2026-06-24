@@ -41,7 +41,7 @@ export function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-10 text-slate-950">
+    <div className="min-h-screen bg-[#f5f7fb] px-4 py-10 text-slate-950">
       <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center">
         <div className="grid w-full gap-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
           <section className="hidden lg:block">
@@ -69,9 +69,9 @@ export function AdminLoginPage() {
             </dl>
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-md shadow-slate-200/70">
             <div className="mb-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-sm font-extrabold text-white">AP</div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-950 font-headline text-sm font-extrabold text-white">AP</div>
               <h2 className="mt-4 font-headline text-2xl font-extrabold tracking-tight text-slate-950">登录后台</h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">AI Pulse 管理控制台</p>
             </div>

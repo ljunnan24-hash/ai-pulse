@@ -130,10 +130,10 @@ export function AdminSubscriberDetailPage() {
       {error ? <AdminError>操作/加载失败：{error}</AdminError> : null}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <AdminStatCard label="Created" value={formatDate(sub.created_at)} />
-        <AdminStatCard label="Confirmed" value={formatDate(sub.confirmed_at)} />
-        <AdminStatCard label="Last sent" value={formatDate(sub.last_sent_at)} />
-        <AdminStatCard label="Send count" value={sub.send_count} />
+        <AdminStatCard label="Created" value={formatDate(sub.created_at)} tone="blue" />
+        <AdminStatCard label="Confirmed" value={formatDate(sub.confirmed_at)} tone={sub.confirmed_at ? 'emerald' : 'amber'} />
+        <AdminStatCard label="Last sent" value={formatDate(sub.last_sent_at)} tone="violet" />
+        <AdminStatCard label="Send count" value={sub.send_count} tone="slate" />
       </div>
 
       <AdminPanel title="关键词">

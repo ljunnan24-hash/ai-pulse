@@ -78,10 +78,10 @@ export function AdminFeedbackPage() {
       {error ? <AdminError>{error}</AdminError> : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <AdminStatCard label="当前结果" value={counts.total} />
-        <AdminStatCard label="New" value={counts.new} />
-        <AdminStatCard label="Reviewed" value={counts.reviewed} />
-        <AdminStatCard label="Archived" value={counts.archived} />
+        <AdminStatCard label="当前结果" value={counts.total} tone="blue" />
+        <AdminStatCard label="New" value={counts.new} tone="amber" />
+        <AdminStatCard label="Reviewed" value={counts.reviewed} tone="emerald" />
+        <AdminStatCard label="Archived" value={counts.archived} tone="slate" />
       </div>
 
       <AdminPanel title="处理队列" actions={

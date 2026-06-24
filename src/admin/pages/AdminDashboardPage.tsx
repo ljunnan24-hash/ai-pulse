@@ -46,11 +46,11 @@ export function AdminDashboardPage() {
       {error ? <AdminError>Dashboard 加载失败：{error}</AdminError> : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <AdminStatCard label="订阅总数" value={metrics.total} hint="全部状态合计" icon={<Mail className="h-4 w-4" />} />
-        <AdminStatCard label="已确认" value={metrics.active_confirmed} hint={`确认率 ${activeRate}`} icon={<CheckCircle2 className="h-4 w-4" />} />
-        <AdminStatCard label="待确认" value={metrics.pending} hint="需要邮件确认" icon={<Clock3 className="h-4 w-4" />} />
-        <AdminStatCard label="已退订" value={metrics.unsubscribed} hint="不再发送周报" icon={<UserX className="h-4 w-4" />} />
-        <AdminStatCard label="关键词数" value={metrics.top_keywords.length} hint="Top keywords 样本" />
+        <AdminStatCard label="订阅总数" value={metrics.total} hint="全部状态合计" icon={<Mail className="h-4 w-4" />} tone="blue" />
+        <AdminStatCard label="已确认" value={metrics.active_confirmed} hint={`确认率 ${activeRate}`} icon={<CheckCircle2 className="h-4 w-4" />} tone="emerald" />
+        <AdminStatCard label="待确认" value={metrics.pending} hint="需要邮件确认" icon={<Clock3 className="h-4 w-4" />} tone="amber" />
+        <AdminStatCard label="已退订" value={metrics.unsubscribed} hint="不再发送周报" icon={<UserX className="h-4 w-4" />} tone="rose" />
+        <AdminStatCard label="关键词数" value={metrics.top_keywords.length} hint="Top keywords 样本" tone="violet" />
       </div>
 
       <AdminPanel

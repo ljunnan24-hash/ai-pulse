@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Play, RefreshCw, Rocket } from 'lucide-react';
+import { RefreshCw, Rocket } from 'lucide-react';
 
 import type { AdminDeployResult, AdminDeployStatus } from '../api/client';
 import { adminDeployRun, adminDeployStatus } from '../api/client';
@@ -81,10 +81,10 @@ export function AdminDeployPage() {
       {error ? <AdminError>{error}</AdminError> : null}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <AdminStatCard label="开关" value={status?.enabled ? 'Enabled' : 'Disabled'} />
-        <AdminStatCard label="脚本" value={status?.available ? 'Ready' : 'Missing'} />
-        <AdminStatCard label="运行中" value={status?.running || running ? 'Yes' : 'No'} />
-        <AdminStatCard label="上次结果" value={result?.ok ? 'Success' : result ? 'Failed' : '—'} />
+        <AdminStatCard label="开关" value={status?.enabled ? 'Enabled' : 'Disabled'} tone={status?.enabled ? 'emerald' : 'slate'} />
+        <AdminStatCard label="脚本" value={status?.available ? 'Ready' : 'Missing'} tone={status?.available ? 'emerald' : 'amber'} />
+        <AdminStatCard label="运行中" value={status?.running || running ? 'Yes' : 'No'} tone={status?.running || running ? 'amber' : 'blue'} />
+        <AdminStatCard label="上次结果" value={result?.ok ? 'Success' : result ? 'Failed' : '—'} tone={result?.ok ? 'emerald' : result ? 'rose' : 'slate'} />
       </div>
 
       <AdminPanel title="部署配置">

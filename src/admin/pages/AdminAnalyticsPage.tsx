@@ -53,9 +53,9 @@ export function AdminAnalyticsPage() {
       {summary ? (
         <>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <AdminStatCard label="今日 PV / UV" value={`${summary.today.pv} / ${summary.today.uv}`} icon={<Eye className="h-4 w-4" />} />
-            <AdminStatCard label="近 7 天 PV / UV" value={`${summary.last_7_days.pv} / ${summary.last_7_days.uv}`} icon={<Activity className="h-4 w-4" />} />
-            <AdminStatCard label="近 30 天 PV / UV" value={`${summary.last_30_days.pv} / ${summary.last_30_days.uv}`} icon={<Users className="h-4 w-4" />} />
+            <AdminStatCard label="今日 PV / UV" value={`${summary.today.pv} / ${summary.today.uv}`} icon={<Eye className="h-4 w-4" />} tone="blue" />
+            <AdminStatCard label="近 7 天 PV / UV" value={`${summary.last_7_days.pv} / ${summary.last_7_days.uv}`} icon={<Activity className="h-4 w-4" />} tone="violet" />
+            <AdminStatCard label="近 30 天 PV / UV" value={`${summary.last_30_days.pv} / ${summary.last_30_days.uv}`} icon={<Users className="h-4 w-4" />} tone="emerald" />
           </div>
 
           <AdminPanel title="热门页面（近 7 天）" description="按 PV 排序，条形长度用于快速比较访问集中度。">

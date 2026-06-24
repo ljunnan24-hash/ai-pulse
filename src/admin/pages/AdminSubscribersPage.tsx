@@ -151,10 +151,10 @@ export function AdminSubscribersPage() {
       {error ? <AdminError>{error}</AdminError> : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <AdminStatCard label="当前结果" value={counts.total} />
-        <AdminStatCard label="Active" value={counts.active} />
-        <AdminStatCard label="Pending" value={counts.pending} />
-        <AdminStatCard label="Unsubscribed" value={counts.unsubscribed} />
+        <AdminStatCard label="当前结果" value={counts.total} tone="blue" />
+        <AdminStatCard label="Active" value={counts.active} tone="emerald" />
+        <AdminStatCard label="Pending" value={counts.pending} tone="amber" />
+        <AdminStatCard label="Unsubscribed" value={counts.unsubscribed} tone="rose" />
       </div>
 
       <AdminPanel
