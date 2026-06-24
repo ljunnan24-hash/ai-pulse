@@ -1,16 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, Clock3, Mail, UserX } from 'lucide-react';
+
 import type { AdminMetrics } from '../api/client';
 import { adminMetrics } from '../api/client';
-import { useNavigate } from 'react-router-dom';
-
-function MetricCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-[0px_12px_40px_rgba(25,28,30,0.04)] border border-outline-variant/10">
-      <p className="text-on-surface-variant text-xs font-medium uppercase tracking-wider mb-1">{label}</p>
-      <h3 className="text-3xl font-extrabold text-on-surface font-headline tracking-tight">{value}</h3>
-    </div>
-  );
-}
+import { AdminEmpty, AdminError, AdminPageHeader, AdminPanel, AdminStatCard } from '../components/AdminUI';
 
 export function AdminDashboardPage() {
   const nav = useNavigate();
@@ -39,60 +33,73 @@ export function AdminDashboardPage() {
   }, []);
 
   const top = useMemo(() => metrics.top_keywords.slice(0, 20), [metrics.top_keywords]);
+  const activeRate = metrics.total > 0 ? `${Math.round((metrics.active_confirmed / metrics.total) * 100)}%` : '0%';
 
   return (
-    <div className="space-y-8">
-      <div>
-        <div className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Administrative Control</div>
-        <h1 className="text-3xl md:text-4xl font-extrabold font-headline tracking-tight mt-2">Dashboard</h1>
-        <p className="text-on-surface-variant mt-2 max-w-2xl">
-          首次进入加载一次数据；点击右上角刷新按钮才会更新。
-        </p>
+    <div className="space-y-5">
+      <AdminPageHeader
+        eyebrow="Administrative Control"
+        title="后台概览"
+        description="查看订阅规模、确认状态和高频关键词。右上角刷新只更新后台数据，不影响公开站点。"
+      />
+
+      {error ? <AdminError>Dashboard 加载失败：{error}</AdminError> : null}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <AdminStatCard label="订阅总数" value={metrics.total} hint="全部状态合计" icon={<Mail className="h-4 w-4" />} />
+        <AdminStatCard label="已确认" value={metrics.active_confirmed} hint={`确认率 ${activeRate}`} icon={<CheckCircle2 className="h-4 w-4" />} />
+        <AdminStatCard label="待确认" value={metrics.pending} hint="需要邮件确认" icon={<Clock3 className="h-4 w-4" />} />
+        <AdminStatCard label="已退订" value={metrics.unsubscribed} hint="不再发送周报" icon={<UserX className="h-4 w-4" />} />
+        <AdminStatCard label="关键词数" value={metrics.top_keywords.length} hint="Top keywords 样本" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <MetricCard label="Total" value={metrics.total} />
-        <MetricCard label="Active Confirmed" value={metrics.active_confirmed} />
-        <MetricCard label="Pending" value={metrics.pending} />
-        <MetricCard label="Unsubscribed" value={metrics.unsubscribed} />
-      </div>
-
-      {error ? (
-        <div className="p-4 rounded-2xl bg-error-container text-on-error-container font-semibold">
-          Dashboard 加载失败：{error}
-        </div>
-      ) : null}
-
-      <div className="bg-surface-container-low p-8 rounded-3xl border border-outline-variant/10">
-        <div className="flex items-end justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold font-headline tracking-tight">Top 20 Keywords</h2>
-            <p className="text-on-surface-variant text-sm mt-1">点击关键词可跳转到订阅者列表并自动筛选。</p>
+      <AdminPanel
+        title="Top Keywords"
+        description="点击关键词进入订阅者列表并自动筛选。"
+      >
+        {top.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="w-16 px-4 py-3">Rank</th>
+                  <th className="px-4 py-3">Keyword</th>
+                  <th className="w-32 px-4 py-3 text-right">Active</th>
+                  <th className="w-28 px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {top.map((k, idx) => (
+                  <tr key={k.keyword} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-400">{String(idx + 1).padStart(2, '0')}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => nav(`/admin/subscribers?keyword=${encodeURIComponent(k.keyword)}`)}
+                        className="font-semibold text-slate-950 hover:text-blue-700 hover:underline"
+                      >
+                        {k.keyword}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">{k.active_confirmed_count}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => nav(`/admin/subscribers?keyword=${encodeURIComponent(k.keyword)}`)}
+                        className="text-xs font-semibold text-blue-600 hover:underline"
+                      >
+                        查看订阅者
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {top.map((k, idx) => (
-            <button
-              key={k.keyword}
-              onClick={() => nav(`/admin/subscribers?keyword=${encodeURIComponent(k.keyword)}`)}
-              className="text-left bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/10 hover:bg-surface-container-low transition"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 text-outline font-bold tabular-nums">{String(idx + 1).padStart(2, '0')}</div>
-                  <div className="font-semibold text-on-surface truncate">{k.keyword}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-bold text-on-surface tabular-nums">{k.active_confirmed_count}</div>
-                  <div className="text-[10px] text-outline uppercase font-medium">Active</div>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
+        ) : (
+          <AdminEmpty>暂无关键词数据。</AdminEmpty>
+        )}
+      </AdminPanel>
     </div>
   );
 }
-

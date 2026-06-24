@@ -1,8 +1,9 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { setAdminToken } from '../auth/adminToken';
-import { Lock, User } from 'lucide-react';
+import { Lock, ShieldCheck, User } from 'lucide-react';
 import { adminLogin } from '../api/client';
+import { setAdminToken } from '../auth/adminToken';
+import { AdminButton, AdminError } from '../components/AdminUI';
 
 export function AdminLoginPage() {
   const nav = useNavigate();
@@ -40,89 +41,90 @@ export function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface flex items-center justify-center px-6 py-12 relative overflow-hidden">
-      <div className="absolute inset-0 z-0 opacity-40 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-primary-container/20 blur-[120px]" />
-      </div>
-
-      <div className="w-full max-w-[440px] z-10">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary-container/40 mb-4">
-            <span className="font-headline font-extrabold text-primary text-lg">AP</span>
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-on-surface mb-2 font-headline">
-            AI Pulse Admin
-          </h1>
-          <p className="font-medium text-on-surface-variant uppercase tracking-widest text-sm">
-            Management Console
-          </p>
-        </div>
-
-        <div className="bg-surface-container-lowest p-10 rounded-3xl shadow-[0px_12px_40px_rgba(25,28,30,0.04)] border border-outline-variant/10">
-          <form className="space-y-6" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant" htmlFor="username">
-                Username
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <User className="w-5 h-5 text-outline" />
-                </div>
-                <input
-                  id="username"
-                  name="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="block w-full pl-12 pr-4 py-3 bg-surface-container-low border border-transparent focus:border-primary focus:ring-0 rounded-2xl text-sm font-medium placeholder:text-outline/50"
-                  placeholder="admin"
-                  autoComplete="username"
-                />
+    <div className="min-h-screen bg-slate-50 px-4 py-10 text-slate-950">
+      <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center">
+        <div className="grid w-full gap-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
+          <section className="hidden lg:block">
+            <div className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm">
+              <ShieldCheck className="h-4 w-4 text-blue-600" aria-hidden />
+              Internal console
+            </div>
+            <h1 className="mt-5 font-headline text-4xl font-extrabold tracking-tight text-slate-950">AI Pulse Admin</h1>
+            <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
+              管理订阅者、访问统计和用户反馈，适合日常运营时快速定位问题、确认数据状态、执行必要动作。
+            </p>
+            <dl className="mt-8 grid max-w-xl grid-cols-3 gap-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <dt className="text-xs font-semibold text-slate-500">Subscribers</dt>
+                <dd className="mt-2 text-sm font-bold text-slate-950">订阅状态</dd>
               </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <dt className="text-xs font-semibold text-slate-500">Analytics</dt>
+                <dd className="mt-2 text-sm font-bold text-slate-950">访问趋势</dd>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <dt className="text-xs font-semibold text-slate-500">Feedback</dt>
+                <dd className="mt-2 text-sm font-bold text-slate-950">反馈处理</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-sm font-extrabold text-white">AP</div>
+              <h2 className="mt-4 font-headline text-2xl font-extrabold tracking-tight text-slate-950">登录后台</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">AI Pulse 管理控制台</p>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant" htmlFor="password">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="w-5 h-5 text-outline" />
+            <form className="space-y-4" onSubmit={onSubmit}>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-slate-700" htmlFor="username">
+                  用户名
+                </label>
+                <div className="relative">
+                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <input
+                    id="username"
+                    name="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="block h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm font-medium text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    placeholder="admin"
+                    autoComplete="username"
+                  />
                 </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-12 pr-4 py-3 bg-surface-container-low border border-transparent focus:border-primary focus:ring-0 rounded-2xl text-sm font-medium placeholder:text-outline/50"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                />
               </div>
-            </div>
 
-            {error ? (
-              <div className="p-3 rounded-2xl bg-error-container text-on-error-container text-sm font-semibold">
-                {error}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-slate-700" htmlFor="password">
+                  密码
+                </label>
+                <div className="relative">
+                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm font-medium text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    placeholder="输入密码"
+                    autoComplete="current-password"
+                  />
+                </div>
               </div>
-            ) : null}
 
-            <button
-              className="w-full py-4 rounded-2xl text-on-primary font-bold text-base shadow-[0px_12px_40px_rgba(25,28,30,0.04)] bg-gradient-to-br from-primary to-primary-dim hover:scale-[0.99] active:scale-[0.97] transition disabled:opacity-60"
-              type="submit"
-              disabled={loading}
-            >
-              {loading ? '登录中…' : 'Login'}
-            </button>
-          </form>
+              {error ? <AdminError>{error}</AdminError> : null}
 
-          <div className="mt-8 pt-6 border-t border-outline-variant/10 text-center">
-            <p className="text-xs text-on-surface-variant font-medium">Internal System Access Only</p>
-          </div>
+              <AdminButton type="submit" variant="primary" disabled={loading} className="w-full">
+                {loading ? '登录中…' : '登录'}
+              </AdminButton>
+            </form>
+
+            <div className="mt-6 border-t border-slate-200 pt-4 text-xs font-medium text-slate-500">Internal system access only</div>
+          </section>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
-

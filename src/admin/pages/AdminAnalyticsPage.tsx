@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Activity, Eye, Users } from 'lucide-react';
 
 import type { AdminAnalyticsSummary, AdminPageviewRow } from '../api/client';
 import { adminAnalyticsPageviews, adminAnalyticsSummary } from '../api/client';
+import { AdminEmpty, AdminError, AdminPageHeader, AdminPanel, AdminStatCard } from '../components/AdminUI';
 
-function MetricCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-[0px_12px_40px_rgba(25,28,30,0.04)] border border-outline-variant/10">
-      <p className="text-on-surface-variant text-xs font-medium uppercase tracking-wider mb-1">{label}</p>
-      <h3 className="text-3xl font-extrabold text-on-surface font-headline tracking-tight">{value}</h3>
-    </div>
-  );
+function shortVisitor(v: string | null): string {
+  return v ? `${v.slice(0, 12)}…` : '—';
+}
+
+function formatDate(raw: string | null): string {
+  if (!raw) return '—';
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 export function AdminAnalyticsPage() {
@@ -34,98 +38,80 @@ export function AdminAnalyticsPage() {
     return () => window.removeEventListener('aipulse-admin-refresh', handler);
   }, []);
 
-  return (
-    <div className="space-y-8">
-      <div>
-        <div className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">站点运营</div>
-        <h1 className="text-3xl md:text-4xl font-extrabold font-headline tracking-tight mt-2">访问统计</h1>
-        <p className="text-on-surface-variant mt-2 max-w-3xl text-sm leading-relaxed">
-          {summary?.timezone_note ??
-            'PV / UV 基于匿名 visitor_id 与页面路径；IP 仅存哈希。'}
-        </p>
-      </div>
+  const maxPv = useMemo(() => Math.max(1, ...(summary?.top_pages.map((p) => p.pv) ?? [1])), [summary?.top_pages]);
 
-      {error ? (
-        <div className="p-4 rounded-2xl bg-error-container text-on-error-container font-semibold">{error}</div>
-      ) : null}
+  return (
+    <div className="space-y-5">
+      <AdminPageHeader
+        eyebrow="Site Operations"
+        title="访问统计"
+        description={summary?.timezone_note ?? 'PV / UV 基于匿名 visitor_id 与页面路径；IP 仅存哈希。'}
+      />
+
+      {error ? <AdminError>{error}</AdminError> : null}
 
       {summary ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <MetricCard label="今日 PV" value={summary.today.pv} />
-            <MetricCard label="今日 UV" value={summary.today.uv} />
-            <div />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <MetricCard label="近 7 天 PV" value={summary.last_7_days.pv} />
-            <MetricCard label="近 7 天 UV" value={summary.last_7_days.uv} />
-            <div />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <MetricCard label="近 30 天 PV" value={summary.last_30_days.pv} />
-            <MetricCard label="近 30 天 UV" value={summary.last_30_days.uv} />
-            <div />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <AdminStatCard label="今日 PV / UV" value={`${summary.today.pv} / ${summary.today.uv}`} icon={<Eye className="h-4 w-4" />} />
+            <AdminStatCard label="近 7 天 PV / UV" value={`${summary.last_7_days.pv} / ${summary.last_7_days.uv}`} icon={<Activity className="h-4 w-4" />} />
+            <AdminStatCard label="近 30 天 PV / UV" value={`${summary.last_30_days.pv} / ${summary.last_30_days.uv}`} icon={<Users className="h-4 w-4" />} />
           </div>
 
-          <div className="bg-surface-container-low p-6 rounded-3xl border border-outline-variant/10">
-            <h2 className="text-xl font-bold font-headline">热门页面（近 7 天）</h2>
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b border-outline-variant/20 text-left text-on-surface-variant">
-                    <th className="py-2 pr-4">路径</th>
-                    <th className="py-2 pr-4">PV</th>
-                    <th className="py-2">UV</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.top_pages.map((p) => (
-                    <tr key={p.path} className="border-b border-outline-variant/10">
-                      <td className="py-2 pr-4 font-mono text-xs break-all">{p.path}</td>
-                      <td className="py-2 pr-4 tabular-nums">{p.pv}</td>
-                      <td className="py-2 tabular-nums">{p.uv}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {summary.top_pages.length === 0 ? (
-                <p className="text-on-surface-variant text-sm mt-2">暂无数据。</p>
-              ) : null}
-            </div>
-          </div>
+          <AdminPanel title="热门页面（近 7 天）" description="按 PV 排序，条形长度用于快速比较访问集中度。">
+            {summary.top_pages.length > 0 ? (
+              <div className="divide-y divide-slate-100">
+                {summary.top_pages.map((p) => (
+                  <div key={p.path} className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_120px_120px] md:items-center">
+                    <div className="min-w-0">
+                      <div className="break-all font-mono text-xs text-slate-800">{p.path}</div>
+                      <div className="mt-2 h-1.5 rounded-full bg-slate-100">
+                        <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${Math.max(6, (p.pv / maxPv) * 100)}%` }} />
+                      </div>
+                    </div>
+                    <div className="text-sm text-slate-600 md:text-right">
+                      <span className="font-semibold tabular-nums text-slate-950">{p.pv}</span> PV
+                    </div>
+                    <div className="text-sm text-slate-600 md:text-right">
+                      <span className="font-semibold tabular-nums text-slate-950">{p.uv}</span> UV
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <AdminEmpty>暂无热门页面数据。</AdminEmpty>
+            )}
+          </AdminPanel>
         </>
       ) : null}
 
-      <div className="bg-surface-container-low p-6 rounded-3xl border border-outline-variant/10">
-        <h2 className="text-xl font-bold font-headline">最近访问记录</h2>
-        <div className="mt-4 overflow-x-auto max-h-[480px] overflow-y-auto">
-          <table className="min-w-full text-xs">
-            <thead className="sticky top-0 bg-surface-container-low">
-              <tr className="border-b border-outline-variant/20 text-left text-on-surface-variant">
-                <th className="py-2 pr-2">时间</th>
-                <th className="py-2 pr-2">路径</th>
-                <th className="py-2 pr-2">visitor</th>
-                <th className="py-2">UA</th>
+      <AdminPanel title="最近访问记录" description="最多显示 150 条，便于排查页面和访问来源。">
+        <div className="max-h-[520px] overflow-auto">
+          <table className="min-w-[960px] w-full text-left text-xs">
+            <thead className="sticky top-0 bg-slate-50 font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">时间</th>
+                <th className="px-4 py-3">路径</th>
+                <th className="px-4 py-3">Visitor</th>
+                <th className="px-4 py-3">Referrer</th>
+                <th className="px-4 py-3">UA</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {rows.map((r) => (
-                <tr key={r.id} className="border-b border-outline-variant/10 align-top">
-                  <td className="py-2 pr-2 whitespace-nowrap tabular-nums">{r.created_at}</td>
-                  <td className="py-2 pr-2 font-mono break-all">{r.path}</td>
-                  <td className="py-2 pr-2 font-mono break-all">
-                    {r.visitor_id ? `${r.visitor_id.slice(0, 12)}…` : '—'}
-                  </td>
-                  <td className="py-2 max-w-[200px] truncate" title={r.user_agent || ''}>
-                    {r.user_agent || '—'}
-                  </td>
+                <tr key={r.id} className="align-top hover:bg-slate-50">
+                  <td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-600">{formatDate(r.created_at)}</td>
+                  <td className="max-w-[280px] break-all px-4 py-3 font-mono text-slate-800">{r.path}</td>
+                  <td className="px-4 py-3 font-mono text-slate-500">{shortVisitor(r.visitor_id)}</td>
+                  <td className="max-w-[220px] truncate px-4 py-3 text-slate-500" title={r.referrer || ''}>{r.referrer || '—'}</td>
+                  <td className="max-w-[260px] truncate px-4 py-3 text-slate-500" title={r.user_agent || ''}>{r.user_agent || '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {rows.length === 0 ? <p className="text-on-surface-variant text-sm mt-2">暂无埋点记录。</p> : null}
         </div>
-      </div>
+        {rows.length === 0 ? <AdminEmpty>暂无埋点记录。</AdminEmpty> : null}
+      </AdminPanel>
     </div>
   );
 }
