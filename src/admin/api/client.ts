@@ -107,9 +107,10 @@ export async function adminResendLatestWeekly(id: number) {
 
 export type AdminAnalyticsSummary = {
   timezone_note?: string;
-  today: { pv: number; uv: number };
+  today: { pv: number; uv: number; dau?: number };
   last_7_days: { pv: number; uv: number };
   last_30_days: { pv: number; uv: number };
+  daily_traffic: Array<{ date: string; pv: number; dau: number }>;
   top_pages: Array<{ path: string; pv: number; uv: number }>;
 };
 

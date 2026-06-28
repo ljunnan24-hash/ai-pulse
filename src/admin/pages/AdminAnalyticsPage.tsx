@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Eye, Users } from 'lucide-react';
+import { Activity, BarChart3, CalendarDays, Eye, Users } from 'lucide-react';
 
 import type { AdminAnalyticsSummary, AdminPageviewRow } from '../api/client';
 import { adminAnalyticsPageviews, adminAnalyticsSummary } from '../api/client';
@@ -14,6 +14,17 @@ function formatDate(raw: string | null): string {
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return raw;
   return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatShortDay(raw: string): string {
+  const parts = raw.split('-');
+  if (parts.length === 3) return `${parts[1]}/${parts[2]}`;
+  return raw.slice(5) || raw;
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
 export function AdminAnalyticsPage() {
@@ -38,7 +49,12 @@ export function AdminAnalyticsPage() {
     return () => window.removeEventListener('aipulse-admin-refresh', handler);
   }, []);
 
+  const dailyTraffic = useMemo(() => summary?.daily_traffic ?? [], [summary?.daily_traffic]);
   const maxPv = useMemo(() => Math.max(1, ...(summary?.top_pages.map((p) => p.pv) ?? [1])), [summary?.top_pages]);
+  const maxDau = useMemo(() => Math.max(1, ...dailyTraffic.map((d) => d.dau)), [dailyTraffic]);
+  const avg7Dau = useMemo(() => average(dailyTraffic.slice(-7).map((d) => d.dau)), [dailyTraffic]);
+  const avg30Dau = useMemo(() => average(dailyTraffic.map((d) => d.dau)), [dailyTraffic]);
+  const todayDau = summary?.today.dau ?? summary?.today.uv ?? 0;
 
   return (
     <div className="space-y-5">
@@ -52,11 +68,43 @@ export function AdminAnalyticsPage() {
 
       {summary ? (
         <>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <AdminStatCard label="今日 PV / UV" value={`${summary.today.pv} / ${summary.today.uv}`} icon={<Eye className="h-4 w-4" />} tone="blue" />
-            <AdminStatCard label="近 7 天 PV / UV" value={`${summary.last_7_days.pv} / ${summary.last_7_days.uv}`} icon={<Activity className="h-4 w-4" />} tone="violet" />
-            <AdminStatCard label="近 30 天 PV / UV" value={`${summary.last_30_days.pv} / ${summary.last_30_days.uv}`} icon={<Users className="h-4 w-4" />} tone="emerald" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <AdminStatCard label="今日 DAU" value={todayDau} hint="今日独立访客" icon={<Users className="h-4 w-4" />} tone="emerald" />
+            <AdminStatCard label="7 日平均 DAU" value={avg7Dau} hint={`7 日独立 UV ${summary.last_7_days.uv}`} icon={<Activity className="h-4 w-4" />} tone="violet" />
+            <AdminStatCard label="30 日平均 DAU" value={avg30Dau} hint={`30 日独立 UV ${summary.last_30_days.uv}`} icon={<CalendarDays className="h-4 w-4" />} tone="blue" />
+            <AdminStatCard label="今日 PV / UV" value={`${summary.today.pv} / ${summary.today.uv}`} icon={<Eye className="h-4 w-4" />} tone="slate" />
+            <AdminStatCard label="近 30 天 PV / UV" value={`${summary.last_30_days.pv} / ${summary.last_30_days.uv}`} icon={<BarChart3 className="h-4 w-4" />} tone="amber" />
           </div>
+
+          <AdminPanel
+            title="DAU 趋势（近 30 天）"
+            description="DAU 按北京时间自然日去重 visitor_id；同一访客跨天访问会分别计入对应日期。"
+          >
+            {dailyTraffic.length > 0 ? (
+              <div className="overflow-x-auto px-4 py-5">
+                <div className="flex min-w-[760px] items-end gap-2">
+                  {dailyTraffic.map((d) => {
+                    const height = d.dau > 0 ? Math.max(8, Math.round((d.dau / maxDau) * 128)) : 2;
+                    return (
+                      <div key={d.date} className="flex w-9 shrink-0 flex-col items-center gap-2" title={`${d.date} · DAU ${d.dau} · PV ${d.pv}`}>
+                        <div className="flex h-32 w-full items-end justify-center rounded-md bg-slate-50 px-1">
+                          <div
+                            className="w-full rounded-t-md bg-emerald-500 shadow-sm"
+                            style={{ height }}
+                            aria-label={`${d.date} DAU ${d.dau}`}
+                          />
+                        </div>
+                        <div className="h-4 text-[11px] font-bold tabular-nums text-slate-900">{d.dau}</div>
+                        <div className="text-[10px] font-medium tabular-nums text-slate-400">{formatShortDay(d.date)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <AdminEmpty>暂无 DAU 数据。</AdminEmpty>
+            )}
+          </AdminPanel>
 
           <AdminPanel title="热门页面（近 7 天）" description="按 PV 排序，条形长度用于快速比较访问集中度。">
             {summary.top_pages.length > 0 ? (

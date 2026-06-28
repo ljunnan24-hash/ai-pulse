@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import AnalyticsPageView, UserFeedback
 from app.routers.admin import require_admin
-from app.timeutil import now_beijing
+from app.timeutil import BEIJING, now_beijing
 
 router = APIRouter(tags=["admin-site"])
 
@@ -37,6 +37,47 @@ def _pv_uv_since(db: Session, since: datetime) -> tuple[int, int]:
         )
     )
     return int(pv or 0), int(uv or 0)
+
+
+def _to_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _daily_traffic(db: Session, *, days: int = 30) -> list[dict[str, Any]]:
+    today = now_beijing().date()
+    start_day = today - timedelta(days=days - 1)
+    start_utc = _shanghai_midnight_utc(days - 1)
+    raw_rows = db.execute(
+        select(AnalyticsPageView.created_at, AnalyticsPageView.visitor_id).where(
+            AnalyticsPageView.created_at >= start_utc
+        )
+    ).all()
+
+    buckets: dict[str, dict[str, Any]] = {}
+    for i in range(days):
+        d = start_day + timedelta(days=i)
+        buckets[d.isoformat()] = {"date": d.isoformat(), "pv": 0, "visitors": set()}
+
+    for created_at, visitor_id in raw_rows:
+        if created_at is None:
+            continue
+        local_day = _to_utc(created_at).astimezone(BEIJING).date()
+        if local_day < start_day or local_day > today:
+            continue
+        key = local_day.isoformat()
+        bucket = buckets.get(key)
+        if bucket is None:
+            continue
+        bucket["pv"] += 1
+        if visitor_id:
+            bucket["visitors"].add(str(visitor_id))
+
+    return [
+        {"date": key, "pv": int(bucket["pv"]), "dau": len(bucket["visitors"])}
+        for key, bucket in buckets.items()
+    ]
 
 
 @router.get("/analytics/summary")
@@ -63,12 +104,14 @@ def admin_analytics_summary(
     )
     rows = db.execute(top_stmt).all()
     top_pages = [{"path": r[0], "pv": int(r[1]), "uv": int(r[2])} for r in rows]
+    daily_traffic = _daily_traffic(db, days=30)
 
     return {
-        "timezone_note": "统计按 Asia/Shanghai 自然日窗口聚合（今日 / 近 7 天 / 近 30 天）。",
-        "today": {"pv": t_pv, "uv": t_uv},
+        "timezone_note": "统计按 Asia/Shanghai 自然日窗口聚合。DAU = 当天去重 visitor_id 数。",
+        "today": {"pv": t_pv, "uv": t_uv, "dau": t_uv},
         "last_7_days": {"pv": w7_pv, "uv": w7_uv},
         "last_30_days": {"pv": w30_pv, "uv": w30_uv},
+        "daily_traffic": daily_traffic,
         "top_pages": top_pages,
     }
 
