@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
+import { Seo } from '../components/Seo';
 import { apiBase } from '../config';
 
 /**
@@ -29,6 +30,11 @@ export default function SubscribePage() {
 
   return (
     <div className="page-container">
+      <Seo
+        title="订阅 AI Pulse 周报 — 每周中文 AI 行业信号"
+        description="订阅 AI Pulse 中文周报，每周接收 AI 模型、工具、开源项目和行业动态的精选整理。"
+        path="/subscribe"
+      />
       <header className="mb-8">
         <h1 className="font-headline text-2xl font-bold text-slate-900 md:text-3xl">订阅周报</h1>
         <p className="mt-2 max-w-xl text-sm text-slate-600">

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /manage
+Disallow: /api/
+
+Sitemap: https://www.aipulse.asia/sitemap.xml

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { fetchArchive } from '../api/public';
 import { EmptyState } from '../components/common/EmptyState';
+import { Seo, absoluteUrl } from '../components/Seo';
 
 export default function ArchivePage() {
   const [items, setItems] = useState<Array<{ report_date: string; title: string; weekly_url: string }>>([]);
@@ -22,6 +23,18 @@ export default function ArchivePage() {
 
   return (
     <div className="page-container">
+      <Seo
+        title="AI Pulse 周报归档 — 历史 AI 趋势与事件复盘"
+        description="浏览 AI Pulse 已发布的中文 AI 周报归档，复盘每周模型、工具、开源和行业动态。"
+        path="/archive"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: 'AI Pulse 周报归档',
+          url: absoluteUrl('/archive'),
+          description: '按日期浏览 AI Pulse 已发布的中文 AI 周报。',
+        }}
+      />
       <header className="section-y">
         <h1 className="heading-page">历史归档</h1>
         <p className="mt-2 max-w-2xl text-body">

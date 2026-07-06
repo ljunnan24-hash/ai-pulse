@@ -6,6 +6,7 @@ import { fetchRankings } from '../api/public';
 import type { RankingItem } from '../components/rankings/RankingCard';
 import { RankingsPageTable } from '../components/rankings/RankingsPageTable';
 import { EmptyState } from '../components/common/EmptyState';
+import { Seo, absoluteUrl } from '../components/Seo';
 import { categoryLabel } from '../lib/categoryLabels';
 
 const RANGES = [
@@ -215,10 +216,29 @@ export default function RankingsPage() {
 
   const sidebarTrends = useMemo(() => trendHints(items), [items]);
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
+  const seoTitle = debouncedQ
+    ? `${debouncedQ} - AI 事件搜索 | AI Pulse`
+    : `${rangeLabel} AI 排行榜 | AI Pulse`;
+  const seoDescription = debouncedQ
+    ? `在 AI Pulse 搜索「${debouncedQ}」相关 AI 新闻、产品发布、开源项目和行业事件。`
+    : `查看 AI Pulse ${rangeLabel} AI 排行榜，按模型、工具、行业和开源项目追踪最新 AI 信号。`;
   const detailHrefForItem = (item: RankingItem) => `/events/${item.id}`;
 
   return (
     <div className="page-container">
+      <Seo
+        title={seoTitle}
+        description={seoDescription}
+        path="/rankings"
+        noindex={Boolean(debouncedQ)}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: seoTitle,
+          url: absoluteUrl('/rankings'),
+          description: seoDescription,
+        }}
+      />
       <header className="mb-6 border-b border-[#E2E8F0] pb-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
           <div className="min-w-0 flex-1">

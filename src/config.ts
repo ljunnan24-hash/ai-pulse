@@ -14,3 +14,12 @@ export function optionalAssetUrl(key: 'VITE_WECHAT_GROUP_QR_SRC' | 'VITE_REWARD_
   const v = import.meta.env[key] as string | undefined;
   return (v || '').trim();
 }
+
+export function siteUrl(): string {
+  const v = import.meta.env.VITE_SITE_URL as string | undefined;
+  if (v && v.trim()) return v.trim().replace(/\/$/, '');
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return window.location.origin.replace(/\/$/, '');
+  }
+  return 'https://www.aipulse.asia';
+}

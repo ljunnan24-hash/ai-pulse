@@ -5,6 +5,7 @@ import { HomeTopFiveTable } from '../components/home/HomeTopFiveTable';
 import { InformationQualityWorkflow } from '../components/home/InformationQualityWorkflow';
 import { TodayFocusCard } from '../components/home/TodayFocusCard';
 import { EmptyState } from '../components/common/EmptyState';
+import { Seo, absoluteUrl } from '../components/Seo';
 import { ShortcutButton } from '../components/pwa/ShortcutButton';
 import { estimateReadingMinutes } from '../components/weekly/weeklyPayloadUtils';
 import { formatSlashDateFromIso } from '../lib/homeRankingsDisplay';
@@ -130,6 +131,23 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-4 pb-16 pt-5 md:px-6 md:pb-20 md:pt-7">
+      <Seo
+        title="AI Pulse — AI 行业情报、排行榜与中文周报"
+        description="AI Pulse 每日追踪 AI 新闻、模型发布、开源项目和产品动态，整理成中文 AI 排行榜、事件解读和每周周报。"
+        path="/"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: 'AI Pulse',
+          url: absoluteUrl('/'),
+          description: '每日追踪 AI 行业信号，沉淀中文排行榜、事件解读和周报。',
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: `${absoluteUrl('/rankings')}?q={search_term_string}`,
+            'query-input': 'required name=search_term_string',
+          },
+        }}
+      />
       {mailFromLinkNotice ? (
         <div
           className="mb-6 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-[14px] leading-relaxed text-[#1E3A8A]"

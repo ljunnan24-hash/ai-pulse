@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 
+import { Seo } from '../components/Seo';
 import { contactEmail } from '../config';
 
 const cardPlain =
@@ -10,6 +11,11 @@ export default function TermsOfServicePage() {
 
   return (
     <div className="page-container pb-16 md:pb-20">
+      <Seo
+        title="服务条款 | AI Pulse"
+        description="AI Pulse 服务条款，说明网站使用许可、内容边界、订阅和知识产权规则。"
+        path="/terms"
+      />
       <header className="mb-8 border-b border-[#E2E8F0] pb-6">
         <h1 className="heading-page">服务条款</h1>
         <p className="mt-3 text-sm text-slate-500">

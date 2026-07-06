@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { fetchEventDetail, type EventDetailResponse } from '../api/public';
+import { Seo, absoluteUrl } from '../components/Seo';
 import { eventDetailPulseScore, relatedEventPulseScore } from '../lib/homeRankingsDisplay';
+import { compactText } from '../lib/seoContent';
 import { ScoreBadge } from '../components/common/ScoreBadge';
 import { ActionBadge } from '../components/common/ActionBadge';
 import { EmptyState } from '../components/common/EmptyState';
@@ -117,11 +119,37 @@ export default function EventDetailPage() {
 
   const primaryLink = data.sources[0];
   const primaryName = (primaryLink?.source_name ?? '').trim();
+  const seoTitle = `${compactText(headlinePrimary, 72)} | AI Pulse 事件解读`;
+  const seoDescription = compactText(happenedRaw || why || means || headlinePrimary, 155);
 
   const showUnifiedCard = Boolean(happenedBody || why || means);
 
   return (
     <div className="page-container section-y pb-16 md:pb-20">
+      <Seo
+        title={seoTitle}
+        description={seoDescription}
+        path={`/events/${data.id}`}
+        type="article"
+        publishedTime={data.published_at}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'NewsArticle',
+          headline: headlinePrimary,
+          description: seoDescription,
+          datePublished: data.published_at || undefined,
+          dateModified: data.published_at || undefined,
+          mainEntityOfPage: absoluteUrl(`/events/${data.id}`),
+          publisher: {
+            '@type': 'Organization',
+            name: 'AI Pulse',
+            url: absoluteUrl('/'),
+          },
+          isAccessibleForFree: true,
+          about: data.category || 'AI',
+          citation: (data.sources ?? []).slice(0, 8).map((s) => s.url).filter(Boolean),
+        }}
+      />
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <button type="button" onClick={goBackToList} className="btn-secondary px-4 py-2 text-sm font-semibold">

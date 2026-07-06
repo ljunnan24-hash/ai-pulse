@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import Base, engine
-from app.routers import admin_deploy, admin_site_ops, admin_sources, analytics_public, api, feedback_public, manage_page, rankings_public, tracking, weekly_json, weekly_public
+from app.routers import admin_deploy, admin_site_ops, admin_sources, analytics_public, api, feedback_public, manage_page, rankings_public, seo, tracking, weekly_json, weekly_public
 from app.routers import admin as admin_router
 
 
@@ -33,6 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(weekly_public.router)
+app.include_router(seo.router)
 app.include_router(tracking.router)
 app.include_router(analytics_public.router)
 app.include_router(feedback_public.router)

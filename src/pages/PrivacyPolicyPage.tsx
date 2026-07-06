@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 
+import { Seo } from '../components/Seo';
 import { contactEmail } from '../config';
 
 const cardPlain =
@@ -10,6 +11,11 @@ export default function PrivacyPolicyPage() {
 
   return (
     <div className="page-container pb-16 md:pb-20">
+      <Seo
+        title="隐私政策 | AI Pulse"
+        description="AI Pulse 隐私政策，说明订阅邮箱、访问统计和反馈信息的收集与使用方式。"
+        path="/privacy"
+      />
       <header className="mb-8 border-b border-[#E2E8F0] pb-6">
         <h1 className="heading-page">隐私政策</h1>
         <p className="mt-3 text-sm text-slate-500">

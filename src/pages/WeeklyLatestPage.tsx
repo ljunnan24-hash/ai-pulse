@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { fetchWeeklyLatest } from '../api/public';
+import { Seo, absoluteUrl } from '../components/Seo';
 import { WeeklyReportView } from '../components/weekly/WeeklyReportView';
+import { weeklySeoDescription, weeklySeoHeadline } from '../lib/seoContent';
 
 export default function WeeklyLatestPage() {
   const [title, setTitle] = useState('');
@@ -38,5 +40,34 @@ export default function WeeklyLatestPage() {
     return <p className="pt-8 text-slate-500">加载中…</p>;
   }
 
-  return <WeeklyReportView title={title} reportDate={reportDate} payload={payload} />;
+  const headline = weeklySeoHeadline(payload, title);
+  const description = weeklySeoDescription(payload, title);
+
+  return (
+    <>
+      <Seo
+        title={`${headline} | AI Pulse 最新周报`}
+        description={description}
+        path="/weekly/latest"
+        type="article"
+        publishedTime={reportDate || null}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline,
+          description,
+          datePublished: reportDate || undefined,
+          dateModified: reportDate || undefined,
+          mainEntityOfPage: absoluteUrl('/weekly/latest'),
+          publisher: {
+            '@type': 'Organization',
+            name: 'AI Pulse',
+            url: absoluteUrl('/'),
+          },
+          isAccessibleForFree: true,
+        }}
+      />
+      <WeeklyReportView title={title} reportDate={reportDate} payload={payload} />
+    </>
+  );
 }

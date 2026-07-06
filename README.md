@@ -105,6 +105,7 @@ Frontend variables live in `.env`:
 ```bash
 VITE_API_BASE_URL=
 VITE_CONTACT_EMAIL=contact@example.com
+VITE_SITE_URL=https://www.aipulse.asia
 # Optional public image URLs for your own deployment.
 # VITE_WECHAT_GROUP_QR_SRC=/assets/wechat-group-qr.example.png
 # VITE_REWARD_QR_SRC=/assets/reward-qr.example.png
@@ -188,6 +189,7 @@ ADMIN_USERNAME=admin ADMIN_PASSWORD=change_me python scripts/create_admin_user.p
 A typical production deployment uses:
 
 - Nginx serving `dist/` and reverse proxying API routes to Uvicorn.
+- Nginx reverse proxying `/sitemap.xml` to Uvicorn so the dynamic sitemap includes current weekly reports and event pages.
 - Uvicorn bound to `127.0.0.1:8000` behind systemd.
 - MySQL/RDS for persistent data.
 - Cron for daily rankings and weekly generation/sending.

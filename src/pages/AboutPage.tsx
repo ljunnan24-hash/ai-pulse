@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { AboutParticipateSection } from '../components/about/AboutParticipateSection';
 import { AboutQrModal } from '../components/about/AboutQrModal';
 import { aboutBody, aboutCard } from '../components/about/aboutStyles';
+import { Seo, absoluteUrl } from '../components/Seo';
 import { apiBase, contactEmail, optionalAssetUrl } from '../config';
 import { getVisitorId } from '../lib/analytics';
 
@@ -75,6 +76,18 @@ export default function AboutPage() {
 
   return (
     <div>
+      <Seo
+        title="关于 AI Pulse — AI 行业信号筛选与中文周报"
+        description="了解 AI Pulse 如何从公开来源追踪 AI 行业变化，去重整理为排行榜、事件详情和中文周报。"
+        path="/about"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'AI Pulse',
+          url: absoluteUrl('/'),
+          description: 'AI 行业信号筛选、排行榜与中文周报。',
+        }}
+      />
       <div className="page-container pb-14 md:pb-16">
         <div className="space-y-7 md:space-y-9">
           <section className={aboutCard} aria-labelledby="about-what">

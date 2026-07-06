@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { fetchWeeklyByDate } from '../api/public';
+import { Seo, absoluteUrl } from '../components/Seo';
 import { WeeklyReportView } from '../components/weekly/WeeklyReportView';
+import { weeklySeoDescription, weeklySeoHeadline } from '../lib/seoContent';
 
 export default function WeeklyReportPage() {
   const { date } = useParams<{ date: string }>();
@@ -40,5 +42,34 @@ export default function WeeklyReportPage() {
     return <p className="text-on-surface-variant pt-8">加载中…</p>;
   }
 
-  return <WeeklyReportView title={title} reportDate={reportDate} payload={payload} />;
+  const headline = weeklySeoHeadline(payload, title);
+  const description = weeklySeoDescription(payload, title);
+
+  return (
+    <>
+      <Seo
+        title={`${headline} | AI Pulse 周报`}
+        description={description}
+        path={`/weekly/${reportDate || date}`}
+        type="article"
+        publishedTime={reportDate || null}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline,
+          description,
+          datePublished: reportDate || undefined,
+          dateModified: reportDate || undefined,
+          mainEntityOfPage: absoluteUrl(`/weekly/${reportDate || date}`),
+          publisher: {
+            '@type': 'Organization',
+            name: 'AI Pulse',
+            url: absoluteUrl('/'),
+          },
+          isAccessibleForFree: true,
+        }}
+      />
+      <WeeklyReportView title={title} reportDate={reportDate} payload={payload} />
+    </>
+  );
 }
