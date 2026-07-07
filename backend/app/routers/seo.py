@@ -70,6 +70,11 @@ def robots_txt() -> PlainTextResponse:
     return PlainTextResponse(text)
 
 
+@router.head("/robots.txt")
+def robots_txt_head() -> Response:
+    return Response(media_type="text/plain; charset=utf-8")
+
+
 @router.get("/sitemap.xml")
 def sitemap_xml(db: Session = Depends(get_db)) -> Response:
     base = _site_base()
@@ -105,3 +110,8 @@ def sitemap_xml(db: Session = Depends(get_db)) -> Response:
         urls.append(_url(f"{base}/events/{row.id}", lastmod=lastmod, changefreq="weekly", priority="0.65"))
 
     return Response(_xml(urls), media_type="application/xml; charset=utf-8")
+
+
+@router.head("/sitemap.xml")
+def sitemap_xml_head() -> Response:
+    return Response(media_type="application/xml; charset=utf-8")
