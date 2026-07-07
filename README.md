@@ -104,12 +104,14 @@ Frontend variables live in `.env`:
 
 ```bash
 VITE_API_BASE_URL=
-VITE_CONTACT_EMAIL=contact@example.com
+VITE_CONTACT_EMAIL=2089128910@qq.com
 VITE_SITE_URL=https://www.aipulse.asia
-# Optional public image URLs for your own deployment.
-# VITE_WECHAT_GROUP_QR_SRC=/assets/wechat-group-qr.example.png
-# VITE_REWARD_QR_SRC=/assets/reward-qr.example.png
+VITE_WECHAT_GROUP_QR_SRC=/assets/wechat-group-qr.png
+VITE_REWARD_QR_SRC=/assets/reward-qr.png
 ```
+
+The About page also uses these same values as production fallbacks. Put the actual QR images at
+`public/assets/wechat-group-qr.png` and `public/assets/reward-qr.png`, or point the variables above to hosted image URLs.
 
 Backend variables live in `backend/.env`. Important groups:
 

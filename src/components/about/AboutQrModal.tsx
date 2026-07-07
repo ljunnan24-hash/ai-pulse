@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 type AboutQrModalProps = {
@@ -18,8 +18,11 @@ export function AboutQrModal({
   imageAlt,
   onClose,
 }: AboutQrModalProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+
   useEffect(() => {
     if (!open) return;
+    setImageFailed(false);
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
@@ -30,7 +33,7 @@ export function AboutQrModal({
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+  }, [imageSrc, open, onClose]);
 
   if (!open) return null;
 
@@ -61,13 +64,20 @@ export function AboutQrModal({
           </button>
         </div>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">{description}</p>
-        <img
-          src={imageSrc}
-          alt={imageAlt}
-          width={280}
-          height={280}
-          className="mx-auto mt-4 aspect-square w-full max-w-[280px] rounded-lg border border-[#E8EDF5] bg-white object-contain p-1"
-        />
+        {imageFailed ? (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
+            二维码图片暂未加载成功，请稍后重试，或通过页面中的邮箱联系。
+          </div>
+        ) : (
+          <img
+            src={imageSrc}
+            alt={imageAlt}
+            width={280}
+            height={280}
+            onError={() => setImageFailed(true)}
+            className="mx-auto mt-4 aspect-square w-full max-w-[280px] rounded-lg border border-[#E8EDF5] bg-white object-contain p-1"
+          />
+        )}
       </div>
     </div>
   );

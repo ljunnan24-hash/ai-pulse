@@ -7,12 +7,14 @@ export function apiBase(): string {
 
 export function contactEmail(): string {
   const v = import.meta.env.VITE_CONTACT_EMAIL as string | undefined;
-  return (v || 'contact@example.com').trim();
+  return (v || '2089128910@qq.com').trim();
 }
 
 export function optionalAssetUrl(key: 'VITE_WECHAT_GROUP_QR_SRC' | 'VITE_REWARD_QR_SRC'): string {
   const v = import.meta.env[key] as string | undefined;
-  return (v || '').trim();
+  if (v && v.trim()) return v.trim();
+  if (key === 'VITE_WECHAT_GROUP_QR_SRC') return '/assets/wechat-group-qr.png';
+  return '/assets/reward-qr.png';
 }
 
 export function siteUrl(): string {
