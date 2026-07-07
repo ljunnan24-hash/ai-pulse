@@ -311,37 +311,6 @@ class AnalyticsPageView(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
-class AnalyticsRankingEvent(Base):
-    """榜单事件兴趣埋点（曝光 / 点击，匿名 visitor_id + ip_hash）。"""
-
-    __tablename__ = "analytics_ranking_events"
-
-    id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
-        primary_key=True,
-        autoincrement=True,
-    )
-    visitor_id: Mapped[str] = mapped_column(String(40), index=True)
-    session_id: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
-    action: Mapped[str] = mapped_column(String(24), index=True)
-    event_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
-    event_key: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
-    surface: Mapped[str] = mapped_column(String(64), default="", index=True)
-    range_key: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
-    rank_position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    category: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    title_snapshot: Mapped[str] = mapped_column(String(512), default="")
-    title_en_snapshot: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    source_label: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
-    source_type: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    target_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
-    referrer: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    ip_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
-
-
 class UserFeedback(Base):
     """关于页等入口的用户建议反馈。"""
 

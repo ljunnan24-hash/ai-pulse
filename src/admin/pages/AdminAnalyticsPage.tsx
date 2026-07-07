@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, CalendarDays, Eye, MousePointerClick, Users } from 'lucide-react';
+import { Activity, BarChart3, CalendarDays, Eye, Users } from 'lucide-react';
 
-import type { AdminAnalyticsSummary, AdminPageviewRow, AdminRankingInterest } from '../api/client';
-import { adminAnalyticsPageviews, adminAnalyticsRankingInterest, adminAnalyticsSummary } from '../api/client';
+import type { AdminAnalyticsSummary, AdminPageviewRow } from '../api/client';
+import { adminAnalyticsPageviews, adminAnalyticsSummary } from '../api/client';
 import { AdminEmpty, AdminError, AdminPageHeader, AdminPanel, AdminStatCard } from '../components/AdminUI';
 
 function shortVisitor(v: string | null): string {
@@ -29,7 +29,6 @@ function average(values: number[]): number {
 
 export function AdminAnalyticsPage() {
   const [summary, setSummary] = useState<AdminAnalyticsSummary | null>(null);
-  const [interest, setInterest] = useState<AdminRankingInterest | null>(null);
   const [rows, setRows] = useState<AdminPageviewRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,13 +36,8 @@ export function AdminAnalyticsPage() {
     const load = async () => {
       setError(null);
       try {
-        const [s, ri, pv] = await Promise.all([
-          adminAnalyticsSummary(),
-          adminAnalyticsRankingInterest({ days: 7, limit: 20 }),
-          adminAnalyticsPageviews(150),
-        ]);
+        const [s, pv] = await Promise.all([adminAnalyticsSummary(), adminAnalyticsPageviews(150)]);
         setSummary(s);
-        setInterest(ri);
         setRows(pv.items);
       } catch (e) {
         setError(e instanceof Error ? e.message : '加载失败');
@@ -61,7 +55,6 @@ export function AdminAnalyticsPage() {
   const avg7Dau = useMemo(() => average(dailyTraffic.slice(-7).map((d) => d.dau)), [dailyTraffic]);
   const avg30Dau = useMemo(() => average(dailyTraffic.map((d) => d.dau)), [dailyTraffic]);
   const todayDau = summary?.today.dau ?? summary?.today.uv ?? 0;
-  const topEventClicks = interest?.top_events[0]?.clicks ?? 0;
 
   return (
     <div className="space-y-5">
@@ -80,7 +73,7 @@ export function AdminAnalyticsPage() {
             <AdminStatCard label="7 日平均 DAU" value={avg7Dau} hint={`7 日独立 UV ${summary.last_7_days.uv}`} icon={<Activity className="h-4 w-4" />} tone="violet" />
             <AdminStatCard label="30 日平均 DAU" value={avg30Dau} hint={`30 日独立 UV ${summary.last_30_days.uv}`} icon={<CalendarDays className="h-4 w-4" />} tone="blue" />
             <AdminStatCard label="今日 PV / UV" value={`${summary.today.pv} / ${summary.today.uv}`} icon={<Eye className="h-4 w-4" />} tone="slate" />
-            <AdminStatCard label="榜单最高点击" value={topEventClicks} hint="近 7 天单事件点击" icon={<MousePointerClick className="h-4 w-4" />} tone="amber" />
+            <AdminStatCard label="近 30 天 PV / UV" value={`${summary.last_30_days.pv} / ${summary.last_30_days.uv}`} icon={<BarChart3 className="h-4 w-4" />} tone="amber" />
           </div>
 
           <AdminPanel
@@ -135,65 +128,6 @@ export function AdminAnalyticsPage() {
               </div>
             ) : (
               <AdminEmpty>暂无热门页面数据。</AdminEmpty>
-            )}
-          </AdminPanel>
-
-          <AdminPanel title="榜单事件兴趣（近 7 天）" description="按榜单曝光与点击聚合，CTR = 点击 / 曝光；标题和来源为点击当时快照。">
-            {interest && interest.top_events.length > 0 ? (
-              <div className="max-h-[520px] overflow-auto">
-                <table className="min-w-[1080px] w-full text-left text-xs">
-                  <thead className="sticky top-0 bg-slate-50 font-semibold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">事件</th>
-                      <th className="px-4 py-3">来源</th>
-                      <th className="px-4 py-3 text-right">点击</th>
-                      <th className="px-4 py-3 text-right">曝光</th>
-                      <th className="px-4 py-3 text-right">CTR</th>
-                      <th className="px-4 py-3 text-right">点击 UV</th>
-                      <th className="px-4 py-3 text-right">最好名次</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {interest.top_events.map((r) => (
-                      <tr key={`${r.event_id ?? r.title}-${r.source_label ?? ''}`} className="align-top hover:bg-slate-50">
-                        <td className="max-w-[420px] px-4 py-3">
-                          <div className="line-clamp-2 font-medium text-slate-900">{r.title || '—'}</div>
-                          <div className="mt-1 font-mono text-[11px] text-slate-400">{r.event_id ? `#${r.event_id}` : 'no event id'} · {r.category || '—'}</div>
-                        </td>
-                        <td className="max-w-[220px] truncate px-4 py-3 text-slate-600" title={r.source_label || ''}>{r.source_label || '—'}</td>
-                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-950">{r.clicks}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600">{r.impressions}</td>
-                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-blue-600">{r.ctr}%</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600">{r.click_uv}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600">{r.best_rank ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <AdminEmpty>暂无榜单兴趣数据。</AdminEmpty>
-            )}
-          </AdminPanel>
-
-          <AdminPanel title="来源兴趣（近 7 天）" description="按来源名称聚合，可用于判断哪些媒体 / 官方源带来更多点击。">
-            {interest && interest.top_sources.length > 0 ? (
-              <div className="divide-y divide-slate-100">
-                {interest.top_sources.map((s) => (
-                  <div key={`${s.source_label}-${s.source_type ?? ''}`} className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_100px_100px_100px_100px] md:items-center">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-slate-900">{s.source_label}</div>
-                      <div className="mt-1 text-xs text-slate-400">{s.source_type || '—'} · {s.event_count} 个事件</div>
-                    </div>
-                    <div className="text-sm text-slate-600 md:text-right"><span className="font-semibold tabular-nums text-slate-950">{s.clicks}</span> 点击</div>
-                    <div className="text-sm text-slate-600 md:text-right"><span className="font-semibold tabular-nums text-slate-950">{s.impressions}</span> 曝光</div>
-                    <div className="text-sm text-blue-600 md:text-right"><span className="font-semibold tabular-nums">{s.ctr}%</span> CTR</div>
-                    <div className="text-sm text-slate-600 md:text-right"><span className="font-semibold tabular-nums text-slate-950">{s.click_uv}</span> UV</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <AdminEmpty>暂无来源兴趣数据。</AdminEmpty>
             )}
           </AdminPanel>
         </>

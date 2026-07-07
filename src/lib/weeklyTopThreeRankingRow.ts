@@ -68,13 +68,5 @@ export function weeklyTopThreeToPulseTableRow(
     categorySlug: item.category || 'application',
     detailTo,
     industryTags: item.industry_tags?.slice(0, 2),
-    weeklyUi: eid <= 0,
-    analytics: {
-      eventId: eid > 0 ? eid : undefined,
-      eventKey: eid > 0 ? String(eid) : `weekly-top3-${rank}`,
-      surface: 'weekly_top3',
-      rangeKey: 'weekly',
-      sourceType: item.source_type,
-    },
   };
 }
