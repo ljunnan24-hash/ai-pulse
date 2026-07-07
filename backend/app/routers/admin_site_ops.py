@@ -7,11 +7,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, func, select
+from sqlalchemy import case, desc, func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import AnalyticsPageView, UserFeedback
+from app.models import AnalyticsPageView, AnalyticsRankingEvent, UserFeedback
 from app.routers.admin import require_admin
 from app.timeutil import BEIJING, now_beijing
 
@@ -142,6 +142,135 @@ def admin_analytics_pageviews(
         for r in rows
     ]
     return {"items": items}
+
+
+def _ctr(clicks: int, impressions: int) -> float:
+    if impressions <= 0:
+        return 0.0
+    return round((clicks / impressions) * 100, 2)
+
+
+@router.get("/analytics/ranking-interest")
+def admin_analytics_ranking_interest(
+    _: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+    days: int = Query(7, ge=1, le=90),
+    limit: int = Query(20, ge=1, le=100),
+) -> dict[str, Any]:
+    since = _shanghai_midnight_utc(days - 1)
+    clicks_c = func.sum(case((AnalyticsRankingEvent.action == "click", 1), else_=0)).label("clicks")
+    impressions_c = func.sum(case((AnalyticsRankingEvent.action == "impression", 1), else_=0)).label("impressions")
+    click_uv_c = func.count(
+        func.distinct(case((AnalyticsRankingEvent.action == "click", AnalyticsRankingEvent.visitor_id), else_=None))
+    ).label("click_uv")
+
+    event_rows = db.execute(
+        select(
+            AnalyticsRankingEvent.event_id,
+            AnalyticsRankingEvent.title_snapshot,
+            AnalyticsRankingEvent.category,
+            AnalyticsRankingEvent.source_label,
+            AnalyticsRankingEvent.source_type,
+            clicks_c,
+            impressions_c,
+            click_uv_c,
+            func.min(AnalyticsRankingEvent.rank_position).label("best_rank"),
+            func.max(AnalyticsRankingEvent.created_at).label("last_seen_at"),
+        )
+        .where(AnalyticsRankingEvent.created_at >= since)
+        .group_by(
+            AnalyticsRankingEvent.event_id,
+            AnalyticsRankingEvent.title_snapshot,
+            AnalyticsRankingEvent.category,
+            AnalyticsRankingEvent.source_label,
+            AnalyticsRankingEvent.source_type,
+        )
+        .order_by(desc(clicks_c), desc(impressions_c))
+        .limit(limit)
+    ).all()
+
+    top_events = []
+    for r in event_rows:
+        clicks = int(r.clicks or 0)
+        impressions = int(r.impressions or 0)
+        top_events.append(
+            {
+                "event_id": int(r.event_id) if r.event_id is not None else None,
+                "title": r.title_snapshot or "",
+                "category": r.category,
+                "source_label": r.source_label,
+                "source_type": r.source_type,
+                "clicks": clicks,
+                "impressions": impressions,
+                "ctr": _ctr(clicks, impressions),
+                "click_uv": int(r.click_uv or 0),
+                "best_rank": int(r.best_rank) if r.best_rank is not None else None,
+                "last_seen_at": r.last_seen_at.isoformat() if r.last_seen_at else None,
+            }
+        )
+
+    source_rows = db.execute(
+        select(
+            AnalyticsRankingEvent.source_label,
+            AnalyticsRankingEvent.source_type,
+            clicks_c,
+            impressions_c,
+            click_uv_c,
+            func.count(func.distinct(AnalyticsRankingEvent.event_id)).label("event_count"),
+        )
+        .where(AnalyticsRankingEvent.created_at >= since)
+        .where(AnalyticsRankingEvent.source_label.isnot(None))
+        .group_by(AnalyticsRankingEvent.source_label, AnalyticsRankingEvent.source_type)
+        .order_by(desc(clicks_c), desc(impressions_c))
+        .limit(limit)
+    ).all()
+
+    top_sources = []
+    for r in source_rows:
+        clicks = int(r.clicks or 0)
+        impressions = int(r.impressions or 0)
+        top_sources.append(
+            {
+                "source_label": r.source_label or "",
+                "source_type": r.source_type,
+                "clicks": clicks,
+                "impressions": impressions,
+                "ctr": _ctr(clicks, impressions),
+                "click_uv": int(r.click_uv or 0),
+                "event_count": int(r.event_count or 0),
+            }
+        )
+
+    recent_click_rows = db.scalars(
+        select(AnalyticsRankingEvent)
+        .where(AnalyticsRankingEvent.created_at >= since, AnalyticsRankingEvent.action == "click")
+        .order_by(desc(AnalyticsRankingEvent.created_at))
+        .limit(30)
+    ).all()
+    recent_clicks = [
+        {
+            "id": r.id,
+            "event_id": r.event_id,
+            "title": r.title_snapshot,
+            "source_label": r.source_label,
+            "surface": r.surface,
+            "range_key": r.range_key,
+            "rank_position": r.rank_position,
+            "path": r.path,
+            "target_url": r.target_url,
+            "visitor_id": r.visitor_id,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in recent_click_rows
+    ]
+
+    return {
+        "days": days,
+        "since": since.isoformat(),
+        "top_events": top_events,
+        "top_sources": top_sources,
+        "recent_clicks": recent_clicks,
+    }
 
 
 class FeedbackPatchIn(BaseModel):

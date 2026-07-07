@@ -2,6 +2,13 @@
  * 排行榜 / 首页 Top5 / 周报 Top3 共用：同一套栅格、字重与分类 pill。
  */
 
+import { useEffect, useMemo, useRef } from 'react';
+
+import {
+  sendRankingAnalyticsEvent,
+  sendRankingAnalyticsEvents,
+  type RankingAnalyticsEvent,
+} from '../../lib/analytics';
 import type { WeeklyCategoryResolved } from '../../lib/weeklyCategoryDisplay';
 import { categoryLabel, categoryPillClass } from '../../lib/categoryLabels';
 import {
@@ -54,6 +61,13 @@ export type PulseRankingsTableRow = {
   weeklyUi?: boolean;
   /** 领域/场景补充标签（API 仍为 industry_tags；最多展示 2 个由组件内 slice） */
   industryTags?: Array<{ slug: string; label: string }>;
+  analytics?: {
+    eventId?: number;
+    eventKey?: string;
+    surface: string;
+    rangeKey?: string;
+    sourceType?: string;
+  };
 };
 
 /** 大类 pill 下的补充说明（比大类 pill 更轻）；叠放在「分类」列纵向第二行 */
@@ -111,20 +125,28 @@ function PulseRankingsActionCell({
   externalUrl,
   mobileFullWidth,
   weeklyUi,
+  onActivate,
 }: {
   detailTo?: string;
   externalUrl?: string;
   mobileFullWidth?: boolean;
   weeklyUi?: boolean;
+  onActivate?: () => void;
 }) {
   const mobileCls = mobileFullWidth ? `${pulseRankDetailBtnCls} inline-flex self-start` : pulseRankDetailBtnCls;
 
   if (detailTo) {
-    return <PulseRankDetailLink to={detailTo} className={mobileCls} />;
+    return <PulseRankDetailLink to={detailTo} className={mobileCls} onClick={onActivate} />;
   }
   if (externalUrl) {
     return (
-      <a href={externalUrl} target="_blank" rel="noreferrer" className={`${pulseRankDetailBtnCls} no-underline ${mobileCls}`}>
+      <a
+        href={externalUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={`${pulseRankDetailBtnCls} no-underline ${mobileCls}`}
+        onClick={onActivate}
+      >
         {weeklyUi ? '查看来源' : '查看详情'}
       </a>
     );
@@ -136,6 +158,41 @@ function PulseRankingsActionCell({
   );
 }
 
+function rowAnalyticsEvent(
+  row: PulseRankingsTableRow,
+  action: RankingAnalyticsEvent['action'],
+): RankingAnalyticsEvent | null {
+  const meta = row.analytics;
+  if (!meta) return null;
+  const title = row.titleZh.trim() || row.titleEn?.trim() || row.key;
+  if (!title) return null;
+  return {
+    action,
+    event_id: meta.eventId,
+    event_key: meta.eventKey || row.key,
+    surface: meta.surface,
+    range_key: meta.rangeKey,
+    rank_position: row.rank,
+    category: row.categorySlug,
+    title,
+    title_en: row.titleEn,
+    source_label: row.sourceLabel,
+    source_type: meta.sourceType,
+    target_url: row.detailTo || row.externalUrl,
+  };
+}
+
+function rowAnalyticsSignature(row: PulseRankingsTableRow): string {
+  const meta = row.analytics;
+  if (!meta) return '';
+  return [
+    meta.surface,
+    meta.rangeKey ?? '',
+    meta.eventId ?? meta.eventKey ?? row.key,
+    row.rank,
+  ].join('|');
+}
+
 export function PulseRankingsTableLayout({
   rows,
   scoreColumnLabel = 'Pulse Score',
@@ -144,9 +201,30 @@ export function PulseRankingsTableLayout({
   /** 表头分数列文案；周报使用「本周分」 */
   scoreColumnLabel?: string;
 }) {
+  const sentImpressions = useRef<Set<string>>(new Set());
+  const impressionSig = useMemo(() => rows.map(rowAnalyticsSignature).filter(Boolean).join('||'), [rows]);
+
+  useEffect(() => {
+    if (!impressionSig) return;
+    const events: RankingAnalyticsEvent[] = [];
+    for (const row of rows) {
+      const sig = rowAnalyticsSignature(row);
+      if (!sig || sentImpressions.current.has(sig)) continue;
+      const event = rowAnalyticsEvent(row, 'impression');
+      if (!event) continue;
+      sentImpressions.current.add(sig);
+      events.push(event);
+    }
+    if (events.length > 0) sendRankingAnalyticsEvents(events);
+  }, [impressionSig, rows]);
+
   if (rows.length === 0) return null;
 
   const stickyActionWrap = 'sticky right-0 z-[2] -mr-px bg-white pl-2 shadow-[-12px_0_14px_-10px_rgba(15,23,42,0.1)]';
+  const trackClick = (row: PulseRankingsTableRow) => {
+    const event = rowAnalyticsEvent(row, 'click');
+    if (event) sendRankingAnalyticsEvent(event, true);
+  };
 
   return (
     <div className={`${pulseRankingsTableWrapCls} max-w-full overflow-x-auto`}>
@@ -201,6 +279,7 @@ export function PulseRankingsTableLayout({
                   detailTo={r.detailTo}
                   externalUrl={r.externalUrl}
                   weeklyUi={r.weeklyUi}
+                  onActivate={() => trackClick(r)}
                 />
               </div>
             </div>
@@ -242,6 +321,7 @@ export function PulseRankingsTableLayout({
                 externalUrl={r.externalUrl}
                 mobileFullWidth
                 weeklyUi={r.weeklyUi}
+                onActivate={() => trackClick(r)}
               />
             </div>
           </li>

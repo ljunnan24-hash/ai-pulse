@@ -134,10 +134,12 @@ export function PulseRankDetailLink({
   to,
   className,
   children = '查看详情',
+  onClick,
 }: {
   to: string;
   className?: string;
   children?: ReactNode;
+  onClick?: () => void;
 }) {
   const location = useLocation();
   const from = `${location.pathname}${location.search}${location.hash}`;
@@ -145,7 +147,7 @@ export function PulseRankDetailLink({
   const detailTo = eventId === null ? to : eventDrawerHref(location.pathname, location.search, eventId);
 
   return (
-    <Link to={detailTo} state={{ from }} className={className ?? pulseRankDetailBtnCls}>
+    <Link to={detailTo} state={{ from }} className={className ?? pulseRankDetailBtnCls} onClick={onClick}>
       {children}
     </Link>
   );

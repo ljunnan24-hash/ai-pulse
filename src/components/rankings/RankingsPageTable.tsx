@@ -32,6 +32,13 @@ export function RankingsPageTable({ items, range, detailHrefForItem }: Props) {
     categorySlug: item.category ?? '',
     detailTo: detailHrefForItem ? detailHrefForItem(item) : `/events/${item.id}`,
     industryTags: item.industry_tags?.slice(0, 2),
+    analytics: {
+      eventId: item.id,
+      eventKey: String(item.id),
+      surface: 'rankings_table',
+      rangeKey: range,
+      sourceType: item.source_type,
+    },
   }));
 
   return <PulseRankingsTableLayout rows={rows} scoreColumnLabel={scoreLabel} />;

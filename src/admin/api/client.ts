@@ -133,6 +133,60 @@ export async function adminAnalyticsPageviews(limit = 100): Promise<{ items: Adm
   return await http<{ items: AdminPageviewRow[] }>(`/api/admin/analytics/pageviews?limit=${limit}`);
 }
 
+export type AdminRankingInterestEvent = {
+  event_id: number | null;
+  title: string;
+  category: string | null;
+  source_label: string | null;
+  source_type: string | null;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  click_uv: number;
+  best_rank: number | null;
+  last_seen_at: string | null;
+};
+
+export type AdminRankingInterestSource = {
+  source_label: string;
+  source_type: string | null;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  click_uv: number;
+  event_count: number;
+};
+
+export type AdminRankingInterestClick = {
+  id: number;
+  event_id: number | null;
+  title: string;
+  source_label: string | null;
+  surface: string;
+  range_key: string | null;
+  rank_position: number | null;
+  path: string | null;
+  target_url: string | null;
+  visitor_id: string;
+  created_at: string | null;
+};
+
+export type AdminRankingInterest = {
+  days: number;
+  since: string;
+  top_events: AdminRankingInterestEvent[];
+  top_sources: AdminRankingInterestSource[];
+  recent_clicks: AdminRankingInterestClick[];
+};
+
+export async function adminAnalyticsRankingInterest(params?: { days?: number; limit?: number }): Promise<AdminRankingInterest> {
+  const usp = new URLSearchParams();
+  if (params?.days != null) usp.set('days', String(params.days));
+  if (params?.limit != null) usp.set('limit', String(params.limit));
+  const qs = usp.toString();
+  return await http<AdminRankingInterest>(`/api/admin/analytics/ranking-interest${qs ? `?${qs}` : ''}`);
+}
+
 export type AdminFeedbackRow = {
   id: number;
   content: string;

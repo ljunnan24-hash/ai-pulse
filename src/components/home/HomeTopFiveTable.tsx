@@ -27,6 +27,13 @@ export function HomeTopFiveTable({ items }: Props) {
     categorySlug: item.category ?? '',
     detailTo: `/events/${item.id}`,
     industryTags: item.industry_tags?.slice(0, 2),
+    analytics: {
+      eventId: item.id,
+      eventKey: String(item.id),
+      surface: 'home_top5',
+      rangeKey: 'today',
+      sourceType: item.source_type,
+    },
   }));
 
   return <PulseRankingsTableLayout rows={rows} />;
