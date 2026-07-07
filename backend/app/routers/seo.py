@@ -51,10 +51,9 @@ def _xml(urls: Iterable[str]) -> str:
     return f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{body}\n</urlset>\n'
 
 
-@router.get("/robots.txt", response_class=PlainTextResponse)
-def robots_txt() -> PlainTextResponse:
+def _robots_text() -> str:
     base = _site_base()
-    text = "\n".join(
+    return "\n".join(
         [
             "User-agent: *",
             "Allow: /",
@@ -67,16 +66,9 @@ def robots_txt() -> PlainTextResponse:
             "",
         ]
     )
-    return PlainTextResponse(text)
 
 
-@router.head("/robots.txt")
-def robots_txt_head() -> Response:
-    return Response(media_type="text/plain; charset=utf-8")
-
-
-@router.get("/sitemap.xml")
-def sitemap_xml(db: Session = Depends(get_db)) -> Response:
+def _sitemap_xml_text(db: Session) -> str:
     base = _site_base()
     now_date = datetime.now(timezone.utc).date().isoformat()
     urls: list[str] = [
@@ -109,9 +101,32 @@ def sitemap_xml(db: Session = Depends(get_db)) -> Response:
         lastmod = _iso_date(row.updated_at) or _iso_date(row.last_seen_at) or _iso_date(row.published_at)
         urls.append(_url(f"{base}/events/{row.id}", lastmod=lastmod, changefreq="weekly", priority="0.65"))
 
-    return Response(_xml(urls), media_type="application/xml; charset=utf-8")
+    return _xml(urls)
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse)
+def robots_txt() -> PlainTextResponse:
+    return PlainTextResponse(_robots_text())
+
+
+@router.head("/robots.txt")
+def robots_txt_head() -> Response:
+    body = _robots_text().encode("utf-8")
+    return Response(
+        media_type="text/plain; charset=utf-8",
+        headers={"content-length": str(len(body))},
+    )
+
+
+@router.get("/sitemap.xml")
+def sitemap_xml(db: Session = Depends(get_db)) -> Response:
+    return Response(_sitemap_xml_text(db), media_type="application/xml; charset=utf-8")
 
 
 @router.head("/sitemap.xml")
-def sitemap_xml_head() -> Response:
-    return Response(media_type="application/xml; charset=utf-8")
+def sitemap_xml_head(db: Session = Depends(get_db)) -> Response:
+    body = _sitemap_xml_text(db).encode("utf-8")
+    return Response(
+        media_type="application/xml; charset=utf-8",
+        headers={"content-length": str(len(body))},
+    )
