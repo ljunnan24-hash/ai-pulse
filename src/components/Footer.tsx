@@ -17,6 +17,9 @@ export function Footer() {
           <Link className="text-slate-500 transition hover:text-primary" to="/subscribe">
             订阅周报
           </Link>
+          <Link className="text-slate-500 transition hover:text-primary" to="/about">
+            关于我们
+          </Link>
           <ShortcutButton variant="footer" />
           <Link className="text-slate-500 transition hover:text-primary" to="/privacy">
             隐私政策
