@@ -1,10 +1,60 @@
-# AI Pulse
+<p align="center">
+  <img src="docs/assets/usage/home.png" alt="AI Pulse homepage showing ranked AI industry signals" width="100%" />
+</p>
 
-AI Pulse 是一个面向 AI 行业信息整理的开源项目。它会从公开 RSS、GitHub 和可配置的信息源中收集 AI 动态，把多篇报道合并成清晰的事件，再通过评分、标签和 LLM 生成摘要，输出每日榜单、事件详情和中文周报。这个项目适合用来搭建自己的 AI 信息雷达，也适合学习一个从采集、去重、评分、LLM 增强到前端展示和邮件分发的完整内容系统。
+<h1 align="center">AI Pulse</h1>
 
-AI Pulse is an AI-industry signal tracker. It collects public RSS/GitHub sources, deduplicates related stories into events, scores them, and publishes a ranked web experience plus weekly Chinese digests.
+<p align="center">
+  <strong>每天看 AI 信号，每周读 AI 简报。</strong><br />
+  <strong>An open-source signal tracker for finding the AI events that actually matter.</strong>
+</p>
 
-The project contains a Vite + React frontend and a Python FastAPI backend. LLM calls use an OpenAI-compatible Chat Completions API, so providers such as DeepSeek, OpenAI-compatible gateways, or Volcengine Ark can be swapped by environment variables.
+<p align="center">
+  <a href="https://www.aipulse.asia/"><img alt="Live website" src="https://img.shields.io/website?url=https%3A%2F%2Fwww.aipulse.asia%2F&label=live%20website" /></a>
+  <a href="https://github.com/ljunnan24-hash/ai-pulse/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ljunnan24-hash/ai-pulse/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue" /></a>
+  <img alt="React 19" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" />
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white" />
+</p>
+
+<p align="center">
+  <a href="https://www.aipulse.asia/">在线体验</a> ·
+  <a href="https://www.aipulse.asia/rankings">AI 排行榜</a> ·
+  <a href="https://www.aipulse.asia/weekly/latest">最新周报</a> ·
+  <a href="docs/README.md">文档导航</a> ·
+  <a href="#quick-start">本地运行</a>
+</p>
+
+AI Pulse 从公开 RSS、GitHub 和可配置的信息源收集 AI 动态，将多篇报道聚合为可追溯的事件，再通过去重、评分、标签和 LLM 增强，输出每日榜单、事件详情和中文周报。它既可以作为每天使用的 AI 信息雷达，也可以作为一套完整的内容管线参考实现。
+
+AI Pulse is an open-source AI-industry signal tracker. It collects public sources, merges duplicate coverage into auditable events, scores the resulting signals, and publishes a ranked web experience plus weekly Chinese digests.
+
+## Try it now · 直接体验
+
+- **首页：**[查看今日重点信号](https://www.aipulse.asia/)
+- **排行榜：**[按时间、分类和关键词筛选事件](https://www.aipulse.asia/rankings)
+- **周报：**[阅读最新一期中文 AI 简报](https://www.aipulse.asia/weekly/latest)
+- **订阅：**[通过邮件接收周报](https://www.aipulse.asia/subscribe)
+
+## Why AI Pulse
+
+| 常见问题 | AI Pulse 的处理方式 |
+| --- | --- |
+| 同一事件被几十篇文章重复报道 | 规范化来源并把相关报道合并为一个事件 |
+| 热点很多，但真正重要的信号很少 | 从新鲜度、热度和用户价值等维度进行排序 |
+| AI 摘要容易丢失出处 | 保留事件来源、时间和原始链接，支持回溯核验 |
+| 每天刷信息成本太高 | 提供每日榜单、事件详情和每周中文简报 |
+| 模型供应商容易锁定 | 使用 OpenAI-compatible 接口，可切换不同模型服务 |
+
+## Product tour · 产品预览
+
+| 每日排行榜 | 事件详情 |
+| --- | --- |
+| [![AI Pulse rankings](docs/assets/usage/rankings.png)](https://www.aipulse.asia/rankings) | ![AI Pulse event detail](docs/assets/usage/event-detail.png) |
+
+| 最新周报 | 历史归档 |
+| --- | --- |
+| [![AI Pulse weekly report](docs/assets/usage/weekly-latest.png)](https://www.aipulse.asia/weekly/latest) | [![AI Pulse archive](docs/assets/usage/archive.png)](https://www.aipulse.asia/archive) |
 
 ## What It Does
 
@@ -47,6 +97,8 @@ Key paths:
 - Python 3.10+
 - MySQL 8+ for production
 - Optional for local smoke testing: SQLite via `DATABASE_URL=sqlite:///./dev.db`
+
+<a id="quick-start"></a>
 
 ## Quick Start
 
@@ -221,7 +273,7 @@ sudo nginx -t && sudo systemctl reload nginx
 - Replace `ADMIN_JWT_SECRET` with a strong random value in production.
 - Keep `MAIL_DRY_RUN=true` until email credentials and DNS/domain verification are ready.
 - Review `docs/README.md` and `docs/command.md` before publishing any personal operations notes.
-- Add a `LICENSE` file before announcing the repository as open source.
+- Report suspected vulnerabilities according to [SECURITY.md](SECURITY.md); do not disclose secrets in public issues.
 
 ## Tests And Quality
 
@@ -234,3 +286,11 @@ cd backend && PYTHONPATH=. .venv/bin/python -m pytest
 ```
 
 The repository has focused regression tests for ranking windows, score logic, URL dedupe, weekly payload shaping, and configuration loading.
+
+## Contributing
+
+Bug reports, source-quality improvements, scoring discussions, documentation fixes, and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+## License
+
+Released under the [MIT License](LICENSE).
