@@ -83,6 +83,12 @@ class LlmJsonClient:
             }
             if mt > 0:
                 payload["max_tokens"] = mt
+            if "api.deepseek.com" in self.settings.effective_llm_api_base.lower():
+                # DeepSeek V4 defaults to thinking mode. Structured extraction is
+                # faster and more reliable without hidden reasoning, and its JSON
+                # mode prevents the malformed/truncated objects seen in cron logs.
+                payload["thinking"] = {"type": "disabled"}
+                payload["response_format"] = {"type": "json_object"}
 
             headers = {
                 "Authorization": f"Bearer {self.settings.effective_llm_api_key}",

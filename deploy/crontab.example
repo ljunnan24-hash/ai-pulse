@@ -14,7 +14,7 @@ TZ=Asia/Shanghai
 # flock 锁文件可用 /tmp（兼容性好）或 /var/lock（部分发行版需权限）；-n 表示拿不到锁则跳过本次，防并发写库。
 #
 # 02:10 — 每日爬虫 + raw_items + global_events / 排行榜
-10 2 * * * cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_daily_rankings.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.daily_rankings >> /var/log/aipulse-daily.log 2>&1
+10 2 * * * cd /opt/ai-pulse/backend && timeout --signal=TERM --kill-after=30s 25m flock -n /tmp/aipulse_daily_rankings.lock env PYTHONUNBUFFERED=1 /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.daily_rankings >> /var/log/aipulse-daily.log 2>&1
 
 # 02:40 — Ranking Insight 文案 enrich（依赖 .env RANKING_INSIGHT_ENABLED；可按需注释）
 40 2 * * * cd /opt/ai-pulse/backend && flock -n /tmp/aipulse_enrich_rankings.lock /opt/ai-pulse/backend/.venv/bin/python -m app.jobs.enrich_rankings --limit 80 >> /var/log/aipulse-enrich.log 2>&1

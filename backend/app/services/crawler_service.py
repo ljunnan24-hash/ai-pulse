@@ -275,6 +275,7 @@ def fetch_feed_items_with_report(
     body: bytes | None = None
     httpx_ok = False
     httpx_err: str | None = None
+    httpx_error_class: str | None = None
 
     attempts = 0
     with httpx.Client(timeout=30.0, follow_redirects=True) as client:
@@ -288,13 +289,15 @@ def fetch_feed_items_with_report(
                 body = r.content
                 httpx_ok = True
                 httpx_err = None
+                httpx_error_class = None
                 break
             except Exception as exc:
                 response = exc.response if isinstance(exc, httpx.HTTPStatusError) else None
                 if response is not None:
                     http_status = response.status_code
                     content_type = response.headers.get("content-type")
-                httpx_err = f"{type(exc).__name__} after {attempts} attempt(s): {exc}"
+                httpx_error_class = type(exc).__name__
+                httpx_err = f"{httpx_error_class} after {attempts} attempt(s): {exc}"
                 if attempt >= _FEED_MAX_ATTEMPTS or not _should_retry_feed_fetch(exc):
                     break
                 delay = _feed_retry_delay(attempt, response)
@@ -308,8 +311,6 @@ def fetch_feed_items_with_report(
                 time.sleep(delay)
 
     parsed: Any = None
-    used_url_fallback = False
-
     if httpx_ok and body is not None:
         if should_mark_invalid_feed(http_status, content_type, body):
             return _finish(
@@ -338,21 +339,21 @@ def fetch_feed_items_with_report(
                 error_message=str(exc)[:2000],
             )
     else:
-        try:
-            parsed = feedparser.parse(feed_url)
-            used_url_fallback = True
-        except Exception as exc:
-            return _finish(
-                http_status=http_status,
-                content_type=content_type,
-                fetch_ok=False,
-                parse_ok=False,
-                raw_entry_count=0,
-                emitted_item_count=0,
-                health_status="fetch_failed",
-                error_class=type(exc).__name__,
-                error_message=(httpx_err or str(exc))[:2000],
-            )
+        # Never pass a URL to feedparser here. Its internal network fetch has no
+        # timeout we control and can leave the daily job holding its flock forever.
+        # httpx already performed the bounded retries, so record the failure and
+        # continue with the remaining feeds.
+        return _finish(
+            http_status=http_status,
+            content_type=content_type,
+            fetch_ok=False,
+            parse_ok=False,
+            raw_entry_count=0,
+            emitted_item_count=0,
+            health_status="fetch_failed",
+            error_class=httpx_error_class or "FeedFetchError",
+            error_message=(httpx_err or "feed fetch failed")[:2000],
+        )
 
     entries = list(getattr(parsed, "entries", []) or [])
     raw_entry_count = len(entries)
@@ -425,7 +426,7 @@ def fetch_feed_items_with_report(
         emitted_item_count=emitted,
         health_status=health,
         error_class=None,
-        error_message=(f"feedparser.parse(url) fallback after {httpx_err}"[:2000] if used_url_fallback and httpx_err else None),
+        error_message=None,
     )
 
 

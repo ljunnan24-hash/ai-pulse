@@ -78,6 +78,11 @@ def translate_canonical_title_en_to_zh(title_en: str, *, timeout_s: float = 45.0
         "temperature": 0.2,
         "max_tokens": 256,
     }
+    if "api.deepseek.com" in settings.effective_llm_api_base.lower():
+        # DeepSeek V4 enables high-effort thinking by default. For a short title
+        # translation that can consume the entire output budget and leave the
+        # final `content` empty, so force the deterministic non-thinking path.
+        payload["thinking"] = {"type": "disabled"}
     headers = {
         "Authorization": f"Bearer {settings.effective_llm_api_key}",
         "Content-Type": "application/json",

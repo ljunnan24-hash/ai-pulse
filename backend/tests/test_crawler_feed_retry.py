@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import httpx
 
 from app.services import crawler_service
@@ -82,7 +80,10 @@ def test_feed_fetch_does_not_retry_forbidden_challenge(monkeypatch) -> None:
         )
     ]
     _patch_client(monkeypatch, responses, calls)
-    monkeypatch.setattr(crawler_service.feedparser, "parse", lambda _url: SimpleNamespace(entries=[]))
+    def fail_if_feedparser_fetches_url(_url):
+        raise AssertionError("feedparser must not perform an unbounded URL fetch")
+
+    monkeypatch.setattr(crawler_service.feedparser, "parse", fail_if_feedparser_fetches_url)
 
     items, report = crawler_service.fetch_feed_items_with_report("https://blogs.microsoft.com/ai/feed/")
 
@@ -90,4 +91,5 @@ def test_feed_fetch_does_not_retry_forbidden_challenge(monkeypatch) -> None:
     assert len(calls) == 1
     assert report.health_status == "fetch_failed"
     assert report.http_status == 403
+    assert report.error_class == "HTTPStatusError"
     assert "HTTPStatusError after 1 attempt" in (report.error_message or "")
