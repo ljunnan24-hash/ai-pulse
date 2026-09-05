@@ -182,9 +182,12 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
     sources_out = build_deduped_sources_for_api(db, ge)
 
     breakdown: dict[str, float] = {}
+    metrics: dict[str, Any] = {}
     try:
-        m = json.loads(ge.metrics_json or "{}")
-        sb = m.get("score_breakdown") if isinstance(m, dict) else None
+        parsed_metrics = json.loads(ge.metrics_json or "{}")
+        if isinstance(parsed_metrics, dict):
+            metrics = parsed_metrics
+        sb = metrics.get("score_breakdown")
         if isinstance(sb, dict):
             breakdown = {
                 "freshness": float(sb.get("freshness") or 0),
@@ -195,6 +198,8 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
             }
     except Exception:
         breakdown = {}
+    ri = metrics.get("ranking_insight")
+    insight_ready = isinstance(ri, dict) and ri.get("applied") is True
 
     capability_tags: dict[str, float] = {k: 0.0 for k in CAPABILITY_KEYS}
     try:
@@ -251,6 +256,7 @@ def get_event_detail(event_id: int, db: Session = Depends(get_db)) -> dict[str, 
         "why_important": ge.why_important or "",
         "what_it_means_for_you": ge.what_it_means_for_you or "",
         "action_suggestion": ge.action_suggestion or "",
+        "insight_ready": insight_ready,
         "capability_tags": capability_tags,
         "sources": sources_out,
         "score_breakdown": breakdown,

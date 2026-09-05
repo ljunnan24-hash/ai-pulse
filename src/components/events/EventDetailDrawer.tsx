@@ -188,7 +188,7 @@ export function EventDetailDrawer({ eventId, onClose }: { eventId: number; onClo
               <section className="bg-white px-5 py-6 md:px-6 md:py-7">
                 <div className="flex flex-wrap items-center gap-2">
                   <ScoreBadge score={eventDetailPulseScore(data)} variant="subtle" />
-                  <ActionBadge suggestion={data.action_suggestion} />
+                  {data.insight_ready ? <ActionBadge suggestion={data.action_suggestion} /> : null}
                   <span className="text-xs font-medium text-slate-500">
                     {data.published_at ? new Date(data.published_at).toLocaleDateString('zh-CN') : '日期未知'}
                   </span>
@@ -229,11 +229,19 @@ export function EventDetailDrawer({ eventId, onClose }: { eventId: number; onClo
                 ) : null}
               </section>
 
-              <div className="mt-3 overflow-hidden border-y border-[#E5ECF5] bg-white">
-                <ProseBlock title="发生了什么" eyebrow="信息说明" text={happened} />
-                <ProseBlock title="为什么值得关注" eyebrow="价值提示" text={data.why_important ?? ''} />
-                <ProseBlock title="对你意味着什么" eyebrow="辅助理解" text={data.what_it_means_for_you ?? ''} />
-              </div>
+              {data.insight_ready ? (
+                <div className="mt-3 overflow-hidden border-y border-[#E5ECF5] bg-white">
+                  <ProseBlock title="发生了什么" eyebrow="信息说明" text={happened} />
+                  <ProseBlock title="为什么值得关注" eyebrow="价值提示" text={data.why_important ?? ''} />
+                  <ProseBlock title="对你意味着什么" eyebrow="辅助理解" text={data.what_it_means_for_you ?? ''} />
+                </div>
+              ) : (
+                <section className="mt-3 border-y border-[#E5ECF5] bg-white px-5 py-5 md:px-6">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">信息说明</p>
+                  <h3 className="mt-1 font-headline text-lg font-bold text-slate-900">AI 解读生成中</h3>
+                  <p className="mt-3 text-[15px] leading-[1.75] text-slate-700">结构化解读尚未完成，请先查看标题与原始来源。</p>
+                </section>
+              )}
 
               <section className="mt-3 bg-white px-5 py-5 md:px-6">
                 <h3 className="font-headline text-lg font-bold text-slate-900">来源</h3>

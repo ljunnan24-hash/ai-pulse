@@ -114,5 +114,59 @@ def test_detail_response_shape_matches_rankings_pulse(monkeypatch):
         exp = stable_pulse_score_for_global_event(ge)
         assert abs(float(pulse) - exp) < 0.02
         assert "effective_ranking_score" in body
+        assert body["insight_ready"] is False
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+def test_detail_marks_applied_ranking_insight_ready(monkeypatch):
+    """只有已成功写入的 Ranking Insight 才允许前端展示为正式解读。"""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    ge = SimpleNamespace(
+        id=100,
+        status="active",
+        canonical_title="已解读事件",
+        title_zh="已解读事件",
+        category="model",
+        published_at=datetime.now(timezone.utc),
+        ranking_score=70.0,
+        trust_score=70.0,
+        heat_score=70,
+        source_count=1,
+        user_value_score=70.0,
+        what_happened="发生了什么",
+        why_important="为什么重要",
+        what_it_means_for_you="对你的影响",
+        action_suggestion="先观望",
+        sources_json="[]",
+        metrics_json=json.dumps({"ranking_insight": {"applied": True}}),
+        capability_tags_json="{}",
+    )
+
+    class _FakeScalars:
+        def all(self):
+            return []
+
+    class _FakeSession:
+        def get(self, _model, eid):
+            return ge if eid == 100 else None
+
+        def scalars(self, _stmt):
+            return _FakeScalars()
+
+    def _fake_db():
+        yield _FakeSession()
+
+    import app.routers.rankings_public as rp
+    from app.database import get_db
+    from app.main import app
+
+    monkeypatch.setattr(rp, "build_deduped_sources_for_api", lambda _db, _g: [])
+    app.dependency_overrides[get_db] = _fake_db
+    try:
+        body = TestClient(app).get("/api/events/100").json()
+        assert body["insight_ready"] is True
     finally:
         app.dependency_overrides.pop(get_db, None)

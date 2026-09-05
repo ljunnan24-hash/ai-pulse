@@ -9,6 +9,7 @@ import { ScoreBadge } from '../components/common/ScoreBadge';
 import { ActionBadge } from '../components/common/ActionBadge';
 import { EmptyState } from '../components/common/EmptyState';
 import { splitTitleForDisplay } from '../lib/titleDisplay';
+import { allCapabilityTagsZero, CAPABILITY_DIMENSIONS } from '../lib/capabilityTags';
 
 function safeHostname(raw: string): string {
   const u = raw.trim();
@@ -122,7 +123,8 @@ export default function EventDetailPage() {
   const seoTitle = `${compactText(headlinePrimary, 72)} | AI Pulse 事件解读`;
   const seoDescription = compactText(happenedRaw || why || means || headlinePrimary, 155);
 
-  const showUnifiedCard = Boolean(happenedBody || why || means);
+  const showUnifiedCard = data.insight_ready && Boolean(happenedBody || why || means);
+  const showCapabilityTags = data.insight_ready && !allCapabilityTagsZero(data.capability_tags);
 
   return (
     <div className="page-container section-y pb-16 md:pb-20">
@@ -208,7 +210,7 @@ export default function EventDetailPage() {
                   Pulse Score{' '}
                   <ScoreBadge score={eventDetailPulseScore(data)} variant="subtle" />
                 </span>
-                <ActionBadge suggestion={data.action_suggestion} />
+                {data.insight_ready ? <ActionBadge suggestion={data.action_suggestion} /> : null}
               </div>
             </article>
 
@@ -268,8 +270,8 @@ export default function EventDetailPage() {
             ) : (
               <section className="card-surface p-5 md:p-6">
                 <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">信息说明</p>
-                <h2 className="heading-section mt-1 text-slate-900">事件摘要</h2>
-                <p className="mt-4 text-[15px] leading-relaxed text-slate-700">暂无结构化正文，请以标题与下方来源为准。</p>
+                <h2 className="heading-section mt-1 text-slate-900">AI 解读生成中</h2>
+                <p className="mt-4 text-[15px] leading-relaxed text-slate-700">结构化解读尚未完成，请先查看标题与下方原始来源。</p>
               </section>
             )}
 
@@ -346,27 +348,29 @@ export default function EventDetailPage() {
               </div>
             </div>
 
-            <div className="card-surface p-5">
-              <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">能力标签</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {Object.entries(data.capability_tags ?? {}).map(([key, value]) => {
-                  const v = typeof value === 'number' ? value : Number(value);
-                  const strong = Number.isFinite(v) && v >= 0.55;
-                  return (
-                    <span
-                      key={key}
-                      className={
-                        strong
-                          ? 'rounded-full border border-[color:var(--border-default)] bg-slate-900 px-2.5 py-1 text-[0.7rem] font-medium text-white'
-                          : 'rounded-full border border-[color:var(--border-default)] bg-slate-50 px-2.5 py-1 text-[0.7rem] font-medium text-slate-700'
-                      }
-                    >
-                      {key}: {Number.isFinite(v) ? v.toFixed(2) : '—'}
-                    </span>
-                  );
-                })}
+            {showCapabilityTags ? (
+              <div className="card-surface p-5">
+                <div className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">能力标签</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {CAPABILITY_DIMENSIONS.map(({ key, label }) => {
+                    const v = Number(data.capability_tags?.[key]);
+                    const strong = Number.isFinite(v) && v >= 0.55;
+                    return (
+                      <span
+                        key={key}
+                        className={
+                          strong
+                            ? 'rounded-full border border-[color:var(--border-default)] bg-slate-900 px-2.5 py-1 text-[0.7rem] font-medium text-white'
+                            : 'rounded-full border border-[color:var(--border-default)] bg-slate-50 px-2.5 py-1 text-[0.7rem] font-medium text-slate-700'
+                        }
+                      >
+                        {label}：{Number.isFinite(v) ? v.toFixed(2) : '—'}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {data.related_events && data.related_events.length > 0 ? (
               <div className="card-surface p-5">

@@ -77,6 +77,8 @@ export type EventDetailResponse = {
   why_important: string;
   what_it_means_for_you: string;
   action_suggestion: string;
+  /** true 表示 Ranking Insight 已由模型生成并成功入库 */
+  insight_ready: boolean;
   capability_tags: Record<string, number>;
   sources: Array<{
     source_name: string;

@@ -4,9 +4,11 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import html
+import json
 import logging
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
@@ -66,8 +68,10 @@ def compute_stable_key(link: str, title: str) -> str:
 
 
 def _cap_plain(s: str, n: int) -> str:
-    """截断至字段上限，不追加「…」，避免详情页出现误导性省略号。"""
-    t = (s or "").strip()
+    """将 RSS 摘要转为纯文本并截断，不把 HTML 实体或标签带到公开接口。"""
+    t = html.unescape(s or "")
+    t = re.sub(r"<[^>]+>", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
     return t[:n]
 
 
@@ -297,8 +301,9 @@ def merge_raw_into_global(db: Session, ge: GlobalEvent, raw: RawItem) -> None:
             ge.canonical_title = (raw.title or "")[:512]
         if not (ge.canonical_url or "").strip() and (raw.link or "").strip():
             ge.canonical_url = raw_link
-        if len((raw.summary or "").strip()) > len(ge.summary or ""):
-            ge.summary = (raw.summary or "")[:8000]
+        clean_summary = _cap_plain(raw.summary or "", 8000)
+        if len(clean_summary) > len(ge.summary or ""):
+            ge.summary = clean_summary
         db.flush()
         try:
             ensure_global_event_title_zh(ge)
@@ -364,8 +369,9 @@ def merge_raw_into_global(db: Session, ge: GlobalEvent, raw: RawItem) -> None:
         ge.canonical_title = (raw.title or "")[:512]
     if not (ge.canonical_url or "").strip() and (raw.link or "").strip():
         ge.canonical_url = (raw.link or "")[:2048]
-    if len((raw.summary or "").strip()) > len(ge.summary or ""):
-        ge.summary = (raw.summary or "")[:8000]
+    clean_summary = _cap_plain(raw.summary or "", 8000)
+    if len(clean_summary) > len(ge.summary or ""):
+        ge.summary = clean_summary
     db.flush()
     try:
         ensure_global_event_title_zh(ge)
@@ -403,12 +409,12 @@ def find_or_create_global_for_raw(db: Session, raw: RawItem) -> GlobalEvent:
 
     sec = classify_item_section(str(raw.title or ""), str(raw.summary or ""))
     cat = map_global_category(sec, str(raw.source_type or ""))
-    summary = (raw.summary or "").strip() or (raw.title or "").strip()
+    summary = _cap_plain(raw.summary or "", 8000) or _cap_plain(raw.title or "", 8000)
     ge = GlobalEvent(
         stable_key=sk,
         canonical_title=(raw.title or "")[:512],
         canonical_url=(raw.link or "")[:2048],
-        summary=summary[:8000],
+        summary=summary,
         category=cat,
         source_type=str(raw.source_type or "rss")[:32],
         published_at=raw.published_at,
@@ -418,9 +424,11 @@ def find_or_create_global_for_raw(db: Session, raw: RawItem) -> GlobalEvent:
         sources_json="[]",
         metrics_json="{}",
         capability_tags_json="{}",
-        what_happened=_cap_plain(summary, 512),
-        why_important=_cap_plain(summary, 1024),
-        what_it_means_for_you="若与你的场景相关，建议安排短时间跟进官方动态或试用入口。",
+        # Insight 由 ranking_insight_service 生成。入库阶段不把 RSS 摘要
+        # 同时冒充「事实」「行业意义」和「行动建议」。
+        what_happened="",
+        why_important="",
+        what_it_means_for_you="",
         status="active",
     )
     db.add(ge)
